@@ -1,0 +1,23 @@
+# Default values for kubeplayground.
+
+global:
+  environment: development
+
+apiGateway:
+  replicaCount: 1
+  image:
+    repository: kubeplayground/api-gateway
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 8000
+
+exerciseService:
+  replicaCount: 1
+  image:
+    repository: kubeplayground/exercise-service
+    tag: latest
+  service:
+    port: 8001
+
+# ... Add other services as needed

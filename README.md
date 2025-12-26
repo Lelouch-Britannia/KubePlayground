@@ -31,7 +31,7 @@ An interactive, locally-deployable web platform similar to HackerRank/LeetCode f
 
 ## Architecture Overview
 
-<img src="./images/arch.png" alt="Minikube Architecture" width="800"/>
+<img src="./docs/images/arch.png" alt="Minikube Architecture" width="800"/>
 
 ---
 

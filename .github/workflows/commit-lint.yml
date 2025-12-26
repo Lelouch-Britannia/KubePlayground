@@ -1,0 +1,15 @@
+name: "Commit Linter"
+on: [pull_request, push]
+
+jobs:
+  lint-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Validate Commit Format
+        uses: wagoid/commitlint-github-action@v5
+        with:
+          configFile: "./commitlint.config.js"
