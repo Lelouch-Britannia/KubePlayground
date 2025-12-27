@@ -1,5 +1,3 @@
-Here is the completely updated Development Plan for **KubePlayground**. It reflects the architectural pivot to a **Modular Monolith (Core)** and a **Separate Validation Worker** to ensure low latency and reduced complexity.
-
 # KubePlayground - Development Plan (v2.0)
 
 ## Project Vision
@@ -20,15 +18,11 @@ An interactive, locally-deployable web platform similar to HackerRank/LeetCode f
 
 ---
 
-## Project Name: **KubePlayground** ✅
-
-**Chosen**: KubePlayground - Interactive Kubernetes learning playground where you experiment, break things, and learn by doing!
-
----
-
 ## Architecture Overview
 
 We utilize a **Modular Monolith** pattern for the core application logic to maintain simplicity and development speed, paired with an **Asynchronous Worker** pattern for Kubernetes operations to ensure UI responsiveness and security.
+
+<img src=./docs/images/arch.jpg alt="KubePlayground Modular Monolith Architecture" width="800" />
 
 ---
 
