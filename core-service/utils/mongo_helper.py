@@ -1,6 +1,6 @@
 import os
-from drivers.nosql.mongo_connector import MongoConnector
-from drivers.nosql.nosql_config import NoSQLConnectionEntry
+from daolib.drivers.nosql.mongo_connector import MongoConnector
+from daolib.drivers.nosql.config import NoSQLConnectionEntry
 from utils.constants import Constants
 from utils.file_operator import YamlFileOperator, FileReadEntry
 

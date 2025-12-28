@@ -1,4 +1,4 @@
-# KubePlayground - Development Plan (v2.0)
+# KubePlayground - Development Plan (v2.1)
 
 ## Project Vision
 
@@ -13,107 +13,95 @@ An interactive, locally-deployable web platform similar to HackerRank/LeetCode f
 * Get instant feedback via automated verification steps
 
 **Current Focus (v1.0)**: Exercise display, solution editing/saving, decoupled deployment/validation workflow.
-
 **Future (v2.0)**: User authentication, progress tracking, leaderboards, and social features.
 
 ---
 
 ## Architecture Overview
 
-We utilize a **Modular Monolith** pattern for the core application logic to maintain simplicity and development speed, paired with an **Asynchronous Worker** pattern for Kubernetes operations to ensure UI responsiveness and security.
+We utilize a **Modular Monolith** pattern for the core application logic, paired with an **Asynchronous Worker** for Kubernetes operations. Crucially, all database connectivity and access patterns are standardized via a shared SDK (`dbdaolib`), separating infrastructure concerns from business logic.
 
-<img src=./docs/images/arch.jpg alt="KubePlayground Modular Monolith Architecture" width="800" />
+<img src="./docs/images/arch.jpg" alt="KubePlayground Modular Architecture with SDK" width="800" />
 
 ---
 
 ## Service Breakdown
+
+### 0. SDK Layer (`dbdaolib`)
+
+**Role**: The Foundation (Library)
+
+* **Responsibilities**:
+* **Unified Connectivity**: Manages connection pooling for SQL (SQLAlchemy) and NoSQL (Motor/Beanie).
+* **Singleton Management**: Ensures single instances of database drivers across the application.
+* **Data Access Abstraction**: Provides generic Repositories for CRUD operations, decoupling services from raw database queries.
+
+
+* **Tech**: Python, Motor, Beanie, SQLAlchemy.
 
 ### 1. Core Service (Port 8000)
 
 **Role**: The "Brain" (Monolith)
 
 * **Responsibilities**:
-* **API Gateway**: Serves as the single entry point for the Frontend.
-* **Exercise Domain**: Manages static content, markdown instructions, and templates.
-* **Solution Domain**: Handles auto-saving user code and version history.
-* **Orchestration**: Dispatches deployment and validation jobs to the Redis Queue.
-* **WebSocket Manager**: Streams real-time logs from Redis Pub/Sub to the user.
+* **API Gateway**: Single entry point for Frontend.
+* **Exercise Domain**: Manages static content & templates via `dbdaolib` Repositories.
+* **Solution Domain**: Handles user code versioning & auto-save via `dbdaolib`.
+* **Orchestration**: Dispatches jobs to Redis.
+* **WebSocket Manager**: Streams real-time logs.
 
 
-* **Tech**: FastAPI (Python), Motor (MongoDB Async Driver).
-* **Database**: MongoDB (Stores Exercises, Solutions, Submissions).
+* **Tech**: FastAPI, `dbdaolib` (NoSQL Driver).
+* **Database**: MongoDB (via SDK).
 
 ### 2. Validation Service (Background Worker)
 
 **Role**: The "Muscle" (Worker)
 
 * **Responsibilities**:
-* **Job Consumer**: Listens to the `validation_queue` in Redis.
-* **K8s Interaction**: Uses the official Kubernetes Client to apply manifests and query resources.
-* **Namespace Isolation**: Creates unique namespaces per session (`session-<id>`).
-* **Log Producer**: Pushes real-time events ("Container Creating", "Error") to Redis Pub/Sub.
+* **Job Consumer**: Listens to Redis `validation_queue`.
+* **K8s Interaction**: Applies manifests using official K8s Client.
+* **Namespace Isolation**: Manages ephemeral test environments.
 
 
-* **Tech**: Python (Kubernetes Library). *Future upgrade path: Go.*
-* **Database**: None (Stateless).
+* **Tech**: Python (K8s Library).
+* **Database**: Stateless (Uses K8s API).
 
 ### 3. Infrastructure
 
-* **MongoDB**: Centralized storage for all application data.
-* **Redis**: Acts as the message broker (Task Queue) and the real-time event bus (Pub/Sub).
-
----
-
-## The Low-Latency Strategy: "Deploy vs. Verify"
-
-To solve the inherent slowness of Kubernetes pod spin-up, we split the user workflow into two distinct actions.
-
-### Action A: "Run" (Deployment)
-
-* **Goal**: Spin up infrastructure.
-* **Process**: Frontend sends YAML → Core Service pushes "Deploy Job" → Worker applies YAML to cluster → Worker streams "Pod Status" events.
-* **UX**: User sees a terminal with "Pulling Image...", "Container Creating...".
-
-### Action B: "Submit" (Verification)
-
-* **Goal**: Check correctness (Instant Feedback).
-* **Process**: Frontend requests validation → Core Service pushes "Verify Job" → Worker inspects **already running** resources.
-* **UX**: Since the pods are already running from Action A, the checks (e.g., `is_ready?`, `logs_contain?`) complete in milliseconds.
+* **MongoDB**: Centralized storage (Exercises, Solutions).
+* **Redis**: Message Broker (Jobs) & Event Bus (Logs).
 
 ---
 
 ## Directory Structure
 
-The project structure is flattened to reduce boilerplate and context switching.
-
 ```text
 kubeplayground/
+├── SDKs/
+│   └── dbdaolib-1.0.0/          # SHARED LIBRARY
+│       ├── daolib/
+│       │   ├── drivers/         # Connectivity (SQL, NoSQL, SQLite)
+│       │   ├── dao/             # Generic Repositories
+│       │   └── ...
+│       └── setup.py
+│
 ├── core-service/                # THE MONOLITH
-│   ├── main.py                  # App entry point & Route mounting
-│   ├── models.py                # Unified MongoDB models (Exercise, Solution)
-│   ├── schema.py                # Pydantic Schemas (Request/Response)
-│   ├── requirements.txt
-│   ├── routes/                  # Logic split by domain
-│   │   ├── exercises.py
-│   │   ├── solutions.py
-│   │   └── deployments.py       # Handles /deploy and /verify
+│   ├── main.py                  # App entry point
+│   ├── models.py                # Beanie Documents (Exercise, Solution)
+│   ├── schema.py                # Pydantic Schemas
+│   ├── dao/                     # Service-specific Repositories (Inherits SDK)
+│   ├── routes/
 │   └── utils/
-│       └── database.py          # DB connection logic
+│       └── mongo_helper.py      # Implements SDK Helper for Config
 │
 ├── validation-service/          # THE WORKER
-│   ├── main.py                  # Worker entry point
-│   ├── requirements.txt
-│   ├── executor.py              # Logic to run K8s checks
-│   └── utils/
-│       └── k8s_client.py        # Wrapper for official K8s client
-│
-├── frontend/                    # React App (Phase 3 Complete)
 │   └── ...
 │
-├── helm/                        # K8s Deployment Charts (Future)
+├── frontend/                    # REACT UI
 │   └── ...
 │
-├── docker-compose.yml           # Orchestration
+├── docker-compose.yml
 └── README.md
 
 ```
@@ -122,111 +110,48 @@ kubeplayground/
 
 ## Development Phases (Revised)
 
-### Phase 1: Core Service Implementation (Week 1-2)
+### Phase 0: SDK Implementation (✅ Completed)
 
-**Goal**: Build the Unified API for Exercises and Solutions.
+**Goal**: Build the shared Data Access Library.
 
+* **Status**: **Done**.
+* Implemented `AbstractDBDriver` and `Connector` patterns.
+* Implemented `MongoConnector` (Async/Motor) and `RdbmsConnector` (Sync/SQLAlchemy).
+* Implemented `BaseMongoRepository` for generic CRUD.
+* Packaged as installable Wheel.
+
+
+
+### Phase 1: Core Service Implementation (Current)
+
+**Goal**: Build the Unified API using the SDK.
 **Tasks**:
 
-1. **Scaffold Core Service**: Setup FastAPI with the simplified directory structure.
-2. **Database Integration**: Implement `utils/database.py` with Beanie/Motor for MongoDB.
-3. **Unified Models**: Create `models.py` defining `Exercise` and `Solution` documents.
-4. **Exercise Routes**: Implement endpoints to list/filter exercises and retrieve markdown.
-5. **Solution Routes**: Implement endpoints for auto-save (debounce logic) and history.
-6. **Git Sync**: Implement the logic to parse the `Deployment101` repo and populate MongoDB.
+1. **Scaffold Core**: Setup FastAPI and install `dbdaolib`.
+2. **Helper Implementation**: Create `MongoHelper` to inject YAML configs into the SDK.
+3. **Unified Models**: Define `Exercise` and `Solution` documents in `models.py`.
+4. **Repositories**: Implement `ExerciseRepository` inheriting from `BaseMongoRepository`.
+5. **API Routes**: Build endpoints for listing exercises and saving solutions.
 
-**Deliverable**: Core API running on Port 8000, serving content and saving data to Mongo.
+### Phase 2: Validation Worker (Upcoming)
 
----
-
-### Phase 2: Validation Worker & K8s Integration (Week 3)
-
-**Goal**: Build the background worker to handle the "Deploy" and "Verify" split.
-
+**Goal**: Build the background K8s processor.
 **Tasks**:
 
-1. **Redis Setup**: Configure Redis container in Docker Compose.
-2. **Job Producer**: Update Core Service to push JSON jobs to Redis lists.
-3. **Worker Scaffold**: Create the python worker loop in `validation-service/main.py`.
-4. **Kubernetes Client**: Implement `k8s_client.py` using the official python library (avoiding subprocess/shell).
-5. **Deploy Logic**: Implement the logic to accept YAML, create a Namespace, and Apply resources.
-6. **Verify Logic**: Implement the logic to query existing resources against a checklist.
-7. **Pub/Sub Streaming**: Implement the mechanism to push logs from Worker -> Redis -> Core Service -> WebSocket.
-
-**Deliverable**: A functional "Run" button that spins up pods in Minikube and streams logs to the console.
+1. Redis Producer/Consumer logic.
+2. Kubernetes Client implementation.
+3. Log streaming pipeline (Worker -> Redis -> WebSocket).
 
 ---
 
-### Phase 3: Frontend Development (Week 4-5) ✅ COMPLETED
-
-**Goal**: Build LeetCode-style React UI.
-
-**Status**: **Done**. The UI is built, including:
-
-* Resizable Split-Panel Layout.
-* Monaco YAML Editor.
-* Console Drawer for logs.
-* Markdown Description Renderer.
-
----
-
-### Phase 4: API Integration (Week 6)
-
-**Goal**: Connect the "Brainless" Frontend to the new Core Service.
-
-**Tasks**:
-
-1. **API Client**: Update `frontend/src/services/apiClient.ts` to point to the Core Service URL.
-2. **Data Fetching**: Hook up `useExercises` to load real data from MongoDB.
-3. **Auto-Save**: Connect the Editor to the `/solutions` endpoint.
-4. **Run Integration**: Connect the "Run" button to `/deploy` and listen to the WebSocket for "Container Creating" logs.
-5. **Submit Integration**: Connect the "Submit" button to `/verify` for instant feedback.
-
-**Deliverable**: Fully functional application where users can load exercises, write code, run it against Minikube, and validate results.
-
----
-
-### Phase 5: CLI Tool (Week 8) - Optional
-
-**Goal**: Build a CLI alternative for terminal-first users.
-
-**Tasks**:
-
-1. **CLI Framework**: Use `typer` to create commands (`list`, `start`, `submit`).
-2. **API Consumption**: CLI acts as a client to the running Core Service.
-3. **Editor Integration**: Open system editor ($EDITOR) for YAML files.
-
----
-
-### Phase 6: Helm & Deployment (Week 9)
-
-**Goal**: Package the platform for easy distribution.
-
-**Tasks**:
-
-1. **Optimization**: Create production Dockerfiles (multi-stage builds).
-2. **Helm Chart**: Create a simplified Chart deploying only:
-* Deployment: Core Service
-* Deployment: Validation Worker
-* StatefulSet: MongoDB
-* Deployment: Redis
-* Service: Frontend
-
-
-3. **Install Script**: A simple bash script to check for Minikube and install the Chart.
-
----
-
-## Resource Requirements (Optimized)
-
-By consolidating services, we drastically reduce overhead.
+## Resource Requirements
 
 | Service | CPU Limit | Memory Limit | Notes |
 | --- | --- | --- | --- |
-| **Core Service** | 0.5 cores | 512MB | Unified API |
+| **Core Service** | 0.5 cores | 512MB | Uses shared SDK |
 | **Validation Worker** | 0.5 cores | 512MB | Background tasks |
 | **MongoDB** | 1.0 cores | 1GB | Primary Data |
 | **Redis** | 0.2 cores | 256MB | Message Broker |
 | **Frontend** | 0.2 cores | 128MB | Nginx Static |
 
-**Total Estimate**: ~2-3 Cores, 3GB RAM (excluding Minikube itself).
+**Total Estimate**: ~2-3 Cores, 3GB RAM.
