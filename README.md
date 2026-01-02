@@ -21,7 +21,7 @@ An interactive, locally-deployable web platform similar to HackerRank/LeetCode f
 
 We utilize a **Modular Monolith** pattern for the core application logic, paired with an **Asynchronous Worker** for Kubernetes operations. Crucially, all database connectivity and access patterns are standardized via a shared SDK (`dbdaolib`), separating infrastructure concerns from business logic.
 
-<img src="./docs/images/arch.jpg" alt="KubePlayground Modular Architecture with SDK" width="800" />
+<img src="./docs/images/arch.png" alt="KubePlayground Modular Architecture with SDK" width="800" />
 
 ---
 
