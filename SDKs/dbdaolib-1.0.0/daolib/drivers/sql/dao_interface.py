@@ -4,12 +4,13 @@ from sqlalchemy.engine import CursorResult
 
 
 class BaseDAOInterface(ABC):
-    _instance = None
-
-    def __new__(cls, *args: Any, **kwargs: Any) -> Any:
-        if not cls._instance:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+    """
+    Abstract interface for DAO implementations.
+    
+    Note:
+        DAOs should be normal instances, not singletons.
+        Connection pooling is handled by Engine at driver layer.
+    """
 
     @abstractmethod
     def read(self, connection: Any, query: str, params: List[Any]) -> List[Any]:

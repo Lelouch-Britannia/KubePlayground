@@ -4,8 +4,9 @@ Encapsulates credentials, connection parameters, and URI generation.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 from urllib.parse import quote_plus
+from abc import ABC, abstractmethod
+from motor.motor_asyncio import AsyncIOMotorClient
 
 @dataclass
 class NoSQLConnectionEntry:
@@ -71,3 +72,13 @@ class NoSQLConnectionEntry:
             f"ssl={self.use_ssl}, "
             f"pool={self.min_pool_size}-{self.max_pool_size})"
         )
+        
+class AbstractDBDriver(ABC):
+
+    @abstractmethod
+    def connect(self) -> AsyncIOMotorClient:
+        ...
+
+    @abstractmethod
+    def disconnect(self) -> None:
+        ...

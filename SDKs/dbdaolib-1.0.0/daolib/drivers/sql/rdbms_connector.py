@@ -1,4 +1,4 @@
-import os
+import logging
 import sqlalchemy
 from abc import abstractmethod
 from sqlalchemy.engine import Engine, Connection
@@ -7,6 +7,10 @@ from typing import Optional, Tuple
 from daolib.drivers.sql.config import DbConnectionEntry
 from daolib.drivers.sql.sql_db_driver import SQLDriver
 from daolib.drivers.sql.connector import Connector
+from daolib.log_builder import LogBuilder
+from daolib.constants import LogEvent, InfraErrorCode
+
+logger = logging.getLogger(__name__)
 
 
 class RdbmsConnector(Connector):
@@ -19,37 +23,77 @@ class RdbmsConnector(Connector):
     # Class‐level caches: share these across all instances
     _write_engine: Optional[Engine] = None
     _read_engine: Optional[Engine] = None
-    _sql_driver: Optional[SQLDriver] = None
-    _primary_cfg: Optional[DbConnectionEntry] = None # Store config for properties
+    _primary_cfg: Optional[DbConnectionEntry] = None
 
     def __init__(self):
-        # Only build engines if they haven’t been built yet
-        if RdbmsConnector._sql_driver is None:
-            primary_cfg, secondary_cfg = self.read_and_load_configs()
-            RdbmsConnector._primary_cfg = primary_cfg # Store for properties
-            # Build the driver & engines
-            RdbmsConnector._sql_driver = SQLDriver(primary_cfg, secondary_cfg)
-            RdbmsConnector._write_engine, RdbmsConnector._read_engine = (
-                RdbmsConnector._sql_driver.connect())
-        # After the first instance, subsequent __init__ calls re‐use the same engines.
+        """Initialize connector by creating SQLDriver and engines on first instantiation."""
+        if RdbmsConnector._write_engine is None:
+            try:
+                primary_cfg, secondary_cfg = self.read_and_load_configs()
+                RdbmsConnector._primary_cfg = primary_cfg
+                
+                RdbmsConnector._write_engine, RdbmsConnector._read_engine = (
+                    SQLDriver(primary_cfg, secondary_cfg).connect())
+                
+                LogBuilder(logger) \
+                    .event(LogEvent.SQL_INIT) \
+                    .success() \
+                    .field("db.dialect", RdbmsConnector._write_engine.dialect.name) \
+                    .field("db.host", primary_cfg.safe_host_label()) \
+                    .field("db.name", primary_cfg.database) \
+                    .msg("Connector initialized with SQLDriver") \
+                    .emit()
+            except Exception as exc:
+                LogBuilder(logger) \
+                    .event(LogEvent.SQL_INIT) \
+                    .failure(InfraErrorCode.CONF_INVALID, exc) \
+                    .msg("Failed to initialize connector") \
+                    .emit()
+                raise
 
     def get_read_connection(self) -> Connection:
-        if RdbmsConnector._read_engine is None:
+        """Get a read connection from the read engine or fallback to write engine.
+        
+        Returns:
+            Connection: SQLAlchemy connection object (caller must close)
+        
+        Note:
+            Falls back to write engine when no secondary config is provided.
+        """
+        if RdbmsConnector._write_engine is None:
             raise RuntimeError("Connector not initialized!")
-        return RdbmsConnector._read_engine.connect()
+        
+        engine = RdbmsConnector._read_engine if RdbmsConnector._read_engine else RdbmsConnector._write_engine
+        return engine.connect()
 
     def get_write_connection(self) -> Connection:
+        """Get a write connection from the write engine.
+        
+        Returns:
+            Connection: SQLAlchemy connection object (caller must close)
+        """
         if RdbmsConnector._write_engine is None:
             raise RuntimeError("Connector not initialized!")
         return RdbmsConnector._write_engine.connect()
 
     def dispose(self) -> None:
-        if RdbmsConnector._sql_driver:
-            RdbmsConnector._sql_driver.disconnect()
-            RdbmsConnector._sql_driver = None
-            RdbmsConnector._write_engine = None
-            RdbmsConnector._read_engine = None
-            RdbmsConnector._primary_cfg = None
+        """Dispose all engines and reset class-level state."""
+        if RdbmsConnector._write_engine:
+            try:
+                RdbmsConnector._write_engine.dispose()
+                if RdbmsConnector._read_engine:
+                    RdbmsConnector._read_engine.dispose()
+            except Exception:
+                pass
+            finally:
+                RdbmsConnector._write_engine = None
+                RdbmsConnector._read_engine = None
+                RdbmsConnector._primary_cfg = None
+                LogBuilder(logger) \
+                    .event(LogEvent.SQL_CLOSE) \
+                    .success() \
+                    .msg("Connector disposed") \
+                    .emit()
 
     # This method must be implemented by subclasses
     @abstractmethod
@@ -58,43 +102,56 @@ class RdbmsConnector(Connector):
 
     @property
     def dialect(self) -> str:
-        return "mssql"
+        """Return the SQL dialect name from the active engine."""
+        if RdbmsConnector._write_engine:
+            return RdbmsConnector._write_engine.dialect.name
+        return ""
 
     @property
     def database_url(self) -> str:
-        if RdbmsConnector._sql_driver:
-            return getattr(RdbmsConnector._sql_driver, "database_url", "")
+        """Return the database connection URL."""
         if RdbmsConnector._write_engine:
-            url = str(RdbmsConnector._write_engine.url)
-            return url
+            return str(RdbmsConnector._write_engine.url)
         return ""
 
     @property
     def supports_transactions(self) -> bool:
+        """Check if the database dialect supports transactions."""
+        if RdbmsConnector._write_engine:
+            dialect_name = RdbmsConnector._write_engine.dialect.name
+            return dialect_name not in ("sqlite",)
         return True
 
     def is_connected(self) -> bool:
+        """Check if the database connection is alive."""
         if RdbmsConnector._write_engine:
             try:
-                conn = RdbmsConnector._write_engine.connect()
-                conn.close()
+                with RdbmsConnector._write_engine.connect() as conn:
+                    conn.execute(sqlalchemy.text("SELECT 1"))
                 return True
             except Exception:
                 return False
         return False
 
     def reset(self) -> None:
+        """Reset connector state (disposes engines for reinitialization)."""
         self.dispose()
 
     def version(self) -> str:
-        if RdbmsConnector._sql_driver:
-            return getattr(RdbmsConnector._sql_driver, "version", "")
+        """Return database version string (dialect-specific)."""
         if RdbmsConnector._write_engine:
             try:
-                # Assuming sqlalchemy is imported
+                dialect_name = RdbmsConnector._write_engine.dialect.name
+                version_query = {
+                    "mssql": "SELECT @@VERSION",
+                    "mysql": "SELECT VERSION()",
+                    "postgresql": "SELECT version()",
+                    "sqlite": "SELECT sqlite_version()",
+                }.get(dialect_name, "SELECT 1")
+                
                 with RdbmsConnector._write_engine.connect() as conn:
-                    v = conn.execute(sqlalchemy.text("SELECT @@VERSION"))
-                    return str(v.scalar())
+                    result = conn.execute(sqlalchemy.text(version_query))
+                    return str(result.scalar())
             except Exception:
                 return ""
         return ""

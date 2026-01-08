@@ -1,6 +1,50 @@
 from enum import Enum, IntEnum, unique
 
 @unique
+class DatabaseType(str, Enum):
+    """
+    Supported database types for connection configuration.
+    Used to determine URI scheme and connection string format.
+    """
+    # SQL Databases
+    POSTGRESQL = "postgresql"
+    MYSQL = "mysql"
+    SQLITE = "sqlite"
+    SQL_SERVER = "mssql"
+    
+    # NoSQL Databases
+    MONGODB = "mongodb"
+
+
+@unique
+class DatabaseSchema(str, Enum):
+    """
+    URI schemas for building connection strings.
+    Maps DatabaseType to corresponding SQLAlchemy/PyMongo URI schema prefix.
+    
+    These are schema-only (no credentials or host parts included).
+    Connection string builder will append auth_path, host_part, and database accordingly.
+    """
+    # PostgreSQL: supports ssl_mode parameter
+    POSTGRESQL = "postgresql+psycopg2://"
+    
+    # MySQL: supports charset and ssl parameters
+    MYSQL = "mysql+pymysql://"
+    
+    # SQLite: local file-based, no auth
+    SQLITE = "sqlite:///"
+    
+    # SQL Server: uses ODBC driver
+    MSSQL_ODBC = "mssql+pyodbc://"
+    
+    # MongoDB: standard scheme
+    MONGODB = "mongodb://"
+    
+    # MongoDB: SRV variant (MongoDB Atlas)
+    MONGODB_SRV = "mongodb+srv://"
+
+
+@unique
 class LogEvent(str, Enum):
     """
     Mandatory Event Taxonomy as per Section 7 of Logging Design Doc.
@@ -18,6 +62,7 @@ class LogEvent(str, Enum):
 
     # --- SQL Events (Section 7.3) ---
     SQL_INIT = "sql.init"
+    SQL_PING = "sql.ping"
     SQL_POOL_READY = "sql.pool.ready"
     SQL_QUERY = "sql.query"
     SQL_CLOSE = "sql.close"
@@ -33,10 +78,11 @@ class LogOutcome(str, Enum):
     UNKNOWN = "unknown"
 
 @unique
-class DAOErrorCode(IntEnum):
+class InfraErrorCode(IntEnum):
     """
-    Stable Numeric Error Codes as per Section 5.
-    These values populate the 'error.code' field.
+    Infrastructure-level error codes for Driver/Connector layer.
+    Used by SQLDriver, MongoDriver, and connectors for infrastructure failures.
+    These values populate the 'error.code' field in driver-level logs.
     
     Ranges:
     1000-1999: Configuration & Validation (Pre-flight)
@@ -53,7 +99,6 @@ class DAOErrorCode(IntEnum):
     CONF_POOL_INVALID = 1004     # Min pool > Max pool, etc.
 
     # --- 2000-2999: Network/Connection Errors ---
-    # Matches example "20101" from doc (using 20xx for broader categories)
     NET_UNREACHABLE = 2001       # Host down / ping failed
     NET_TIMEOUT = 2002           # ServerSelectionTimeoutError
     NET_DNS_FAILURE = 2003       # SRV lookup failed
@@ -71,3 +116,42 @@ class DAOErrorCode(IntEnum):
 
     # --- 9000+: Critical/Unknown ---
     UNKNOWN_FATAL = 9999
+
+
+@unique
+class DaoErrorCode(IntEnum):
+    """
+    DAO-level error codes for query execution failures.
+    Used by BaseSqlDao when wrapping SQLAlchemy exceptions.
+    Aligned with SQLAlchemy exception hierarchy.
+    
+    Ranges:
+    50000-50099: Integrity/Constraint violations
+    50100-50199: Operational/Connection issues
+    50200-50299: Data/Type errors
+    50300-50399: Programming/SQL syntax errors
+    50900-50999: General/Unknown errors
+    """
+    
+    # --- 50000-50099: Integrity Errors ---
+    INTEGRITY_ERROR = 50090      # Foreign key, unique constraint violations
+    INTEGRITY_SELECT = 50095     # Integrity error during SELECT (rare)
+    
+    # --- 50100-50199: Operational Errors ---
+    OPERATIONAL_ERROR = 50091    # Connection lost, deadlock, lock timeout
+    OPERATIONAL_SELECT = 50096   # Operational error during SELECT
+    
+    # --- 50200-50299: Data Errors ---
+    DATA_ERROR = 50092           # Type mismatch, value out of range
+    DATA_SELECT = 50097          # Data error during SELECT
+    
+    # --- 50300-50399: Programming Errors ---
+    PROGRAMMING_ERROR = 50093    # SQL syntax error, table/column not found
+    PROGRAMMING_SELECT = 50098   # Programming error during SELECT
+    
+    # --- 50400-50499: SQLAlchemy Errors ---
+    SQLALCHEMY_ERROR = 50094     # Generic SQLAlchemy error
+    
+    # --- 50900-50999: General Errors ---
+    UNKNOWN_ERROR = 50099        # Catch-all for unexpected exceptions
+

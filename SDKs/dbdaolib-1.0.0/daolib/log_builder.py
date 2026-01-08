@@ -5,7 +5,7 @@ Enforces the Logging Standard schema without requiring developers to memorize fi
 
 from typing import Optional, Dict, Any
 import logging
-from daolib.constants import LogEvent, LogOutcome, DAOErrorCode
+from daolib.constants import LogEvent, LogOutcome, InfraErrorCode
 
 
 class LogBuilder:
@@ -17,7 +17,7 @@ class LogBuilder:
         LogBuilder(logger).event(LogEvent.MONGO_INIT).success().msg("Connected").duration_ms(42.5).emit()
         
         # Failure event
-        LogBuilder(logger).event(LogEvent.MONGO_INIT).failure(DAOErrorCode.NET_TIMEOUT, exc).msg("Failed").emit()
+        LogBuilder(logger).event(LogEvent.MONGO_INIT).failure(InfraErrorCode.NET_TIMEOUT, exc).msg("Failed").emit()
         
         # With database context
         LogBuilder(logger).event(LogEvent.MONGO_QUERY).success().db_context("mongodb", "mydb", "host").msg("Query OK").emit()
@@ -41,7 +41,7 @@ class LogBuilder:
         self._level = logging.INFO
         return self
 
-    def failure(self, code: DAOErrorCode, exc: Exception) -> "LogBuilder":
+    def failure(self, code: InfraErrorCode, exc: Exception) -> "LogBuilder":
         """
         Set event.outcome = failure and populate error schema (Section 5).
         Automatically sets level to ERROR and enables stack trace.

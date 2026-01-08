@@ -6,13 +6,14 @@ Responsible for instantiating the AsyncIOMotorClient and monitoring queries.
 import hashlib
 import logging
 import time
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ConfigurationError
 from pymongo import monitoring
 
 from daolib.drivers.nosql.config import NoSQLConnectionEntry
+from daolib.drivers.nosql.config import AbstractDBDriver
 from daolib.log_builder import LogBuilder
 from daolib.constants import LogEvent, LogOutcome, DAOErrorCode
 
@@ -81,7 +82,7 @@ class QueryLogger(monitoring.CommandListener):
             .emit()
 
 
-class MongoDriver:
+class MongoDriver(AbstractDBDriver):
     """
     The Mechanic: Knows how to speak 'Motor' and create clients.
     Does not manage global state (Connector does that).
