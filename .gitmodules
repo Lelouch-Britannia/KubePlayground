@@ -1,0 +1,3 @@
+[submodule "sample-resources"]
+	path = sample-resources
+	url = https://github.com/Lelouch-Britannia/sample-resources.git
