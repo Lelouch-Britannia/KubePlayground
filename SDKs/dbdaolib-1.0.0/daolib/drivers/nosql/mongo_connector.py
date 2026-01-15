@@ -28,7 +28,7 @@ from daolib.log_builder import LogBuilder
 from daolib.constants import (
     LogEvent,
     LogOutcome,
-    DAOErrorCode,
+    InfraErrorCode,
 )
 from daolib.exceptions import (
     DaoException,
@@ -189,7 +189,7 @@ class MongoConnector(AbstractNoSQLConnector):
                         self._handle_critical_failure(
                             client, 
                             e, 
-                            code=DAOErrorCode.ODM_INIT_FAIL, 
+                            code=InfraErrorCode.ODM_INIT_FAIL, 
                             msg="Beanie ODM initialization failed",
                             exc_type=MongoODMException
                         )
@@ -198,19 +198,19 @@ class MongoConnector(AbstractNoSQLConnector):
             # ERROR HANDLING MAPPING (Connectivity Phase)
             # ---------------------------------------------------------
             except ConfigurationError as e:
-                self._handle_critical_failure(client, e, DAOErrorCode.CONF_INVALID, "Configuration Error", MongoConnectionException)
+                self._handle_critical_failure(client, e, InfraErrorCode.CONF_INVALID, "Configuration Error", MongoConnectionException)
             except ServerSelectionTimeoutError as e:
-                self._handle_critical_failure(client, e, DAOErrorCode.NET_TIMEOUT, "Connection Timeout", MongoConnectionException)
+                self._handle_critical_failure(client, e, InfraErrorCode.NET_TIMEOUT, "Connection Timeout", MongoConnectionException)
             except OperationFailure as e:
-                self._handle_critical_failure(client, e, DAOErrorCode.AUTH_FAILURE, "Authentication/Operation Failed", MongoConnectionException)
+                self._handle_critical_failure(client, e, InfraErrorCode.AUTH_FAILURE, "Authentication/Operation Failed", MongoConnectionException)
             except ConnectionFailure as e:
-                self._handle_critical_failure(client, e, DAOErrorCode.NET_UNREACHABLE, "Network Unreachable", MongoConnectionException)
+                self._handle_critical_failure(client, e, InfraErrorCode.NET_UNREACHABLE, "Network Unreachable", MongoConnectionException)
             except Exception as e:
                 if isinstance(e, DaoException):
                     raise # Re-raise if it's already our custom type
-                self._handle_critical_failure(client, e, DAOErrorCode.UNKNOWN_FATAL, "Unexpected Initialization Error", MongoConnectionException)
+                self._handle_critical_failure(client, e, InfraErrorCode.UNKNOWN_FATAL, "Unexpected Initialization Error", MongoConnectionException)
 
-    def _handle_critical_failure(self, client: Any, exc: Exception, code: DAOErrorCode, msg: str, exc_type: type):
+    def _handle_critical_failure(self, client: Any, exc: Exception, code: InfraErrorCode, msg: str, exc_type: type):
         """
         Helper to centralize cleanup, logging, and raising strict exceptions.
         """
@@ -271,13 +271,13 @@ class MongoConnector(AbstractNoSQLConnector):
         # 1. Validate preconditions
         if not self._client:
             raise MongoConnectionException(
-                DAOErrorCode.NET_UNREACHABLE,
+                InfraErrorCode.NET_UNREACHABLE,
                 "Cannot register models before connector initialization. Call await init() first."
             )
         
         if not BEANIE_INSTALLED:
             raise MongoODMException(
-                DAOErrorCode.ODM_INIT_FAIL,
+                InfraErrorCode.ODM_INIT_FAIL,
                 "Beanie not installed. Cannot register models."
             )
         
@@ -286,7 +286,7 @@ class MongoConnector(AbstractNoSQLConnector):
             env = getattr(self, '_env', None) or os.getenv('ENVIRONMENT', 'development')
             if env.lower() not in ['development', 'dev', 'test', 'testing']:
                 raise MongoODMException(
-                    DAOErrorCode.CONF_INVALID,
+                    InfraErrorCode.CONF_INVALID,
                     f"Dynamic model registration is disabled in '{env}' environment. "
                     f"Register all models at startup or set env_restriction=False."
                 )
@@ -331,13 +331,13 @@ class MongoConnector(AbstractNoSQLConnector):
                 self._document_models.remove(model)
             
             LogBuilder(logger).event(LogEvent.MONGO_ODM_INIT) \
-                .failure(DAOErrorCode.ODM_INIT_FAIL, e) \
+                .failure(InfraErrorCode.ODM_INIT_FAIL, e) \
                 .msg("Failed to register additional models") \
                 .field("attempted_models", [m.__name__ for m in new_models]) \
                 .emit()
             
             raise MongoODMException(
-                err_code=DAOErrorCode.ODM_INIT_FAIL,
+                err_code=InfraErrorCode.ODM_INIT_FAIL,
                 msg=f"Failed to register models: {[m.__name__ for m in new_models]}",
                 original_exception=e
             ) from e
@@ -345,7 +345,7 @@ class MongoConnector(AbstractNoSQLConnector):
     def get_client(self) -> AsyncIOMotorClient:
         if not self._client:
             raise MongoConnectionException(
-                DAOErrorCode.NET_UNREACHABLE, 
+                InfraErrorCode.NET_UNREACHABLE, 
                 "Client not initialized. Call await connector.init() first."
             )
         return self._client
@@ -353,7 +353,7 @@ class MongoConnector(AbstractNoSQLConnector):
     @property
     def database_name(self) -> str:
         if not self._config or not self._config.database:
-            raise MongoConnectionException(DAOErrorCode.CONF_INVALID, "Database name missing from config.")
+            raise MongoConnectionException(InfraErrorCode.CONF_INVALID, "Database name missing from config.")
         return self._config.database
 
     def get_database(self) -> AsyncIOMotorDatabase:
@@ -372,7 +372,7 @@ class MongoConnector(AbstractNoSQLConnector):
                     .emit()
             except Exception as e:
                 LogBuilder(logger).event(LogEvent.MONGO_CLOSE) \
-                    .failure(DAOErrorCode.UNKNOWN_FATAL, e) \
+                    .failure(InfraErrorCode.UNKNOWN_FATAL, e) \
                     .msg("Error closing MongoDB") \
                     .emit()
         

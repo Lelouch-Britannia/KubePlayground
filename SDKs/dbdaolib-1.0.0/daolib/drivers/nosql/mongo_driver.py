@@ -15,7 +15,7 @@ from pymongo import monitoring
 from daolib.drivers.nosql.config import NoSQLConnectionEntry
 from daolib.drivers.nosql.config import AbstractDBDriver
 from daolib.log_builder import LogBuilder
-from daolib.constants import LogEvent, LogOutcome, DAOErrorCode
+from daolib.constants import LogEvent, InfraErrorCode
 
 # SDKs MUST use __name__ (Section 2.2)
 logger = logging.getLogger(__name__)
@@ -69,7 +69,7 @@ class QueryLogger(monitoring.CommandListener):
         exc = Exception(event.failure)
         
         LogBuilder(logger).event(LogEvent.MONGO_QUERY) \
-            .failure(DAOErrorCode.QUERY_SYNTAX, exc) \
+            .failure(InfraErrorCode.QUERY_SYNTAX, exc) \
             .msg(f"Query failed: {event.command_name}") \
             .duration_ms(duration_ms) \
             .db_context(
@@ -159,7 +159,7 @@ class MongoDriver(AbstractDBDriver):
         except ConfigurationError as e:
             # Log Failure (Section 5 Error Schema)
             LogBuilder(logger).event(LogEvent.MONGO_INIT) \
-                .failure(DAOErrorCode.CONF_INVALID, e) \
+                .failure(InfraErrorCode.CONF_INVALID, e) \
                 .msg("Invalid MongoDB Configuration") \
                 .db_context(
                     system="mongodb",
@@ -179,7 +179,7 @@ class MongoDriver(AbstractDBDriver):
         except Exception as e:
             # Catch-all for unexpected driver instantiation errors
             LogBuilder(logger).event(LogEvent.MONGO_INIT) \
-                .failure(DAOErrorCode.UNKNOWN_FATAL, e) \
+                .failure(InfraErrorCode.UNKNOWN_FATAL, e) \
                 .msg("Unexpected error creating Mongo Client") \
                 .db_context(
                     system="mongodb",

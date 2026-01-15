@@ -1,0 +1,8 @@
+nosql_creds:
+  mongo_inst:
+    username: "root"
+    host: "localhost"
+    port: 27017
+    db_name: "production"
+    min_pool_size: 20
+    max_pool_size: 100
