@@ -83,11 +83,20 @@ class ECSJsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         """Format log record as ECS-compliant JSON."""
         
+        # Get message and try to parse if it's JSON (PyMongo/Motor often log JSON strings)
+        message = record.getMessage()
+        parsed_message: Any = message
+        if isinstance(message, str) and message.startswith('{') and message.endswith('}'):
+            try:
+                parsed_message = json.loads(message)
+            except (json.JSONDecodeError, ValueError):
+                pass  # Keep as string if not valid JSON
+        
         # --- Section 4.1: Required Fields (All Logs) ---
         log_entry: Dict[str, Any] = {
             '@timestamp': self._format_timestamp(record.created),
             'severity': record.levelname,
-            'message': record.getMessage(),
+            'message': parsed_message,  # Can be dict or string
             'log.logger': record.name,
             
             # Service Identity (Section 4.1)
@@ -217,6 +226,10 @@ def setup_logging(level: Optional[str] = None) -> None:
         level = 'DEBUG' if env == 'development' else 'INFO'
     
     log_level = getattr(logging, level.upper(), logging.INFO)
+    
+    # Suppress PyMongo/Motor debug logs (they log JSON strings causing double encoding)
+    logging.getLogger('pymongo').setLevel(logging.WARNING)
+    logging.getLogger('motor').setLevel(logging.WARNING)
     
     # --- Configure Root Logger ---
     root_logger = logging.getLogger()

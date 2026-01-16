@@ -38,7 +38,7 @@ class MongoHelper(MongoConnector):
             else:
                 # Default logic: Use project_root/config/{env}.yml
                 # Adjust 'current_dir' logic as needed for your project structure
-                current_dir = Path(__file__).resolve()
+                current_dir = Path(__file__).parent.resolve()
                 self._config_path = current_dir.joinpath("config", f"{self._env}.yaml").absolute()
             
             logger.info(f"MongoHelper configured using path: {self._config_path}")
