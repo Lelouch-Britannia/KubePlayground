@@ -3,44 +3,58 @@
 ## Component Architecture
 
 ```
-App.tsx (State Management & Layout)
-├── Header
-│   ├── Logo & Title
-│   ├── Topic Selector (Dropdown)
-│   ├── Exercise Selector (Dropdown)
-│   ├── Action Buttons (Run, Submit)
-│   └── Theme Toggle & Profile
+App.tsx (React Router)
+├── Dashboard (Route: /)
+│   ├── UserBanner
+│   │   ├── Avatar & User Info
+│   │   └── Streak Counter
+│   ├── Stats Cards
+│   │   ├── Total Units
+│   │   ├── Completed
+│   │   ├── In Progress
+│   │   └── Not Started
+│   └── Topics Grid
+│       └── TopicCard (clickable)
+│           ├── Topic Name
+│           ├── Progress Bar
+│           ├── Completion %
+│           └── Unit Counts
 │
-├── SplitPane
-│   ├── LeftPanel (40% width, resizable)
-│   │   └── DescriptionPanel
-│   │       ├── Description Tab
-│   │       │   ├── Exercise Title & Badges
-│   │       │   ├── MarkdownRenderer (Description)
-│   │       │   └── Requirements List
-│   │       ├── Steps Tab
-│   │       │   └── StepsPanel
-│   │       │       └── Phase Checklist
-│   │       └── Hints Tab
-│   │           └── Hints Placeholder
-│   │
-│   ├── Resizer (Draggable divider)
-│   │
-│   └── RightPanel (60% width, resizable)
-│       ├── CodeEditor (Type: "code")
-│       │   ├── Editor Tabs (Code / Solution)
-│       │   ├── CodeEditor
-│       │   │   ├── Monaco Editor
-│       │   │   └── Line Numbers & Syntax Highlighting
-│       │   └── Console
-│       │       ├── Header (collapsible)
-│       │       └── Output Display
-│       │
-│       └── QuizPanel (Type: "quiz")
-│           ├── Question Counter
-│           ├── Question Title
-│           ├── Options (Radio Buttons)
-│           └── Explanation (on submit)
+└── LearningUnit (Route: /unit/:slug)
+    ├── Header
+    │   ├── Home Button
+    │   ├── Breadcrumb (Topic / Title)
+    │   ├── Navigation (Prev/Next)
+    │   └── Loading Indicator
+    │
+    ├── SplitPane (Resizable)
+    │   ├── LeftPanel (40% width)
+    │   │   ├── Description Section
+    │   │   │   └── MarkdownRenderer
+    │   │   ├── Steps Section
+    │   │   └── Hints Section
+    │   │
+    │   ├── Resizer (Draggable divider)
+    │   │
+    │   └── RightPanel (60% width)
+    │       ├── CodeEditor (Type: "coding")
+    │       │   ├── Editor Header (Reset, Submit)
+    │       │   └── Textarea with Syntax Highlighting
+    │       │
+    │       └── QuizPanel (Type: "conceptual")
+    │           ├── Quiz Header (Submit)
+    │           ├── Questions
+    │           │   ├── Question Text
+    │           │   └── Radio Options
+    │           └── Submit Button
+    │
+    ├── Toast Notification (Conditional)
+    │   ├── Success/Error Icon (Animated)
+    │   ├── Message
+    │   ├── Score Display (for quizzes)
+    │   └── Progress Bar
+    │
+    └── Confetti (On quiz pass)
 ```
 
 ---
@@ -49,34 +63,92 @@ App.tsx (State Management & Layout)
 
 ### App.tsx
 
-**Purpose**: Main application component. Manages global state, handles routing, and orchestrates child components.
+**Purpose**: Root component with React Router setup.
 
 **Props**: None (root component)
 
+**Routes**:
+- `/` → Dashboard
+- `/unit/:slug` → LearningUnit
+
+**Features**:
+- BrowserRouter configuration
+- Route-based navigation
+- No global state (handled in page components)
+
+---
+
+### Dashboard Component
+
+**Location**: `pages/Dashboard.tsx`
+
+**Purpose**: Landing page with topic overview and progress tracking.
+
 **State**:
 ```typescript
-- currentExerciseIdx: number (0-based index)
-- leftWidth: number (percentage 25-75)
-- code: string (user's YAML code)
-- consoleOpen: boolean (console drawer state)
-- activeRightTab: 'code' | 'solution'
-- theme: 'dark' | 'light'
-- validating: boolean (validation in progress)
-- validationResults: ValidationResult[] | null
+- dashboardData: DashboardData | null
+- loading: boolean
+- error: string | null
 ```
 
 **Key Functions**:
-- `handleExerciseChange(e)` - Switch exercise
-- `handleTopicChange(e)` - Filter by topic
-- `handleDrag(e)` - Resize panels
-- `runValidation()` - Trigger validation
-- `setTheme(t)` - Toggle theme
+- `fetchDashboard()` - Fetch from `/api/dashboard`
+- `handleTopicClick(topic)` - Navigate to first unit in topic
 
-**Integration Points**:
-- Fetch exercises on mount
-- Auto-save code to backend
-- Fetch validation results
-- Store theme preference in localStorage
+**API Integration**:
+- Fetches dashboard data on mount
+- Shows loading state
+- Error handling with retry option
+
+**Layout**:
+- UserBanner with streak counter
+- 4 stats cards (Total, Completed, In Progress, Not Started)
+- Topic cards grid (clickable to navigate)
+
+---
+
+### LearningUnit Component
+
+**Location**: `pages/LearningUnit.tsx`
+
+**Purpose**: Main learning interface with split-screen layout.
+
+**State**:
+```typescript
+- unit: UnitDetail | null
+- allUnits: SyllabusItem[] (for navigation)
+- currentIndex: number
+- loading: boolean (initial load only)
+- isNavigating: boolean (subsequent navigation)
+- error: string | null
+- code: string (for coding exercises)
+- selectedAnswers: Record<string, string> (for quizzes)
+- leftWidth: number (resizable panel width)
+- toast: ToastState | null
+- showConfetti: boolean
+```
+
+**Key Functions**:
+- `fetchSyllabus()` - Get all units for navigation
+- `fetchUnit(slug)` - Get unit details
+- `navigateToUnit(direction)` - Prev/next navigation
+- `handleQuizSubmit()` - Submit quiz answers
+- `handleCodeSubmit()` - Submit code for validation
+- `handleDrag(e)` - Resize panels
+
+**Performance Optimizations**:
+- **No full-page loading** on navigation between units
+- **Subtle loading indicator** (purple bar in header)
+- **Opacity transitions** (200ms) during navigation
+- **Disabled navigation buttons** during load
+- **Optimistic UI** - keeps content visible
+
+**API Integration**:
+- Fetches syllabus once on mount
+- Fetches unit details on slug change
+- Submits quiz answers with grading
+- Auto-saves code (future)
+- Updates user progress
 
 ---
 
@@ -329,110 +401,218 @@ interface MarkdownRendererProps {
 
 **Features**:
 - Parse markdown syntax:
-  - `### Heading` → `<h3>`
-  - `` `code` `` → syntax-highlighted inline code
-  - `**bold**` → strong text
-  - ` ```bash ... ``` ` → code blocks with language label
-  - `- item` → list items
+  - `## Heading` → `<h2>` (pink)
+  - `### Heading` → `<h3>` (green)
+  - `` `code` `` → inline code (orange with background)
+  - `**bold**` → strong text (purple)
+  - ` ```yaml ... ``` ` → code blocks with language label
+  - `- item` → list items with purple markers
 
 **Helper Function**: `parseInline(text)` for inline styles
 
-**Styling**: Tailwind CSS with dark mode support
+**Styling**: Dracula theme with larger text sizes (18px base)
+
+---
+
+### Toast Component
+
+**Location**: `components/shared/Toast.tsx`
+
+**Props**:
+```typescript
+interface ToastProps {
+  type: 'success' | 'error';
+  message: string;
+  score?: number;
+  total?: number;
+  onClose: () => void;
+  duration?: number; // default 5000ms
+}
+```
+
+**Features**:
+- **Slide-in animation** from right
+- **Success state** (70%+ score):
+  - Trophy icon with bounce animation
+  - Green Dracula theme (`#50fa7b`)
+  - Animated progress bar
+- **Failure state** (<70% score):
+  - X icon with shake animation
+  - Red Dracula theme (`#ff5555`)
+  - Score breakdown
+- **Auto-dismiss** after 5 seconds
+- **Manual close** button
+- **Score display** with animated progress bar
+- **Pass/fail indicator**
+
+**Usage**:
+```tsx
+<Toast
+  type="success"
+  message="Excellent work! You passed the quiz!"
+  score={8}
+  total={10}
+  onClose={() => setToast(null)}
+/>
+```
+
+---
+
+### Confetti Component
+
+**Location**: `components/shared/Confetti.tsx`
+
+**Props**:
+```typescript
+interface ConfettiProps {
+  duration?: number; // default 3000ms
+}
+```
+
+**Features**:
+- **50 animated particles** falling from top
+- **Dracula colors**: green, purple, pink, yellow, cyan, orange
+- **Random sizes and shapes** (circles and squares)
+- **Physics-based animation** (gravity + drift)
+- **Auto-cleanup** after duration
+
+**Usage**:
+```tsx
+{showConfetti && <Confetti />}
+```
+
+**Triggered**: When user passes a quiz (70%+ score)
 
 ---
 
 ## Data Flow
 
-### Exercise Loading Flow
+### Dashboard Loading Flow
 
 ```
-App Mount
+Dashboard Mount
   ↓
-useEffect(() => fetchExercises())
+useEffect(() => fetchDashboard())
   ↓
-apiClient.get('/exercises')
+apiClient.getDashboard()
   ↓
-setExercises(data.exercises)
+GET /api/dashboard
   ↓
-Render DescriptionPanel with currentExercise
+setDashboardData(response)
+  ↓
+Render topic cards with progress
 ```
 
-### Code Editing & Saving Flow
+### Unit Navigation Flow
+
+```
+User clicks topic card
+  ↓
+navigate(`/unit/${firstUnitSlug}`)
+  ↓
+LearningUnit component mounts
+  ↓
+fetchSyllabus() (once)
+  ↓
+fetchUnit(slug)
+  ↓
+GET /api/units/{slug}
+  ↓
+Render split-screen interface
+```
+
+### Quiz Submission Flow
+
+```
+User selects quiz answers
+  ↓
+setSelectedAnswers({ questionId: optionId })
+  ↓
+User clicks "Submit Quiz"
+  ↓
+handleQuizSubmit()
+  ↓
+POST /api/grading/quiz/submit
+  ↓
+Receive { score_percentage, passed }
+  ↓
+Show animated toast notification
+  ↓
+If passed: trigger confetti + update progress
+  ↓
+POST /api/progress/update
+```
+
+### Code Submission Flow
 
 ```
 User types in CodeEditor
   ↓
-onChange(newCode)
-  ↓
 setCode(newCode)
   ↓
-debounce(2000ms)
+User clicks "Submit"
   ↓
-apiClient.post('/solutions/{exerciseId}/auto-save', { code })
+handleCodeSubmit()
   ↓
-Update UI: show "Saved" indicator
+POST /api/solutions/autosave (save first)
+  ↓
+POST /api/grading/code/verify (validate)
+  ↓
+Show animated toast with result
+  ↓
+POST /api/progress/update (mark in progress)
 ```
 
-### Validation Flow
+### Optimized Navigation Flow
 
 ```
-User clicks "Run Code" button
+User clicks Next/Prev
   ↓
-runValidation()
+navigateToUnit(direction)
   ↓
-setValidating(true)
+navigate(`/unit/${newSlug}`)
   ↓
-apiClient.post('/validate', { exerciseId, yamlContent: code })
+fetchUnit(newSlug)
   ↓
-setValidationResults(response.results)
+setIsNavigating(true) (not setLoading)
   ↓
-Render Console with results
+Show purple progress bar + 50% opacity
   ↓
-User sees green (passed) or red (failed) indicators
-```
-
-### Quiz Flow
-
-```
-User selects answer
+API returns (13ms backend response)
   ↓
-toggleOption(questionId, optionId)
+setIsNavigating(false)
   ↓
-setAnswers({ ...answers, [questionId]: optionId })
+Smooth opacity transition (200ms)
   ↓
-User clicks "Submit Answers"
-  ↓
-setShowResults(true)
-  ↓
-Render correct answers & explanations
+Content updated - no page reload!
 ```
 
 ---
 
 ## Styling & Theming
 
-### Dark Mode
+### Dracula Theme
 
-All components support dark mode via Tailwind CSS:
-```tsx
-<div className="bg-white dark:bg-[#1e1e1e]">
-  <p className="text-gray-900 dark:text-white">Content</p>
-</div>
-```
+All components use the Dracula color scheme for consistent dark theme:
 
-### Color Scheme
+**Primary Colors**:
+- Background: `#282a36` (Dracula background)
+- Foreground: `#f8f8f2` (Dracula foreground)
+- Current Line: `#44475a`
+- Comment: `#6272a4`
+- Purple: `#bd93f9` (links, highlights)
+- Pink: `#ff79c6` (headings)
+- Green: `#50fa7b` (success)
+- Yellow: `#f1fa8c` (warning)
+- Cyan: `#8be9fd` (info)
+- Orange: `#ffb86c` (code)
+- Red: `#ff5555` (error)
 
-**Light Mode**:
-- Background: `#ffffff` (white)
-- Text: `#1f2937` (gray-900)
-- Borders: `#e5e7eb` (gray-200)
-- Accent: `#3b82f6` (blue-500)
-
-**Dark Mode**:
-- Background: `#1e1e1e` (VS Code dark)
-- Text: `#d1d5db` (gray-300)
-- Borders: `#374151` (gray-700)
-- Accent: `#3b82f6` (blue-500)
+**Typography**:
+- Base text: `text-lg` (18px) with `leading-relaxed`
+- Headers: h2 = `text-3xl`, h3 = `text-2xl`
+- Code blocks: `text-base` (16px) with `line-height: 1.6`
+- Inline code: Orange (`#ffb86c`) with highlighted background
 
 ### Custom Scrollbar
 
