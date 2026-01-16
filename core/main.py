@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from utils.logger import setup_logging
-from core.routers import exercise
+from routers import seed, dashboard, content, solutions, grading, progress
 from database import init_db
 
 @asynccontextmanager
@@ -24,4 +24,9 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all headers
 )
 
-app.include_router(exercise.router)
+app.include_router(seed.router)
+app.include_router(dashboard.router)
+app.include_router(content.router)
+app.include_router(solutions.router)
+app.include_router(grading.router)
+app.include_router(progress.router)

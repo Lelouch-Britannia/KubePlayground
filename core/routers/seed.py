@@ -1,75 +1,201 @@
 from fastapi import APIRouter, HTTPException
 from pathlib import Path
-import yaml
-from typing import List, Dict, Any
-from models import LearningUnit, UnitSolution
-from beanie import PydanticObjectId
+import logging
+from starlette import status
+from typing import List, Dict, Any, Optional
+from models import LearningUnit, UnitSolution, Quiz, QuizOption, EditorConfig
+from utils.file_operator import YamlFileOperator, FileReadEntry
+
 
 router = APIRouter(prefix="/seed", tags=["seed"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/populate")
-async def populate_database():
-    """Seed database from k8s-resources directory structure."""
+async def populate_database(topic_dir: str, skip_existing: bool = True) -> Dict[str, Any]:
+    """
+    Seed database from YAML files in specified directory.
     
-    # ===== STEP 1: Setup Paths =====
-    # - Get project root (core/../k8s-resources)
-    # - Validate directory exists
+    Args:
+        topic_dir: Absolute path to directory containing YAML files
+        skip_existing: If True, skip units with existing slugs
     
-    # ===== STEP 2: Clear Existing Data =====
-    # - Delete all LearningUnit documents
-    # - Delete all UnitSolution documents
-    # - Print confirmation
+    Returns:
+        Summary statistics (created, skipped, errors, files_processed)
+    """
+    stats: Dict[str, Any] = {"created": 0, "skipped": 0, "errors": [], "files_processed": []}
     
-    # ===== STEP 3: Discover Topic Directories =====
-    # - List all subdirs in k8s-resources/ (pods101, Deployment101, etc.)
-    # - Filter out non-directories
+    # Validate directory exists
+    directory = Path(topic_dir)
+    if not directory.exists() or not directory.is_dir():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Directory {topic_dir} does not exist.")
     
-    # ===== STEP 4: Process Each Topic =====
-    # for topic_dir in topic_directories:
+    # Get all YAML files sorted by filename
+    yaml_files = sorted(directory.rglob("*.yaml"))
     
-        # ----- 4A: Load Conceptual Quizzes (if metadata.yaml exists) -----
-        # - Check if topic_dir/metadata.yaml exists
-        # - Parse YAML to get quiz questions
-        # - Create LearningUnit with type="conceptual"
-        # - Create UnitSolution with quiz_answers
+    # Load existing slugs for duplicate detection (O(1) lookup)
+    existing_slugs: set = set(await LearningUnit.get_motor_collection().distinct("slug"))
+    
+    # Process each YAML file
+    for yaml_file in yaml_files:
+        try:
+            # Parse YAML file
+            data = YamlFileOperator.read(FileReadEntry(read_path=yaml_file))
+        except Exception as e:
+            stats['errors'].append(f"Failed to read {yaml_file.name}: {str(e)}")
+            continue
         
-        # ----- 4B: Load Coding Exercises (from practice/) -----
-        # - Check if topic_dir/practice/ exists
-        # - List all exercise*.yaml files
+        # Extract metadata
+        metadata = data.get('metadata', {})
+        slug = metadata.get('slug')
+        unit_type = metadata.get('type')
         
-        # for exercise_file in sorted(practice_files):
+        # Skip if unit already exists
+        if skip_existing and slug in existing_slugs:
+            stats['skipped'] += 1
+            continue
         
-            # --- 4B.1: Parse Exercise Metadata ---
-            # - Load exercise YAML
-            # - Extract: slug, title, description, steps
+        # Validate data integrity based on unit type
+        solution_data = data.get('_solution', {})
+        
+        if unit_type == 'conceptual':
+            quizzes_data = data.get('quizzes', [])
+            quiz_answers = solution_data.get('quiz_answers', {})
+            validation_errors = _validate_quiz_integrity(quizzes_data, quiz_answers)
+            if validation_errors:
+                stats['errors'].append(f"{yaml_file.name}: {'; '.join(validation_errors)}")
+                continue
+        elif unit_type == 'coding':
+            if not data.get('editor_config') or not metadata.get('steps'):
+                stats['errors'].append(f"{yaml_file.name}: Missing editor_config or steps")
+                continue
+            # if not solution_data.get('code_solution') or not solution_data.get('validation_script'):
+            #     stats['errors'].append(f"{yaml_file.name}: Missing code_solution or validation_script")
+            #     continue
+        
+        # Build LearningUnit (public data only)
+        try:
+            learning_unit = LearningUnit(
+                slug=metadata['slug'],
+                title=metadata['title'],
+                topic=metadata['topic'],
+                order_index=metadata['order_index'],
+                type=unit_type,
+                difficulty=metadata.get('difficulty'),
+                description=metadata['description'],
+                steps=metadata.get('steps'),
+                hints=metadata.get('hints'),
+                quizzes=_parse_quizzes(data.get('quizzes')) if unit_type == 'conceptual' else None,
+                editor_config=_parse_editor_config(data.get('editor_config')) if unit_type == 'coding' else None
+            )
             
-            # --- 4B.2: Load Initial Code Template ---
-            # - Determine exercise folder path (exercise/)
-            # - Read corresponding YAML file (e.g., app-cache.yaml)
-            # - Store as editor_config.initial_code
+            # Insert LearningUnit and capture ID for foreign key
+            await learning_unit.insert()
+            unit_id = learning_unit.id
             
-            # --- 4B.3: Load Solution Code ---
-            # - Determine solution folder path (solution/)
-            # - Read corresponding YAML file (e.g., ex1-app-cache.yaml)
-            # - Store as code_solution
+            # Build and insert UnitSolution (private data)
+            unit_solution = UnitSolution(
+                unit_id=unit_id,        # type: ignore
+                quiz_answers=solution_data.get('quiz_answers'),
+                quiz_explanations=solution_data.get('quiz_explanations'),
+                code_solution=solution_data.get('code_solution'),
+                validation_script=solution_data.get('validation_script')
+            )
+            await unit_solution.insert()
             
-            # --- 4B.4: Extract Validation Script ---
-            # - Parse verification command from exercise metadata
-            # - Store as validation_script
+            # Update stats
+            stats['created'] += 1
+            stats['files_processed'].append(yaml_file.name)
             
-            # --- 4B.5: Create LearningUnit (Public) ---
-            # - Build LearningUnit document with public fields
-            # - Insert to MongoDB
-            # - Capture inserted unit.id
-            
-            # --- 4B.6: Create UnitSolution (Private) ---
-            # - Build UnitSolution with:
-            #   - unit_id (FK from step 4B.5)
-            #   - code_solution
-            #   - validation_script
-            # - Insert to MongoDB
+        except Exception as e:
+            stats['errors'].append(f"{yaml_file.name}: Insert failed - {str(e)}")
+            continue
     
-    # ===== STEP 5: Return Summary =====
-    # - Count total units seeded
-    # - Return JSON response with stats
+    return {
+        "status": "success",
+        "created": stats['created'],
+        "skipped": stats['skipped'],
+        "errors": stats['errors'],
+        "files": stats['files_processed']
+    }
+
+
+def _parse_quizzes(quizzes_data: Optional[List[Dict[str, Any]]]) -> Optional[List[Quiz]]:
+    """Convert YAML quiz data to Quiz BaseModel objects."""
+    if not quizzes_data:
+        return None
+    
+    quiz_list = []
+    for quiz_dict in quizzes_data:
+        quiz_id = quiz_dict.get('id', '')
+        question = quiz_dict.get('question', '')
+        options_data = quiz_dict.get('options', [])
+        
+        # Parse options into QuizOption objects
+        quiz_options = [
+            QuizOption(
+                id=opt.get('id', ''),
+                text=opt.get('text', '')
+            )
+            for opt in options_data
+        ]
+        
+        quiz_list.append(
+            Quiz(
+                id=quiz_id,
+                question=question,
+                options=quiz_options
+            )
+        )
+    
+    return quiz_list
+
+
+def _parse_editor_config(config_data: Optional[Dict[str, Any]]) -> Optional[EditorConfig]:
+    """Convert YAML editor config to EditorConfig BaseModel."""
+    if not config_data:
+        return None
+    
+    return EditorConfig(
+        initial_code=config_data.get('initial_code', ''),
+        language=config_data.get('language', 'yaml')
+    )
+
+
+def _validate_quiz_integrity(quizzes_data: List[Dict[str, Any]], quiz_answers: Dict[str, str]) -> List[str]:
+    """
+    Validate quiz answer keys match quiz/option IDs.
+    
+    Args:
+        quizzes_data: List of quiz dictionaries from YAML
+        quiz_answers: Answer key mapping quiz_id -> option_id
+    
+    Returns:
+        List of error messages (empty if valid)
+    """
+    errors = []
+    
+    # Build mapping of quiz_id -> set of option_ids
+    quiz_map: Dict[str, set] = {}
+    for quiz_dict in quizzes_data:
+        quiz_id = quiz_dict.get('id')
+        if not quiz_id:
+            errors.append("Quiz missing 'id' field")
+            continue
+        
+        options = quiz_dict.get('options', [])
+        option_ids = {opt.get('id') for opt in options if opt.get('id')}
+        quiz_map[quiz_id] = option_ids
+    
+    # Validate each answer
+    for quiz_id, answer_option_id in quiz_answers.items():
+        # Check if quiz ID exists
+        if quiz_id not in quiz_map:
+            errors.append(f"Answer key references non-existent quiz '{quiz_id}'")
+            continue
+        
+        # Check if answer option ID exists in that quiz
+        if answer_option_id not in quiz_map[quiz_id]:
+            errors.append(f"Quiz '{quiz_id}' has invalid answer option '{answer_option_id}'")
+    
+    return errors

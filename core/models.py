@@ -31,8 +31,10 @@ class LearningUnit(Document):
     topic: str = Field(max_length=50, min_length=3)
     order_index: int = Field(gt=-1)
     type: Literal["conceptual", "coding"]
-    description: str = Field(max_length=1000)
+    difficulty: Optional[Literal["beginner", "intermediate", "advanced"]] = None
+    description: str = Field(max_length=5000)
     steps: Optional[List[str]] = None  # For coding exercises
+    hints: Optional[List[str]] = None  # Hints for coding exercises
     quizzes: Optional[List[Quiz]] = None  # For conceptual modules
     editor_config: Optional[EditorConfig] = None  # For coding exercises
     
