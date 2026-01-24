@@ -1,0 +1,123 @@
+# KubePlayground - Docker Compose Configuration
+# ==============================================
+# Architecture:
+#   Frontend (Nginx + React SPA) --> Backend (FastAPI) --> MongoDB
+#
+# The frontend nginx proxies /api/* requests to the backend service.
+# This mirrors the eventual K8s Ingress pattern.
+
+services:
+  # ===========================================================================
+  # MongoDB - Primary Database
+  # ===========================================================================
+  mongodb:
+    image: mongo:6.0
+    container_name: kubeplayground-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-password}
+      MONGO_INITDB_DATABASE: development
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - kubeplayground-net
+
+  # ===========================================================================
+  # Backend - FastAPI Application (Scalable)
+  # ===========================================================================
+  backend:
+    build:
+      context: .
+      dockerfile: core/Dockerfile
+    # For scaling: docker compose up --scale backend=3
+    # Frontend nginx uses least_conn load balancing
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: development
+      MONGO_PASSWORD_DEV: ${MONGO_PASSWORD:-password}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      # Mount sample resources for seeding database
+      # Inside container: /app/seed-data/k8s/pods101/*.yaml etc.
+      - ./sample-resources:/app/seed-data:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - kubeplayground-net
+    # Note: No ports exposed - accessed via frontend nginx reverse proxy
+    # For debugging, uncomment:
+    ports:
+      - "8000:8000"
+
+  # ===========================================================================
+  # Frontend - Nginx + React SPA
+  # ===========================================================================
+  # Handles:
+  #   - Static file serving (React build)
+  #   - SPA routing (try_files -> index.html)
+  #   - Reverse proxy /api/* -> backend:8000
+  #   - SSL termination (self-signed for dev)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: kubeplayground-frontend
+    restart: unless-stopped
+    ports:
+      - "8001:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - kubeplayground-net
+
+  # ===========================================================================
+  # Database Seeder - One-time initialization
+  # ===========================================================================
+  seed:
+    image: curlimages/curl:latest
+    container_name: kubeplayground-seed
+    depends_on:
+      backend:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Seeding pods101...' &&
+        curl -X POST 'http://backend:8000/seed/populate?topic_dir=/app/seed-data/k8s/pods101' &&
+        echo '' && echo 'Seeding complete!'
+      "
+    networks:
+      - kubeplayground-net
+    restart: "no"
+
+# ===========================================================================
+# Networks
+# ===========================================================================
+networks:
+  kubeplayground-net:
+    driver: bridge
+
+# ===========================================================================
+# Volumes
+# ===========================================================================
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
