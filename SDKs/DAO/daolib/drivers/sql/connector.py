@@ -1,67 +1,55 @@
 from abc import ABC, abstractmethod
+
 from sqlalchemy.engine import Connection
 
 
 class Connector(ABC):
-    """
-    A Connector is responsible for:
-      1. Initializing one (or two) SQLAlchemy Engine(s) exactly once.
-      2. Handing out live Connection objects upon request.
+    """A Connector is responsible for engine management.
+
+    1. Initializing one (or two) SQLAlchemy Engine(s) exactly once.
+    2. Handing out live Connection objects upon request.
     """
 
     @property
     @abstractmethod
     def dialect(self) -> str:
-        """
-        Returns the SQL dialect in use (e.g., 'mssql', 'sqlite').
-        """
+        """Return the SQL dialect in use (e.g., 'mssql', 'sqlite')."""
         ...
 
     @property
     def database_url(self) -> str:
-        """
-        Optional: Return the DB URL or path for debugging/logging.
-        """
+        """Optional: Return the DB URL or path for debugging/logging."""
         return ""
 
     @property
     def supports_transactions(self) -> bool:
-        """
-        Optional: Does this DB support transactions?
-        """
+        """Optional: Does this DB support transactions?"""
         return True
 
     def is_connected(self) -> bool:
-        """
-        Optional: Check if the engine is alive.
-        """
+        """Optional: Check if the engine is alive."""
         return True
 
     def reset(self) -> None:
-        """
-        Optional: Reset class-level caches (for tests).
-        """
-        pass
+        """Optional: Reset class-level caches (for tests)."""
 
     def version(self) -> str:
-        """
-        Optional: Return DB version string.
-        """
+        """Optional: Return DB version string."""
         return ""
 
     @abstractmethod
     def get_read_connection(self) -> Connection:
-        """
-        Return a SQLAlchemy Connection on which read-only queries
-        (SELECT, or SELECT-based pandas reads) may be run.
+        """Return a SQLAlchemy Connection for read-only queries.
+
+        SELECT, or SELECT-based pandas reads may be run on this connection.
         """
         ...
 
     @abstractmethod
     def get_write_connection(self) -> Connection:
-        """
-        Return a SQLAlchemy Connection that has write privileges
-        (INSERT / UPDATE / DELETE). In a primary/secondary setup,
+        """Return a SQLAlchemy Connection that has write privileges.
+
+        Supports INSERT / UPDATE / DELETE. In a primary/secondary setup,
         this would come from the “primary” engine.
         """
         ...

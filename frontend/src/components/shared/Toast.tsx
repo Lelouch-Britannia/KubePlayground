@@ -125,7 +125,7 @@ export const Toast: React.FC<ToastProps> = ({
             opacity: 1;
           }
         }
-        
+
         @keyframes bounce-once {
           0%, 100% {
             transform: scale(1);
@@ -134,7 +134,7 @@ export const Toast: React.FC<ToastProps> = ({
             transform: scale(1.2);
           }
         }
-        
+
         @keyframes shake {
           0%, 100% {
             transform: translateX(0);
@@ -146,15 +146,15 @@ export const Toast: React.FC<ToastProps> = ({
             transform: translateX(10px);
           }
         }
-        
+
         .animate-slide-in-right {
           animation: slide-in-right 0.5s ease-out;
         }
-        
+
         .animate-bounce-once {
           animation: bounce-once 0.6s ease-out;
         }
-        
+
         .animate-shake {
           animation: shake 0.5s ease-out;
         }

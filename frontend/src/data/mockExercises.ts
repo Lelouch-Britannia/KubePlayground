@@ -10,7 +10,7 @@ export const EXERCISES = [
     description: `
 ### Problem Statement
 
-You have been assigned to fix a broken Deployment in the \`default\` namespace. 
+You have been assigned to fix a broken Deployment in the \`default\` namespace.
 The application is supposed to run 3 replicas of Nginx, but the Pods are failing to start.
 
 ### Requirements

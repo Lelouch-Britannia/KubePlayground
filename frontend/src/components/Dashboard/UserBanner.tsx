@@ -14,7 +14,7 @@ export default function UserBanner({ userName = 'User', streak = 0 }: UserBanner
               {userName.charAt(0).toUpperCase()}
             </span>
           </div>
-          
+
           {/* Greeting */}
           <div>
             <h1 className="text-2xl font-bold text-white mb-1">
@@ -25,7 +25,7 @@ export default function UserBanner({ userName = 'User', streak = 0 }: UserBanner
             </p>
           </div>
         </div>
-        
+
         {/* Streak Display */}
         <div className="flex items-center gap-6">
           <div className="text-center">

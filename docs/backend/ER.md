@@ -47,7 +47,7 @@ erDiagram
     LearningUnit ||--|| UnitSolution : "Has corresponding private data"
     User ||--o{ UserProgress : "Tracks progress of"
     LearningUnit ||--o{ UserProgress : "Is tracked in"
-    
+
     %% Fixed dashed lines below: Added '||' and 'o{' markers
     User ||..o{ RedisDraft : "Temporarily saves state to"
     LearningUnit ||..o{ RedisDraft : "State belongs to unit context"

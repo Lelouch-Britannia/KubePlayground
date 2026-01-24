@@ -1,0 +1,87 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dbdaolib"
+dynamic = ["version"]
+description = "Database Access Object Library for SQL and NoSQL databases"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    { name = "Mayank Pershad", email = "pershadmayank@gmail.com" }
+]
+keywords = ["database", "dao", "sql", "nosql", "mongodb", "sqlalchemy", "orm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "sqlalchemy>=2.0.0",
+    "motor>=3.0.0",
+    "beanie>=1.26.0",
+    "pyyaml>=6.0.0",
+    "pymongo>=4.0.0",
+    "pandas>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-html>=4.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
+# PostgreSQL driver (requires libpq-dev system package)
+postgresql = [
+    "psycopg2-binary>=2.9.0",
+]
+
+# MySQL driver (pure Python, no system deps)
+mysql = [
+    "pymysql>=1.1.0",
+]
+
+# SQL Server driver (requires unixodbc system package)
+sql-server = [
+    "pyodbc>=5.0.0",
+]
+
+arrow = [
+    "pyarrow>=22.0.0",
+    "pymongoarrow>=1.0.0",
+]
+
+all = [
+    "dbdaolib[postgresql,mysql,sql-server,arrow]",
+]
+
+
+[tool.hatch.build.targets.wheel]
+packages = ["daolib"]
+
+[tool.hatch.version]
+path = "daolib/__init__.py"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--html=reports/pytest-report.html",
+    "--self-contained-html",
+]

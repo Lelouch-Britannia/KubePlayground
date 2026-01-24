@@ -55,13 +55,13 @@ export default function Dashboard() {
     <div className="min-h-screen bg-[#282a36] text-[#f8f8f2]">
       {/* Container */}
       <div className="max-w-7xl mx-auto px-6 py-8">
-        
+
         {/* User Banner */}
-        <UserBanner 
+        <UserBanner
           userName="Mayank"
           streak={dashboardData.current_streak}
         />
-        
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-[#44475a] border border-[#6272a4] rounded-lg p-5">
@@ -75,7 +75,7 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-[#44475a] border border-[#6272a4] rounded-lg p-5">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-[#f1fa8c]/20 flex items-center justify-center">
@@ -87,7 +87,7 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-[#44475a] border border-[#6272a4] rounded-lg p-5">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-[#8be9fd]/20 flex items-center justify-center">
@@ -99,7 +99,7 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-[#44475a] border border-[#6272a4] rounded-lg p-5">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-[#6272a4]/20 flex items-center justify-center">
@@ -114,7 +114,7 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-        
+
         {/* Topics Section */}
         <div>
           <h2 className="text-3xl font-bold mb-6 text-[#ff79c6]">Learning Paths</h2>

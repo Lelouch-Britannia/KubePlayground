@@ -1,5 +1,7 @@
 // API Base URL
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+// In production (Docker): Empty string means same-origin (nginx proxies /api/* to backend)
+// In development: Falls back to localhost:8000 for direct backend access
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 // API Client
 class ApiClient {
@@ -11,7 +13,7 @@ class ApiClient {
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -46,7 +48,7 @@ class ApiClient {
   async updateProgress(data: {
     user_id: string;
     unit_slug: string;
-    status: 'not_started' | 'in_progress' | 'completed';
+    status: 'started' | 'completed';  // Matches backend UserProgress model
     score?: number;
     time_spent_seconds?: number;
   }) {

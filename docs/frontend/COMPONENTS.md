@@ -68,10 +68,12 @@ App.tsx (React Router)
 **Props**: None (root component)
 
 **Routes**:
+
 - `/` → Dashboard
 - `/unit/:slug` → LearningUnit
 
 **Features**:
+
 - BrowserRouter configuration
 - Route-based navigation
 - No global state (handled in page components)
@@ -85,6 +87,7 @@ App.tsx (React Router)
 **Purpose**: Landing page with topic overview and progress tracking.
 
 **State**:
+
 ```typescript
 - dashboardData: DashboardData | null
 - loading: boolean
@@ -92,15 +95,18 @@ App.tsx (React Router)
 ```
 
 **Key Functions**:
+
 - `fetchDashboard()` - Fetch from `/api/dashboard`
 - `handleTopicClick(topic)` - Navigate to first unit in topic
 
 **API Integration**:
+
 - Fetches dashboard data on mount
 - Shows loading state
 - Error handling with retry option
 
 **Layout**:
+
 - UserBanner with streak counter
 - 4 stats cards (Total, Completed, In Progress, Not Started)
 - Topic cards grid (clickable to navigate)
@@ -114,6 +120,7 @@ App.tsx (React Router)
 **Purpose**: Main learning interface with split-screen layout.
 
 **State**:
+
 ```typescript
 - unit: UnitDetail | null
 - allUnits: SyllabusItem[] (for navigation)
@@ -129,6 +136,7 @@ App.tsx (React Router)
 ```
 
 **Key Functions**:
+
 - `fetchSyllabus()` - Get all units for navigation
 - `fetchUnit(slug)` - Get unit details
 - `navigateToUnit(direction)` - Prev/next navigation
@@ -137,6 +145,7 @@ App.tsx (React Router)
 - `handleDrag(e)` - Resize panels
 
 **Performance Optimizations**:
+
 - **No full-page loading** on navigation between units
 - **Subtle loading indicator** (purple bar in header)
 - **Opacity transitions** (200ms) during navigation
@@ -144,6 +153,7 @@ App.tsx (React Router)
 - **Optimistic UI** - keeps content visible
 
 **API Integration**:
+
 - Fetches syllabus once on mount
 - Fetches unit details on slug change
 - Submits quiz answers with grading
@@ -157,6 +167,7 @@ App.tsx (React Router)
 **Purpose**: Top navigation bar with exercise selector and action buttons.
 
 **Props**:
+
 ```typescript
 interface HeaderProps {
   currentExercise: Exercise;
@@ -174,6 +185,7 @@ interface HeaderProps {
 ```
 
 **Features**:
+
 - Logo with app name
 - Topic dropdown (filtered)
 - Exercise dropdown (by topic)
@@ -190,6 +202,7 @@ interface HeaderProps {
 **Location**: `components/LeftPanel/DescriptionPanel.tsx`
 
 **Props**:
+
 ```typescript
 interface DescriptionPanelProps {
   exercise: Exercise;
@@ -214,6 +227,7 @@ interface DescriptionPanelProps {
    - Placeholder for hints (future feature)
 
 **Features**:
+
 - Tab switching
 - Markdown rendering for description
 - Badge styling
@@ -226,6 +240,7 @@ interface DescriptionPanelProps {
 **Location**: `components/LeftPanel/StepsPanel.tsx`
 
 **Props**:
+
 ```typescript
 interface StepsPanelProps {
   steps: Phase[];
@@ -243,6 +258,7 @@ interface Task {
 ```
 
 **Features**:
+
 - Visual timeline (vertical line)
 - Phase badges with numbers
 - Task checkboxes
@@ -250,6 +266,7 @@ interface Task {
 - State management (tracking completed tasks)
 
 **State**:
+
 ```typescript
 - completed: Record<string, boolean> (task ID → completion status)
 ```
@@ -261,6 +278,7 @@ interface Task {
 **Location**: `components/RightPanel/CodeEditor.tsx`
 
 **Props**:
+
 ```typescript
 interface CodeEditorProps {
   value: string;
@@ -269,6 +287,7 @@ interface CodeEditorProps {
 ```
 
 **Features**:
+
 - Line numbers
 - Syntax highlighting (YAML)
 - Real-time editing
@@ -276,11 +295,13 @@ interface CodeEditorProps {
 - Keyboard shortcuts (Ctrl+S to save)
 
 **Implementation**:
+
 - Custom textarea + div overlay for highlighting
 - CSS classes for syntax colors
 - `renderHighlightedCode()` function for YAML parsing
 
 **Future Enhancements**:
+
 - Integrate Monaco Editor for advanced features
 - Multi-language support (JSON, Go, Python)
 - Error squiggles for YAML validation
@@ -292,6 +313,7 @@ interface CodeEditorProps {
 **Location**: `components/RightPanel/Console.tsx`
 
 **Props**:
+
 ```typescript
 interface ConsoleProps {
   isOpen: boolean;
@@ -308,6 +330,7 @@ interface ValidationResult {
 ```
 
 **Features**:
+
 - Collapsible drawer (animated height)
 - Loading spinner during validation
 - Styled output (green for passed, red for failed)
@@ -315,6 +338,7 @@ interface ValidationResult {
 - Live streaming (via WebSocket - future)
 
 **States**:
+
 - **Validating**: Shows spinner and "Running kubectl commands..."
 - **Results Available**: Shows validation step results
 - **Idle**: Shows placeholder message
@@ -326,6 +350,7 @@ interface ValidationResult {
 **Location**: `components/RightPanel/QuizPanel.tsx`
 
 **Props**:
+
 ```typescript
 interface QuizPanelProps {
   quizData: QuizData;
@@ -350,6 +375,7 @@ interface Option {
 ```
 
 **Features**:
+
 - Question counter ("1 of 5")
 - Single-select radio buttons
 - Answer tracking
@@ -358,6 +384,7 @@ interface Option {
 - Score calculation
 
 **State**:
+
 ```typescript
 - answers: Record<number, string> (question ID → selected option ID)
 - showResults: boolean
@@ -370,6 +397,7 @@ interface Option {
 **Location**: `components/ui/Badge.tsx`
 
 **Props**:
+
 ```typescript
 interface BadgeProps {
   children: React.ReactNode;
@@ -378,6 +406,7 @@ interface BadgeProps {
 ```
 
 **Usage**:
+
 ```tsx
 <Badge color="green">Basic</Badge>
 <Badge color="blue">Intermediate</Badge>
@@ -393,6 +422,7 @@ interface BadgeProps {
 **Location**: `components/shared/MarkdownRenderer.tsx`
 
 **Props**:
+
 ```typescript
 interface MarkdownRendererProps {
   content: string;
@@ -400,6 +430,7 @@ interface MarkdownRendererProps {
 ```
 
 **Features**:
+
 - Parse markdown syntax:
   - `## Heading` → `<h2>` (pink)
   - `### Heading` → `<h3>` (green)
@@ -419,6 +450,7 @@ interface MarkdownRendererProps {
 **Location**: `components/shared/Toast.tsx`
 
 **Props**:
+
 ```typescript
 interface ToastProps {
   type: 'success' | 'error';
@@ -431,6 +463,7 @@ interface ToastProps {
 ```
 
 **Features**:
+
 - **Slide-in animation** from right
 - **Success state** (70%+ score):
   - Trophy icon with bounce animation
@@ -446,6 +479,7 @@ interface ToastProps {
 - **Pass/fail indicator**
 
 **Usage**:
+
 ```tsx
 <Toast
   type="success"
@@ -463,6 +497,7 @@ interface ToastProps {
 **Location**: `components/shared/Confetti.tsx`
 
 **Props**:
+
 ```typescript
 interface ConfettiProps {
   duration?: number; // default 3000ms
@@ -470,6 +505,7 @@ interface ConfettiProps {
 ```
 
 **Features**:
+
 - **50 animated particles** falling from top
 - **Dracula colors**: green, purple, pink, yellow, cyan, orange
 - **Random sizes and shapes** (circles and squares)
@@ -477,6 +513,7 @@ interface ConfettiProps {
 - **Auto-cleanup** after duration
 
 **Usage**:
+
 ```tsx
 {showConfetti && <Confetti />}
 ```
@@ -596,6 +633,7 @@ Content updated - no page reload!
 All components use the Dracula color scheme for consistent dark theme:
 
 **Primary Colors**:
+
 - Background: `#282a36` (Dracula background)
 - Foreground: `#f8f8f2` (Dracula foreground)
 - Current Line: `#44475a`
@@ -609,6 +647,7 @@ All components use the Dracula color scheme for consistent dark theme:
 - Red: `#ff5555` (error)
 
 **Typography**:
+
 - Base text: `text-lg` (18px) with `leading-relaxed`
 - Headers: h2 = `text-3xl`, h3 = `text-2xl`
 - Code blocks: `text-base` (16px) with `line-height: 1.6`
@@ -728,4 +767,3 @@ describe('App Integration', () => {
 - [ ] Code diff viewer (user vs solution)
 - [ ] Collaborate in real-time (WebSocket)
 - [ ] Comment system for discussions
-

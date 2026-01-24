@@ -1,49 +1,60 @@
-"""
-Fluent Interface for building structured, compliant logs.
+"""Fluent Interface for building structured, compliant logs.
+
 Enforces the Logging Standard schema without requiring developers to memorize field names.
 """
 
-from typing import Optional, Dict, Any
 import logging
-from daolib.constants import LogEvent, LogOutcome, InfraErrorCode
+from typing import Any, Optional
+
+from daolib.constants import InfraErrorCode, LogEvent, LogOutcome
 
 
 class LogBuilder:
-    """
-    Fluent Interface to build compliant logs per Logging Standard.
-    
+    """Fluent Interface to build compliant logs per Logging Standard.
+
     Usage Examples:
         # Success event
         LogBuilder(logger).event(LogEvent.MONGO_INIT).success().msg("Connected").duration_ms(42.5).emit()
-        
+
         # Failure event
         LogBuilder(logger).event(LogEvent.MONGO_INIT).failure(InfraErrorCode.NET_TIMEOUT, exc).msg("Failed").emit()
-        
+
         # With database context
         LogBuilder(logger).event(LogEvent.MONGO_QUERY).success().db_context("mongodb", "mydb", "host").msg("Query OK").emit()
     """
 
     def __init__(self, logger: logging.Logger):
         self.logger = logger
-        self._context: Dict[str, Any] = {}
+        self._context: dict[str, Any] = {}
         self._level = logging.INFO
         self._msg = ""
         self._exc_info = False
 
     def event(self, evt: LogEvent) -> "LogBuilder":
-        """Set event.action (Section 4.1 - Required)"""
+        """Set event.action (Section 4.1 - Required).
+
+        Args:
+            evt: LogEvent enum value for the action type.
+
+        Returns:
+            Self for method chaining.
+        """
         self._context["event.action"] = evt
         return self
 
     def success(self) -> "LogBuilder":
-        """Set event.outcome = success (Section 4.1)"""
+        """Set event.outcome = success (Section 4.1).
+
+        Returns:
+            Self for method chaining.
+        """
         self._context["event.outcome"] = LogOutcome.SUCCESS
         self._level = logging.INFO
         return self
 
     def failure(self, code: InfraErrorCode, exc: Exception) -> "LogBuilder":
-        """
-        Set event.outcome = failure and populate error schema (Section 5).
+        """Set event.outcome = failure and populate error schema (Section 5).
+
         Automatically sets level to ERROR and enables stack trace.
         """
         self._level = logging.ERROR
@@ -55,24 +66,32 @@ class LogBuilder:
         return self
 
     def msg(self, message: str) -> "LogBuilder":
-        """Set the human-readable message (Section 4.1 - Required)"""
+        """Set the human-readable message (Section 4.1 - Required).
+
+        Args:
+            message: Human-readable log message.
+
+        Returns:
+            Self for method chaining.
+        """
         self._msg = message
         return self
 
     def duration_ms(self, ms: float) -> "LogBuilder":
-        """Set duration_ms for operational events (Section 4.3)"""
+        """Set duration_ms for operational events (Section 4.3).
+
+        Args:
+            ms: Duration in milliseconds.
+
+        Returns:
+            Self for method chaining.
+        """
         self._context["duration_ms"] = ms
         return self
 
-    def db_context(
-        self,
-        system: str,
-        database: str,
-        host: str,
-        **extra_db_fields: Any
-    ) -> "LogBuilder":
-        """
-        Set mandatory DB context fields (Section 6.2).
+    def db_context(self, system: str, database: str, host: str, **extra_db_fields: Any) -> "LogBuilder":
+        """Set mandatory DB context fields (Section 6.2).
+
         Args:
             system: mongodb, postgresql, mysql, etc.
             database: database name
@@ -86,23 +105,33 @@ class LogBuilder:
         return self
 
     def field(self, key: str, value: Any) -> "LogBuilder":
-        """Add arbitrary structured field (use sparingly)"""
+        """Add arbitrary structured field (use sparingly).
+
+        Args:
+            key: Field name in dot notation (e.g., db.host).
+            value: Field value of any serializable type.
+
+        Returns:
+            Self for method chaining.
+        """
         self._context[key] = value
         return self
 
     def level(self, lvl: int) -> "LogBuilder":
-        """Override log level (default: INFO for success, ERROR for failure)"""
+        """Override log level (default: INFO for success, ERROR for failure).
+
+        Args:
+            lvl: Python logging level constant (e.g., logging.DEBUG).
+
+        Returns:
+            Self for method chaining.
+        """
         self._level = lvl
         return self
 
     def emit(self) -> None:
-        """
-        Emit the log record to the configured logger.
+        """Emit the log record to the configured logger.
+
         This respects the application's logging configuration (Section 2.2).
         """
-        self.logger.log(
-            self._level,
-            self._msg,
-            extra=self._context,
-            exc_info=self._exc_info
-        )
+        self.logger.log(self._level, self._msg, extra=self._context, exc_info=self._exc_info)

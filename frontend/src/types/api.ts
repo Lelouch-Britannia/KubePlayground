@@ -70,7 +70,7 @@ export interface DashboardData {
 export interface ProgressUpdateRequest {
   user_id: string;
   unit_slug: string;
-  status: 'not_started' | 'in_progress' | 'completed';
+  status: 'started' | 'completed';  // Matches backend UserProgress model
   score?: number;
   time_spent_seconds?: number;
 }
@@ -82,7 +82,7 @@ export interface ProgressUpdateResponse {
 
 export interface UnitProgressItem {
   unit_slug: string;
-  status: 'not_started' | 'in_progress' | 'completed';
+  status: 'started' | 'completed';  // Matches backend UserProgress model
   last_accessed?: string;
   quiz_score?: number;
   attempts: number;

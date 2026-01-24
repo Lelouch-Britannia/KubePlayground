@@ -1,31 +1,33 @@
+from collections.abc import Callable
 from functools import wraps
+from typing import Any
+
 from sqlalchemy.engine import Connection
-from typing import Callable, Any
 
 
 class InjectConnection:
-    """
-    Decorator that injects SQLAlchemy connections into DAO methods and manages transactions.
-    
+    """Decorator that injects SQLAlchemy connections into DAO methods and manages transactions.
+
     Features:
     - Automatic connection injection from connector
     - Transaction lifecycle management (begin/commit/rollback) for write operations
     - Read/write connection selection based on is_write parameter
     - Manual connection injection support for testing
-    
+
     Usage:
         class UserDao(BaseHelperSqlDao):
             @InjectConnection(is_write=True)
             def create_user(self, connection, username):
                 return self.insert(connection, "INSERT INTO users (username) VALUES (?)", [username])
-            
+
             @InjectConnection(is_write=False)
             def get_user(self, connection, user_id):
                 return self.select(connection, "SELECT * FROM users WHERE id = ?", [user_id])
     """
-    
-    def __init__(self, is_write: bool = False):
-        """
+
+    def __init__(self, *, is_write: bool = False):
+        """Initialize the decorator.
+
         Args:
             is_write: If True, uses write connection and wraps in transaction.
                      If False, uses read connection (no transaction).
@@ -42,17 +44,14 @@ class InjectConnection:
             # Get connector from DAO instance
             connector = getattr(instance, "connector", None)
             if not connector:
-                raise AttributeError(
+                msg = (
                     f"DAO instance must have 'connector' attribute. "
                     f"Ensure {instance.__class__.__name__}.__init__() sets self.connector"
                 )
+                raise AttributeError(msg)
 
             # Get connection factory based on operation type
-            conn_factory = (
-                connector.get_write_connection
-                if self.is_write
-                else connector.get_read_connection
-            )
+            conn_factory = connector.get_write_connection if self.is_write else connector.get_read_connection
 
             # Inject connection and manage transaction lifecycle
             with conn_factory() as conn:
@@ -65,5 +64,3 @@ class InjectConnection:
                     return func(instance, conn, *args, **kwargs)
 
         return wrapper
-
-

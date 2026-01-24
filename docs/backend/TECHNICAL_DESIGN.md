@@ -2,7 +2,9 @@
 
 ## 1. Project Overview
 
-**Objective:** Develop a robust, secure, and scalable backend for an interactive learning platform that supports dual-mode learning: **Conceptual Modules** (Markdown + Quizzes) and **Coding Exercises** (Kubernetes/YAML editor).
+**Objective:** Develop a robust, secure, and scalable backend for an interactive learning platform that
+supports dual-mode learning: **Conceptual Modules** (Markdown + Quizzes) and **Coding Exercises**
+(Kubernetes/YAML editor).
 
 **Core Philosophy:** * **Security First:** "Split-Brain" architecture separates public content from private solutions.
 
@@ -24,13 +26,14 @@
 
 The system operates as a secure gateway between the Client and the Data/Execution layers.
 
-1. **FastAPI Backend:** Orchestrates all logic, authentication, and grading. It is the only entity with access to the "Private" solution database.
-2. **MongoDB (Split-Brain):** * *Public Collection:* Stores questions and instructions.
-* *Private Collection:* Stores answer keys and validation scripts.
-
-
+1. **FastAPI Backend:** Orchestrates all logic, authentication, and grading. It is the only entity with access
+   to the "Private" solution database.
+2. **MongoDB (Split-Brain):**
+   * *Public Collection:* Stores questions and instructions.
+   * *Private Collection:* Stores answer keys and validation scripts.
 3. **Redis:** Handles high-frequency write operations for autosaving user inputs (Drafts).
-4. **Code Runner:** An isolated service that receives user code + hidden validation scripts from the Backend to execute tests.
+4. **Code Runner:** An isolated service that receives user code + hidden validation scripts from the Backend to
+   execute tests.
 
 ---
 
@@ -85,6 +88,7 @@ The system operates as a secure gateway between the Client and the Data/Executio
 * **Key Pattern:** `draft:{user_id}:{unit_id}`
 * **TTL (Time-To-Live):** 30 Days (Refreshes on every write).
 * **Data Structure (JSON):**
+
 ```json
 {
   "checklist_state": [0, 2],       // Indices of checked steps
@@ -94,8 +98,6 @@ The system operates as a secure gateway between the Client and the Data/Executio
 
 ```
 
-
-
 ---
 
 ## 5. Functional Requirements (API Flows)
@@ -103,14 +105,13 @@ The system operates as a secure gateway between the Client and the Data/Executio
 ### 5.1 Content Delivery
 
 * **Syllabus Generation:** * Endpoint: `GET /api/units/syllabus`
-* Logic: Fetch all `learning_units` using a **Projection** (fetching only `_id`, `slug`, `title`, `topic`, `order_index`) to minimize payload size.
-
+* Logic: Fetch all `learning_units` using a **Projection** (fetching only `_id`, `slug`, `title`, `topic`,
+  `order_index`) to minimize payload size.
 
 * **Lesson Loading:**
 * Endpoint: `GET /api/units/{slug}`
-* Logic: Return the full public document. **Security Check:** Ensure no fields from `unit_solutions` are joined or returned.
-
-
+* Logic: Return the full public document. **Security Check:** Ensure no fields from `unit_solutions` are
+  joined or returned.
 
 ### 5.2 Interactive Grading (The "Split-Brain" Logic)
 
@@ -118,26 +119,21 @@ The system operates as a secure gateway between the Client and the Data/Executio
 * Endpoint: `POST /api/units/{id}/submit`
 * Input: `{ "answers": { "q_id": "selected_opt_id" } }`
 * Process:
+
 1. Fetch answer key from `unit_solutions` (Private DB).
 2. Compare inputs.
 3. Upsert `user_progress` (Permanent DB).
 4. Return Score + Corrections.
 
-
-
-
 * **Code Verification:**
 * Endpoint: `POST /api/units/{id}/verify`
 * Input: `{ "user_code": "..." }`
 * Process:
+
 1. Fetch `validation_script` from `unit_solutions` (Private DB).
 2. Bundle `{ user_code, validation_script }`.
 3. Send to **External Code Runner**.
 4. Return Pass/Fail status + Console Logs.
-
-
-
-
 
 ### 5.3 State Management
 
@@ -145,12 +141,9 @@ The system operates as a secure gateway between the Client and the Data/Executio
 * Endpoint: `PUT /api/drafts/{unit_id}`
 * Logic: Asynchronously update Redis. If Redis fails, log error but do not fail the request (Graceful Degradation).
 
-
 * **Fetch Draft:**
 * Endpoint: `GET /api/drafts/{unit_id}`
 * Logic: Return Redis value. If null, return default/empty state.
-
-
 
 ---
 
@@ -207,7 +200,7 @@ erDiagram
     LearningUnit ||--|| UnitSolution : "Has corresponding private data"
     User ||--o{ UserProgress : "Tracks progress of"
     LearningUnit ||--o{ UserProgress : "Is tracked in"
-    
+
     %% Fixed dashed lines below: Added '||' and 'o{' markers
     User ||..o{ RedisDraft : "Temporarily saves state to"
     LearningUnit ||..o{ RedisDraft : "State belongs to unit context"
@@ -224,12 +217,12 @@ sequenceDiagram
 
     Note over User: User clicks "Submit Quiz"
     User->>API: POST /submit {answers}
-    
+
     API->>PrivateDB: Fetch Answer Key
     PrivateDB-->>API: Returns {q1: "opt_a", q2: "opt_b"}
-    
+
     Note over API: Backend grades the answers.<br/>Client NEVER sees the key.
-    
+
     API->>ProgressDB: Save Score (e.g. 100%)
     API-->>User: Return Result {passed: true}
 
@@ -240,14 +233,13 @@ sequenceDiagram
 ## 7. Operational & Non-Functional Requirements
 
 1. **Content Management (CMS):**
-* A `seed.py` script must exist to sync content from a local **Master YAML/JSON** repository to MongoDB.
-* This script handles splitting the data into the Public `learning_units` and Private `unit_solutions` collections.
-
-
+   * A `seed.py` script must exist to sync content from a local **Master YAML/JSON** repository to MongoDB.
+   * This script handles splitting the data into the Public `learning_units` and Private `unit_solutions`
+     collections.
 2. **Rate Limiting:**
-* All `POST` endpoints (Submit/Verify) must be rate-limited (e.g., 5 requests/minute) to prevent brute-force attacks on quizzes and overload on the Code Runner.
-
-
+   * All `POST` endpoints (Submit/Verify) must be rate-limited (e.g., 5 requests/minute) to prevent
+     brute-force attacks on quizzes and overload on the Code Runner.
 3. **Security:**
-* The Code Runner must be isolated (e.g., ephemeral containers) to prevent malicious code execution from compromising the backend.
-* Validation scripts are never sent to the client.
+   * The Code Runner must be isolated (e.g., ephemeral containers) to prevent malicious code execution from
+     compromising the backend.
+   * Validation scripts are never sent to the client.

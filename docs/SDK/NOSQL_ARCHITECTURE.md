@@ -41,6 +41,7 @@
 **Component**: `NoSQLConnectionEntry` (dataclass)
 
 **Responsibilities**:
+
 - Store MongoDB credentials, host, port, database name
 - Connection pool configuration (min/max pool sizes)
 - Replica set and SSL/TLS settings
@@ -48,6 +49,7 @@
 - Generate MongoDB connection string
 
 **Interface**:
+
 ```python
 @dataclass
 class NoSQLConnectionEntry:
@@ -63,12 +65,13 @@ class NoSQLConnectionEntry:
     use_ssl: bool = False
     ssl_verify: bool = True
     ssl_ca_path: str = ""
-    
+
     def connection_string() -> str
     def safe_host_label() -> str
 ```
 
 **Validation Rules**:
+
 - Host and port must be provided
 - Pool sizes must be positive (min_pool_size <= max_pool_size)
 - SSL: CA path must exist if ssl_verify is True
@@ -83,22 +86,24 @@ class NoSQLConnectionEntry:
 **Component**: `MongoDriver`
 
 **Responsibilities**:
+
 - Create AsyncIOMotorClient from NoSQLConnectionEntry
 - Fail-fast connectivity validation (ping)
 - Exception mapping to InfraErrorCode
 - Client cleanup on disconnect
 
 **Interface**:
+
 ```python
 class MongoDriver:
     def __init__(config: NoSQLConnectionEntry)
-    
+
     async def connect() -> AsyncIOMotorClient
         """Create and validate MongoDB client"""
-    
+
     async def disconnect() -> None
         """Close MongoDB client"""
-    
+
     # Private methods
     def _build_connection_string(config: NoSQLConnectionEntry) -> str
     async def _ping_server(client: AsyncIOMotorClient) -> None
@@ -107,6 +112,7 @@ class MongoDriver:
 **Design Pattern**: Async-first with Motor (AsyncIOMotorClient)
 
 **Connection Validation**:
+
 - Executes ping command on connect
 - Maps connection errors to InfraErrorCode
 - Logs initialization with LogEvent.MONGO_INIT
@@ -120,6 +126,7 @@ class MongoDriver:
 **Component**: `MongoConnector` (abstract base class)
 
 **Responsibilities**:
+
 - Singleton pattern: Client created once per application
 - Call `read_and_load_config()` to get NoSQLConnectionEntry
 - Instantiate MongoDriver and call `connect()`
@@ -128,22 +135,23 @@ class MongoDriver:
 - Cleanup: `disconnect()` closes client
 
 **Interface**:
+
 ```python
 class MongoConnector(Connector):
     # Class-level singleton state
     _client: Optional[AsyncIOMotorClient] = None
     _config: Optional[NoSQLConnectionEntry] = None
-    
+
     async def init(document_models: List[Type[Document]]) -> None
         """Initialize MongoDB client and Beanie ODM"""
-    
+
     @abstractmethod
     async def read_and_load_config() -> NoSQLConnectionEntry
         """Application implements this"""
-    
+
     async def disconnect() -> None
         """Close MongoDB client"""
-    
+
     # Properties
     @property
     def client() -> AsyncIOMotorClient
@@ -151,11 +159,13 @@ class MongoConnector(Connector):
     def database() -> AsyncIOMotorDatabase
 ```
 
-**Design Pattern**: 
+**Design Pattern**:
+
 - Singleton at class level prevents duplicate client creation
 - Global ODM binding (Beanie models use singleton client)
 
 **Beanie Integration**:
+
 - Calls `init_beanie()` with database and document models
 - Binds all models to singleton client
 - Models accessible globally after initialization
@@ -169,6 +179,7 @@ class MongoConnector(Connector):
 **Component**: Beanie Document Models
 
 **Responsibilities**:
+
 - Define document schema with Pydantic
 - Provide CRUD operations (insert, find, update, delete)
 - Support aggregation pipelines
@@ -176,27 +187,28 @@ class MongoConnector(Connector):
 - Manage indexes
 
 **Interface**:
+
 ```python
 class Document(BaseModel):
     """Beanie document base class"""
-    
+
     # CRUD operations
     async def insert() -> Document
     async def save() -> Document
     async def delete() -> None
-    
+
     @classmethod
     async def get(document_id: PydanticObjectId) -> Optional[Document]
-    
+
     @classmethod
     def find(query) -> FindQuery
-    
+
     @classmethod
     def find_one(query) -> FindOne
-    
+
     @classmethod
     async def aggregate(pipeline: List[Dict]) -> AggregationQuery
-    
+
     # Settings
     class Settings:
         name: str  # Collection name
@@ -204,13 +216,14 @@ class Document(BaseModel):
 ```
 
 **Document Definition Pattern**:
+
 ```python
 class Exercise(Document):
     title: str
     description: str
     difficulty: str
     created_at: datetime
-    
+
     class Settings:
         name = "exercises"
         indexes = ["difficulty", [("title", 1)]]
@@ -236,10 +249,11 @@ All MongoDB operations emit structured logs using the LogEvent taxonomy:
 **Purpose**: Fluent API for structured logging with LogEvent taxonomy.
 
 **Interface**:
+
 ```python
 class LogBuilder:
     def __init__(logger: Logger)
-    
+
     def event(event: LogEvent) -> LogBuilder
     def success() -> LogBuilder
     def failure(error_code: InfraErrorCode, exc: Exception) -> LogBuilder
@@ -251,11 +265,13 @@ class LogBuilder:
 ### 3.3 Logging Security
 
 **Connection String Safety**:
+
 - Never log connection strings with credentials
 - Use `safe_host_label()` for host identification
 - Redact username/password from logs
 
 **Best Practices**:
+
 - Log initialization and ping for monitoring
 - Log ODM initialization for startup diagnostics
 - Avoid logging every query (high volume)
@@ -269,6 +285,7 @@ class LogBuilder:
 **Design Rationale**: MongoDB only uses InfraErrorCode (no query-level DAO errors since Beanie handles queries).
 
 #### **InfraErrorCode (1000-9999)**
+
 Infrastructure-level errors from Driver/Connector layer.
 
 | Range | Category | Examples | Usage |
@@ -291,6 +308,7 @@ DaoException (base)
 ```
 
 **Why No DAO Layer Exceptions?**
+
 - Beanie handles all query operations
 - Application catches Beanie/PyMongo exceptions directly
 - Infrastructure errors (connection, auth) wrapped in MongoConnectionException
@@ -321,6 +339,7 @@ Application handles based on err_code
 **Problem**: Multiple connector instances = duplicate client creation = resource leaks
 
 **Solution**: Class-level singleton state
+
 - Client stored as class variable (`_client`)
 - First init() creates client
 - Subsequent init() calls reuse existing client
@@ -332,11 +351,13 @@ Application handles based on err_code
 **Problem**: Passing database/client to every document operation is verbose
 
 **Solution**: Beanie global binding
+
 - `init_beanie()` binds models to database globally
 - Documents use bound client automatically
 - Clean API: `await Exercise.find().to_list()`
 
 **Benefits**:
+
 - Minimal boilerplate
 - Framework-aligned (similar to ORMs)
 - Type-safe operations
@@ -346,11 +367,13 @@ Application handles based on err_code
 **Problem**: Blocking I/O in async event loops kills performance
 
 **Solution**: Motor (async MongoDB driver)
+
 - All operations are `async/await`
 - Non-blocking I/O
 - Perfect for FastAPI/async frameworks
 
 **Benefits**:
+
 - High concurrency
 - No thread pool required
 - Framework compatibility
@@ -360,11 +383,13 @@ Application handles based on err_code
 **Problem**: Beanie already provides repository pattern
 
 **Solution**: Use Beanie Document models directly
+
 - Document models = Data + Operations
 - No need for separate DAO classes
 - Less boilerplate
 
 **Comparison with SQL**:
+
 - SQL: BaseSqlDao wraps raw SQL with exceptions
 - NoSQL: Beanie provides rich query API, no wrapping needed
 
@@ -373,11 +398,13 @@ Application handles based on err_code
 **Problem**: Different error taxonomy than SQL (no query execution errors)
 
 **Solution**: Single tier error codes (InfraErrorCode)
+
 - Connection/auth errors at driver layer
 - ODM errors at connector layer
 - Query errors handled by Beanie (not wrapped)
 
 **Rationale**:
+
 - Beanie exceptions are already well-designed (DuplicateKeyError, etc.)
 - Wrapping adds no value
 - Infrastructure errors need wrapping for consistency
@@ -387,12 +414,14 @@ Application handles based on err_code
 **Problem**: High volume, limited value compared to APM tools
 
 **Solution**: Log only infrastructure events
+
 - MONGO_INIT: Connection established
 - MONGO_PING: Health check
 - MONGO_ODM_INIT: Models bound
 - MONGO_CLOSE: Client closed
 
 **Rationale**:
+
 - Query logging adds significant overhead
 - MongoDB has built-in profiling and slow query logs
 - APM tools (DataDog, New Relic) provide better query insights
@@ -422,5 +451,4 @@ Application handles based on err_code
 
 **Document Version**: 2.0.0  
 **Last Updated**: January 2026  
-**For API Reference**: See [NOSQL_API_REFERENCE.md](./NOSQL_API_REFERENCE.md)  
 **For SQL Architecture**: See [SQL_ARCHITECTURE.md](./SQL_ARCHITECTURE.md)

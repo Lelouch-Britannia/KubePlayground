@@ -8,17 +8,20 @@
 
 ## Overview
 
-`dbdaolib` is a unified database abstraction library providing standardized connectivity and access patterns for both **SQL** and **NoSQL** databases across microservices.
+`dbdaolib` is a unified database abstraction library providing standardized connectivity and access patterns
+for both **SQL** and **NoSQL** databases across microservices.
 
 ### Supported Databases
 
 **SQL (Synchronous)**:
+
 - PostgreSQL
 - MySQL
 - SQL Server
 - SQLite
 
 **NoSQL (Asynchronous)**:
+
 - MongoDB (with replica sets and sharded clusters)
 
 ### Design Philosophy
@@ -38,6 +41,7 @@
 <img src="../images/sql_high_level_architecture.png" alt="SQL Architecture" width="700" />
 
 **Key Components**:
+
 - **Configuration Layer**: DbConnectionEntry with pool and SSL/TLS settings
 - **Driver Layer**: SQLDriver with SQLQueryLogger (event-based query logging)
 - **Connector Layer**: RdbmsConnector (singleton) with read/write engine support
@@ -52,14 +56,14 @@
 <img src="../images/nosql_high_level_architecture.png" alt="NoSQL Architecture" width="700" />
 
 **Key Components**:
+
 - **Configuration Layer**: NoSQLConnectionEntry with pool and replica set settings
 - **Driver Layer**: MongoDriver with AsyncIOMotorClient
 - **Connector Layer**: MongoConnector (singleton) with Beanie ODM initialization
 - **ODM Layer**: Beanie Document models (no separate DAO layer)
 - **Error Handling**: Single-tier error codes (InfraErrorCode only)
 
-> **📖 For detailed NoSQL architecture**: [NOSQL_ARCHITECTURE.md](./NOSQL_ARCHITECTURE.md)  
-> **📖 For NoSQL API reference**: [NOSQL_API_REFERENCE.md](./NOSQL_API_REFERENCE.md)
+> **📖 For detailed NoSQL architecture & API**: [NOSQL_ARCHITECTURE.md](./NOSQL_ARCHITECTURE.md)
 
 ---
 
@@ -68,6 +72,7 @@
 ### 1. Separation of Concerns
 
 Each layer has a single responsibility:
+
 - **Configuration**: Pure data objects with validation
 - **Driver**: Engine/client creation and logging
 - **Connector**: Singleton lifecycle management
@@ -77,6 +82,7 @@ Each layer has a single responsibility:
 ### 2. Singleton Pattern
 
 Connectors use class-level singleton state:
+
 - Prevents duplicate engine/client creation
 - Ensures connection pool reuse
 - Simplifies application code (one connector instance)
@@ -84,6 +90,7 @@ Connectors use class-level singleton state:
 ### 3. Fail-Fast Validation
 
 Connections validated on initialization:
+
 - SQL: Ping query on engine creation
 - NoSQL: Ping command on client creation
 - Early failure prevents runtime errors
@@ -91,6 +98,7 @@ Connections validated on initialization:
 ### 4. Exception Wrapping
 
 Database-specific exceptions wrapped with stable error codes:
+
 - **SQL**: SQLAlchemy exceptions → SqlDaoException(DaoErrorCode)
 - **NoSQL**: PyMongo exceptions → MongoConnectionException(InfraErrorCode)
 - Applications handle errors by code, not exception type
@@ -98,6 +106,7 @@ Database-specific exceptions wrapped with stable error codes:
 ### 5. Automatic Logging
 
 Infrastructure events logged automatically:
+
 - **SQL**: Query logging via SQLAlchemy event system (before/after cursor execution)
 - **NoSQL**: Connection lifecycle logging (init, ping, close)
 - Structured logs with LogBuilder and LogEvent taxonomy
@@ -109,20 +118,24 @@ Infrastructure events logged automatically:
 ### SQL Features
 
 **Read/Write Splitting**:
+
 - Dual engine support (primary for writes, replica for reads)
 - Automatic connection selection via `@InjectConnection(is_write=True/False)`
 
 **Transaction Management**:
+
 - Decorator-based transaction lifecycle
 - Auto begin/commit/rollback
 - Manual injection support for testing
 
 **Automatic Query Logging**:
+
 - Event-based logging (no application code changes)
 - Thread-safe timing with statement hashing
 - Parameter count logging (security)
 
 **Connection Pooling**:
+
 - Configurable pool size and overflow
 - Pool recycling and pre-ping health checks
 - Per-database pool configuration
@@ -130,21 +143,25 @@ Infrastructure events logged automatically:
 ### NoSQL Features
 
 **Async/Await Support**:
+
 - Built on Motor (async MongoDB driver)
 - Non-blocking I/O for high concurrency
 - FastAPI optimized
 
 **Beanie ODM Integration**:
+
 - Type-safe document operations
 - Automatic schema validation
 - Global model binding
 
 **Topology Awareness**:
+
 - Replica set support
 - Sharded cluster support
 - Automatic failover
 
 **Connection Pooling**:
+
 - Configurable min/max pool sizes
 - Server selection timeout
 - Automatic reconnection
@@ -158,20 +175,24 @@ Infrastructure events logged automatically:
 MongoDB operations use InfraErrorCode (1000-9999) for infrastructure-level failures:
 
 **Configuration Errors (1000-1999)**:
+
 - `CONF_INVALID`: Invalid connection parameters
 - `CONF_MISSING_CREDS`: Missing username/password
 - `CONF_SSL_ERROR`: SSL/TLS configuration error
 
 **Network Errors (2000-2999)**:
+
 - `NET_UNREACHABLE`: MongoDB host unreachable
 - `NET_TIMEOUT`: Connection or query timeout
 - `NET_DNS_FAILURE`: DNS resolution failed
 
 **Authentication Errors (3000-3999)**:
+
 - `AUTH_FAILURE`: Invalid credentials
 - `AUTH_FORBIDDEN`: User lacks database permissions
 
 **ODM Errors (4000-4999)**:
+
 - `ODM_INIT_FAIL`: Beanie model initialization failed
 - `DATA_VALIDATION`: Document validation error
 
@@ -183,7 +204,7 @@ from daolib.constants import InfraErrorCode
 
 # Connection failures
 raise MongoConnectionException(
-    InfraErrorCode.NET_TIMEOUT, 
+    InfraErrorCode.NET_TIMEOUT,
     "Connection to mongodb://localhost:27017 timed out",
     original_exc
 )
@@ -253,6 +274,7 @@ async def get_exercise(exercise_id: str):
 Structured logs emitted using LogEvent enum for operational monitoring:
 
 **SQL Events**:
+
 - `SQL_INIT`: Connector initialization
 - `SQL_PING`: Connection health check
 - `SQL_POOL_READY`: Connection pool created
@@ -260,6 +282,7 @@ Structured logs emitted using LogEvent enum for operational monitoring:
 - `SQL_CLOSE`: Engine disposal
 
 **NoSQL Events**:
+
 - `MONGO_INIT`: Client initialization
 - `MONGO_PING`: Connection health check
 - `MONGO_ODM_INIT`: Beanie model binding
@@ -282,14 +305,17 @@ LogBuilder(logger)
 ### Logging Security
 
 **Statement Hashing** (SQL):
+
 - SQL statements hashed (SHA-256) before logging
 - Prevents sensitive data in WHERE clauses from appearing in logs
 
 **Parameter Safety**:
+
 - Only parameter count logged, never values
 - Prevents PII, credentials leakage
 
 **Credential Redaction**:
+
 - Use `safe_host_label()` instead of connection strings
 - Never log passwords or sensitive configuration
 
@@ -300,12 +326,14 @@ LogBuilder(logger)
 ### Connection Management
 
 ✅ **DO**:
+
 - Initialize MongoConnector in FastAPI startup event
 - Use singleton pattern (one connector per application)
 - Close connection in shutdown event
 - Configure appropriate pool sizes based on load
 
 ❌ **DON'T**:
+
 - Create multiple connector instances
 - Initialize outside async context
 - Forget to close connections on shutdown
@@ -314,6 +342,7 @@ LogBuilder(logger)
 ### Beanie Model Design
 
 ✅ **DO**:
+
 ```python
 from beanie import Document
 from pydantic import Field
@@ -326,14 +355,14 @@ class Exercise(Document):
     difficulty: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = None
-    
+
     class Settings:
         name = "exercises"  # Explicit collection name
         indexes = [
             "difficulty",
             [("title", 1), ("difficulty", 1)]  # Compound index
         ]
-    
+
     # Custom query methods for document-specific operations
     @classmethod
     async def find_by_difficulty(cls, difficulty: str) -> List["Exercise"]:
@@ -341,6 +370,7 @@ class Exercise(Document):
 ```
 
 ❌ **DON'T**:
+
 ```python
 # Missing Settings class
 class BadExercise(Document):
@@ -353,7 +383,8 @@ class BadExercise(Document):
         smtp.send(...)
 ```
 
-> **Note**: NoSQL does NOT use a separate DAO layer. Extend Document models with custom class methods for document-specific queries instead of creating DAO classes.
+> **Note**: NoSQL does NOT use a separate DAO layer. Extend Document models with custom class methods for
+> document-specific queries instead of creating DAO classes.
 
 ---
 
@@ -388,11 +419,13 @@ class BadExercise(Document):
 ### Key Architectural Difference
 
 **SQL**: Requires DAO layer because SQLAlchemy Core/ORM is low-level. BaseSqlDao provides:
+
 - Transaction management via @InjectConnection decorator
 - Exception wrapping (SQLAlchemy → SqlDaoException)
 - Query execution standardization
 
 **NoSQL**: No DAO layer needed because Beanie provides:
+
 - Active Record pattern (model = data + operations)
 - Rich query API built-in (find, aggregate, etc.)
 - Type-safe operations with Pydantic validation
@@ -409,30 +442,36 @@ For document-specific logic, extend Document models with custom class methods in
 | Document | Description |
 |----------|-------------|
 | [SQL_ARCHITECTURE.md](./SQL_ARCHITECTURE.md) | SQL layer design, logging, error handling, transactions |
-| [NOSQL_ARCHITECTURE.md](./NOSQL_ARCHITECTURE.md) | NoSQL layer design, ODM integration, async patterns |
+| [NOSQL_ARCHITECTURE.md](./NOSQL_ARCHITECTURE.md) | NoSQL layer design, ODM integration, async patterns, API reference |
 
 ### API References
 
 | Document | Description |
 |----------|-------------|
 | [SQL_API_REFERENCE.md](./SQL_API_REFERENCE.md) | Complete SQL API: Configuration, Driver, Connector, DAO, Decorator |
-| [NOSQL_API_REFERENCE.md](./NOSQL_API_REFERENCE.md) | Complete NoSQL API: Configuration, Driver, Connector, ODM |
+
+> **Note**: NoSQL API reference is documented inline within [NOSQL_ARCHITECTURE.md](./NOSQL_ARCHITECTURE.md)
+> since the simpler layer structure (no DAO layer) doesn't warrant a separate API doc.
 
 ### Quick Reference
 
 **Error Codes**:
+
 - InfraErrorCode: 1000-9999 (infrastructure errors)
 - DaoErrorCode: 50000-50999 (SQL query errors)
 
 **Supported Databases**:
+
 - SQL: PostgreSQL, MySQL, SQL Server, SQLite
 - NoSQL: MongoDB (with replica sets and sharded clusters)
 
 **External Dependencies**:
+
 - SQL: SQLAlchemy 2.0+, psycopg2/pymysql/pyodbc
 - NoSQL: Motor, Beanie, PyMongo
 
 **Architecture Layers**:
+
 - SQL: Configuration → Driver → Connector → DAO → Application (5 layers)
 - NoSQL: Configuration → Driver → Connector → ODM/Application (3 layers, no DAO)
 

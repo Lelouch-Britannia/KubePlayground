@@ -1,0 +1,47 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "group:allNonMajor",
+    ":preserveSemverRanges"
+  ],
+  "packageRules": [
+    {
+      "description": "Group DAO SDK Python dependencies",
+      "matchPaths": ["SDKs/DAO/**"],
+      "groupName": "DAO SDK dependencies",
+      "labels": ["dao-sdk", "dependencies"]
+    },
+    {
+      "description": "Group frontend Node dependencies",
+      "matchPaths": ["frontend/**"],
+      "matchManagers": ["npm"],
+      "groupName": "Frontend dependencies",
+      "labels": ["frontend", "dependencies"]
+    },
+    {
+      "description": "Group main backend Python dependencies",
+      "matchPaths": ["pyproject.toml"],
+      "matchManagers": ["pep621"],
+      "groupName": "Backend dependencies",
+      "labels": ["backend", "dependencies"]
+    },
+    {
+      "description": "Docker and Helm updates",
+      "matchPaths": ["docker-compose.yml", "helm/**"],
+      "groupName": "Infrastructure updates",
+      "labels": ["infrastructure", "dependencies"]
+    },
+    {
+      "description": "Auto-merge dev dependency patches",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    }
+  ],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "schedule": ["before 3am on Monday"],
+  "labels": ["dependencies", "renovate"],
+  "commitMessagePrefix": "chore(deps):"
+}

@@ -24,7 +24,8 @@ All logs are emitted as **single-line JSON** to `stdout`, enriched with:
 * **service identity** (`service.*`)
 * **OpenTelemetry trace identifiers** (`trace.id`, `span.id`)
 
-The schema is **ECS-inspired** (dot-notation) for compatibility with Elasticsearch indexing and cloud log explorers (e.g., GCP). Logs are designed to be queryable as data without text parsing.
+The schema is **ECS-inspired** (dot-notation) for compatibility with Elasticsearch indexing and cloud log
+explorers (e.g., GCP). Logs are designed to be queryable as data without text parsing.
 
 ---
 
@@ -40,7 +41,7 @@ The schema is **ECS-inspired** (dot-notation) for compatibility with Elasticsear
 
 ### 2.2 Responsibility Model
 
-**SDKs (Passive)**
+#### SDKs (Passive)
 
 * MUST NOT configure handlers/formatters/levels.
 * MUST NOT write to stdout/stderr.
@@ -48,7 +49,7 @@ The schema is **ECS-inspired** (dot-notation) for compatibility with Elasticsear
 * MUST add structured fields via `extra={...}` consistent with this schema.
 * MUST never log secrets or full connection strings.
 
-**Applications (Active)**
+#### Applications (Active)
 
 * MUST configure logging once at startup (root logger and uvicorn loggers).
 * MUST install trace context injection (Filter).
@@ -65,7 +66,8 @@ This is a deliberate design choice to maximize compatibility with Elastic and ge
 
 ### 3.2 Relationship to OpenTelemetry
 
-OpenTelemetry provides trace/span context at runtime. This design **does not** adopt the OpenTelemetry Log Data Model field naming. Instead, it injects OTel-derived IDs into the ECS-style fields:
+OpenTelemetry provides trace/span context at runtime. This design **does not** adopt the OpenTelemetry Log
+Data Model field naming. Instead, it injects OTel-derived IDs into the ECS-style fields:
 
 * `trace.id` ← from the current OTel span context
 * `span.id`  ← from the current OTel span context
@@ -83,18 +85,19 @@ OpenTelemetry provides trace/span context at runtime. This design **does not** a
 | Field             | Type   | Description                                                               |
 | ----------------- | ------ | ------------------------------------------------------------------------- |
 | `@timestamp`      | string | RFC3339/ISO-8601 UTC timestamp                                            |
-| `severity`        | string | `DEBUG` | `INFO` | `WARNING` | `ERROR` | `CRITICAL`                       |
+| `severity`        | string | Log level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
 | `message`         | string | Short human-readable summary                                              |
-| `event.action`    | string | Stable event identifier (e.g., `mongo.init`, `sql.query`, `http.request`) |
-| `event.outcome`   | string | `success` | `failure` | `unknown`                                         |
+| `event.action`    | string | Stable event identifier (e.g., `mongo.init`, `sql.query`) |
+| `event.outcome`   | string | Outcome: `success`, `failure`, or `unknown` |
 | `log.logger`      | string | Python logger name (module path)                                          |
 | `service.name`    | string | Service identifier                                                        |
-| `service.env`     | string | `dev` | `staging` | `prod`                                                |
+| `service.env`     | string | Environment: `dev`, `staging`, or `prod` |
 | `service.version` | string | Build/version/commit                                                      |
 | `trace.id`        | string | Current OpenTelemetry trace id (32-hex)                                   |
 | `span.id`         | string | Current OpenTelemetry span id (16-hex)                                    |
 
-**Note:** `trace.id` and `span.id` MUST be present for service logs. For SDK logs, they are present when called within a traced execution path (normal in services).
+**Note:** `trace.id` and `span.id` MUST be present for service logs. For SDK logs, they are present when
+called within a traced execution path (normal in services).
 
 ### 4.2 Required Runtime Fields
 
@@ -161,12 +164,12 @@ For `event.action = "http.request"` or endpoint-related failures:
 
 #### SQL Fields (Required for SQL events)
 
-| Field                  | Type                           |
-| ---------------------- | ------------------------------ |
-| `db.role`              | string (`primary` | `replica`) |
-| `db.pool.size`         | int                            |
-| `db.pool.max_overflow` | int                            |
-| `db.pool.recycle_s`    | int                            |
+| Field                  | Type   | Description                  |
+| ---------------------- | ------ | ---------------------------- |
+| `db.role`              | string | Role: `primary` or `replica` |
+| `db.pool.size`         | int    | Connection pool size         |
+| `db.pool.max_overflow` | int    | Maximum overflow connections |
+| `db.pool.recycle_s`    | int    | Connection recycle seconds   |
 
 #### Query Identification (Required for Query Events)
 
@@ -396,4 +399,5 @@ This standard enforces:
 * strict redaction + payload size limits
 * clear separation of responsibilities between SDK and service
 
-This provides production-grade, consistent, searchable logs across microservices and database SDKs without relying on optional sampling or ad-hoc conventions.
+This provides production-grade, consistent, searchable logs across microservices and database SDKs without
+relying on optional sampling or ad-hoc conventions.

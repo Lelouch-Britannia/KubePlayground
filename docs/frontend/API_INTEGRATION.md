@@ -2,7 +2,9 @@
 
 ## Overview
 
-The frontend React application integrates with a FastAPI backend using a centralized API client. All data is stored in MongoDB with a split-brain security architecture where answer keys and validation scripts are never exposed to the frontend.
+The frontend React application integrates with a FastAPI backend using a centralized API client. All data is
+stored in MongoDB with a split-brain security architecture where answer keys and validation scripts are never
+exposed to the frontend.
 
 ---
 
@@ -20,7 +22,8 @@ MongoDB
     └── user_progress (Completion tracking)
 ```
 
-**Security**: Split-brain architecture ensures answer keys in `unit_solutions` collection are never accessible to frontend. All grading happens server-side.
+**Security**: Split-brain architecture ensures answer keys in `unit_solutions` collection are never accessible
+to frontend. All grading happens server-side.
 
 ---
 
@@ -31,6 +34,7 @@ MongoDB
 **Base URL**: `http://localhost:8000/api`
 
 #### Get Dashboard Overview
+
 ```
 GET /dashboard
 
@@ -69,6 +73,7 @@ Response:
 ### 2. Content API
 
 #### Get All Units (Syllabus)
+
 ```
 GET /units/syllabus
 
@@ -89,6 +94,7 @@ Response:
 ```
 
 #### Get Unit Details
+
 ```
 GET /units/{slug}
 
@@ -129,6 +135,7 @@ Response:
 ### 3. Progress API
 
 #### Update User Progress
+
 ```
 POST /progress/update
 
@@ -149,6 +156,7 @@ Response:
 ```
 
 #### Get User Progress
+
 ```
 GET /progress/{user_id}
 
@@ -174,6 +182,7 @@ Response:
 ### 4. Solutions API (Auto-save)
 
 #### Auto-save User Solution
+
 ```
 POST /solutions/autosave
 
@@ -194,6 +203,7 @@ Response:
 ```
 
 #### Get Solution History
+
 ```
 GET /solutions/{unit_slug}/history?user_id={user_id}&limit=10
 
@@ -217,6 +227,7 @@ Response:
 ```
 
 #### Restore Previous Version
+
 ```
 POST /solutions/{unit_slug}/restore
 
@@ -239,6 +250,7 @@ Response:
 ### 5. Grading API
 
 #### Submit Quiz
+
 ```
 POST /grading/quiz/submit
 
@@ -284,6 +296,7 @@ Response:
 **Security**: Correct answers are retrieved from `unit_solutions` collection (server-side only).
 
 #### Verify Code (Stub)
+
 ```
 POST /grading/code/verify
 
@@ -309,6 +322,7 @@ Response:
 ## Frontend TypeScript Interfaces
 
 ### Content Types
+
 ```typescript
 export interface SyllabusItem {
   slug: string;
@@ -346,6 +360,7 @@ export interface EditorConfig {
 ```
 
 ### Dashboard Types
+
 ```typescript
 export interface DashboardData {
   user_id: string;
@@ -369,6 +384,7 @@ export interface TopicProgress {
 ```
 
 ### Progress Types
+
 ```typescript
 export interface ProgressUpdateRequest {
   user_id: string;
@@ -380,6 +396,7 @@ export interface ProgressUpdateRequest {
 ```
 
 ### Grading Types
+
 ```typescript
 export interface QuizSubmissionRequest {
   unit_slug: string;
@@ -403,6 +420,7 @@ export interface QuizResultItem {
 ```
 
 ### Solution Types
+
 ```typescript
 export interface AutosaveRequest {
   unit_slug: string;
@@ -431,6 +449,7 @@ export interface SolutionVersion {
 ### Environment Variables
 
 Create `.env` file in frontend root:
+
 ```bash
 VITE_API_BASE_URL=http://localhost:8000
 ```
@@ -524,10 +543,12 @@ export const apiClient = new ApiClient();
 ## Integration Status
 
 ### Completed ✅
+
 - [x] Dashboard API (`/api/dashboard`) - Topic-grouped progress overview
 - [x] Content API (`/api/units/syllabus`, `/api/units/{slug}`) - Unit listing and details
 - [x] Progress API (`/api/progress/update`, `/api/progress/{user_id}`) - Completion tracking
-- [x] Solutions API (`/api/solutions/autosave`, `/api/solutions/{slug}/history`, `/api/solutions/{slug}/restore`) - Auto-save with versioning
+- [x] Solutions API (`/api/solutions/autosave`, `/api/solutions/{slug}/history`,
+  `/api/solutions/{slug}/restore`) - Auto-save with versioning
 - [x] Grading API (`/api/grading/quiz/submit`, `/api/grading/code/verify`) - Quiz grading + code stub
 - [x] Frontend API client (`src/services/api.ts`) with TypeScript types
 - [x] Dashboard page with topic cards
@@ -541,6 +562,7 @@ export const apiClient = new ApiClient();
 - [x] Error handling and loading states
 
 ### Pending for Future Phases ⏳
+
 - [ ] Code autosave with debouncing (currently manual submit)
 - [ ] Solution history UI (API exists, UI not implemented)
 - [ ] Restore previous version UI
@@ -554,6 +576,7 @@ export const apiClient = new ApiClient();
 ## Development Setup
 
 ### Backend
+
 ```bash
 cd core-service
 source ../.venv/bin/activate
@@ -562,6 +585,7 @@ uvicorn main:app --reload
 ```
 
 ### Frontend
+
 ```bash
 cd frontend
 npm run dev
@@ -569,9 +593,10 @@ npm run dev
 ```
 
 ### Testing
+
 1. Start backend first
 2. Start frontend
-3. Open http://localhost:3000 in browser
+3. Open <http://localhost:3000> in browser
 4. Dashboard should load with topics
 5. Click topic card → navigate to learning unit
 6. Test quiz submission → see animated toast + confetti
@@ -582,6 +607,7 @@ npm run dev
 ## API Response Times
 
 **Current Performance** (localhost testing):
+
 - Dashboard API: ~15ms
 - Unit detail API: ~13ms
 - Quiz submit API: ~20ms

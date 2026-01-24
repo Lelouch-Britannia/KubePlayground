@@ -65,15 +65,15 @@ export default function LearningUnit() {
       } else {
         setIsNavigating(true);
       }
-      
+
       const data = await apiClient.getUnitDetail(unitSlug) as UnitDetail;
       setUnit(data);
-      
+
       // Initialize code editor with template if coding exercise
       if (data.editor_config) {
         setCode(data.editor_config.initial_code);
       }
-      
+
       // Reset quiz answers
       setSelectedAnswers({});
     } catch (err) {
@@ -93,7 +93,7 @@ export default function LearningUnit() {
 
   const navigateToUnit = (direction: 'prev' | 'next') => {
     if (currentIndex === -1) return;
-    
+
     const newIndex = direction === 'prev' ? currentIndex - 1 : currentIndex + 1;
     if (newIndex >= 0 && newIndex < allUnits.length) {
       navigate(`/unit/${allUnits[newIndex].slug}`);
@@ -115,8 +115,8 @@ export default function LearningUnit() {
       setToast({
         show: true,
         type: result.passed ? 'success' : 'error',
-        message: result.passed 
-          ? 'Excellent work! You passed the quiz!' 
+        message: result.passed
+          ? 'Excellent work! You passed the quiz!'
           : `You need 70% to pass. Keep learning and try again!`,
         score: correctCount,
         total: unit.quizzes.length,
@@ -127,7 +127,7 @@ export default function LearningUnit() {
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 3000);
       }
-      
+
       // Update progress if passed
       if (result.passed) {
         await apiClient.updateProgress({
@@ -178,7 +178,7 @@ export default function LearningUnit() {
       await apiClient.updateProgress({
         user_id: DUMMY_USER_ID,
         unit_slug: unit.slug,
-        status: 'in_progress',
+        status: 'started',
       });
     } catch (err) {
       console.error('Code submission error:', err);
@@ -192,7 +192,7 @@ export default function LearningUnit() {
 
   const fetchSolutionHistory = async () => {
     if (!unit) return;
-    
+
     setLoadingSolution(true);
     try {
       const data = await apiClient.getSolutionHistory(unit.slug, DUMMY_USER_ID) as { versions: any[] };

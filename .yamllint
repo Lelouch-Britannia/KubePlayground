@@ -1,0 +1,153 @@
+---
+# YAML Linting Configuration for base-images repository
+
+# Files to lint
+yaml-files:
+  - '*.yaml'
+  - '*.yml'
+  - '.yamllint'
+
+# Files/directories to ignore
+ignore:
+  - /tmp/**
+  - /**/templates/**
+  - /**/.venv/**
+  - /**/venv/**
+  - /**/__pycache__/**
+  - /**/node_modules/**
+  - .git/**
+  - /**/dist/**
+  - /**/build/**
+
+# Linting rules
+rules:
+  # Anchors and aliases
+  anchors:
+    level: warning
+    forbid-undeclared-aliases: true
+    forbid-duplicated-anchors: true
+    forbid-unused-anchors: false  # GitLab CI uses many anchors
+
+  # Braces (for inline mappings)
+  braces:
+    level: warning
+    min-spaces-inside: 0
+    max-spaces-inside: 2
+    min-spaces-inside-empty: 0
+    max-spaces-inside-empty: 0
+
+  # Brackets (for inline sequences)
+  brackets:
+    level: warning
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+    min-spaces-inside-empty: 0
+    max-spaces-inside-empty: 0
+
+  # Colons
+  colons:
+    level: error
+    max-spaces-before: 0
+    max-spaces-after: 1
+
+  # Commas
+  commas:
+    level: error
+    max-spaces-before: 0
+    min-spaces-after: 1
+    max-spaces-after: 1
+
+  # Comments
+  comments:
+    level: warning
+    require-starting-space: true
+    ignore-shebangs: true
+    min-spaces-from-content: 2
+
+  # Comments indentation
+  comments-indentation:
+    level: warning
+
+  # Document end (---)
+  document-end:
+    level: disable
+
+  # Document start (---)
+  document-start:
+    level: warning
+    present: true
+
+  # Empty lines
+  empty-lines:
+    level: warning
+    max: 2
+    max-start: 0
+    max-end: 0
+
+  # Empty values
+  empty-values:
+    level: warning
+    forbid-in-block-mappings: false
+    forbid-in-flow-mappings: true
+
+  # Float values
+  float-values:
+    level: disable
+
+  # Hyphens (for list items)
+  hyphens:
+    level: error
+    max-spaces-after: 1
+
+  # Indentation
+  indentation:
+    level: error
+    spaces: consistent
+    indent-sequences: true
+    check-multi-line-strings: false
+
+  # Key duplicates
+  key-duplicates:
+    level: error
+
+  # Key ordering
+  key-ordering:
+    level: disable
+
+  # Line length
+  line-length:
+    level: warning
+    max: 150
+    allow-non-breakable-words: true
+    allow-non-breakable-inline-mappings: true
+
+  # New line at end of file
+  new-line-at-end-of-file:
+    level: error
+
+  # New lines
+  new-lines:
+    level: error
+    type: unix
+
+  # Octal values
+  octal-values:
+    level: warning
+    forbid-implicit-octal: true
+    forbid-explicit-octal: false
+
+  # Quoted strings
+  quoted-strings:
+    level: disable
+    quote-type: any
+    required: only-when-needed
+
+  # Trailing spaces
+  trailing-spaces:
+    level: error
+
+  # Truthy values (true/false vs yes/no)
+  truthy:
+    level: warning
+    allowed-values: ['true', 'false', 'yes', 'no', 'on', 'off']
+    check-keys: false

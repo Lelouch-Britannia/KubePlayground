@@ -1,9 +1,12 @@
 [project]
 name = "kubeplayground"
 version = "0.1.0"
-description = "Backend services"
+description = ""
 readme = "README.md"
 requires-python = ">=3.10"
+authors = [
+    { name = "Mayank Pershad", email = "pershadmayank@gmail.com" }
+]
 dependencies = [
     "annotated-types==0.7.0",
     "anyio==4.8.0",
@@ -38,28 +41,24 @@ dependencies = [
     "lxml==5.2.2",
     "markupsafe==3.0.3",
     "matplotlib-inline==0.2.1",
-    "motor==3.7.1",
     "nest-asyncio==1.6.0",
     "numpy==2.2.2",
     "packaging==24.2",
-    "pandas==2.2.3",
     "parso==0.8.5",
     "passlib==1.7.4",
     "pexpect==4.9.0",
     "platformdirs==4.5.1",
     "pluggy==1.5.0",
+    "pre-commit>=4.5.1",
     "prompt-toolkit==3.0.52",
     "psutil==7.2.0",
     "ptyprocess==0.7.0",
     "pure-eval==0.2.3",
-    "pyarrow==22.0.0",
     "pydantic==2.10.5",
     "pydantic-core==2.27.2",
     "pygments==2.19.2",
     "pyjwt==2.10.1",
     "pymongo==4.15.5",
-    "pymongoarrow==1.11.1",
-    "pyodbc==5.2.0",
     "pyproject-hooks==1.2.0",
     "pytest==8.3.4",
     "pytest-asyncio==0.25.2",
@@ -69,14 +68,11 @@ dependencies = [
     "python-dotenv==1.0.1",
     "python-multipart==0.0.20",
     "pytz==2024.2",
-    "pyyaml==6.0.3",
     "pyzmq==27.1.0",
     "regex==2023.8.8",
     "requests==2.32.3",
     "six==1.17.0",
     "sniffio==1.3.1",
-    "sqlalchemy==2.0.37",
-    "sqlglot==26.31.2",
     "stack-data==0.6.3",
     "starlette==0.41.3",
     "tomli==2.2.1",
@@ -89,3 +85,125 @@ dependencies = [
     "wcwidth==0.2.14",
     "xmltodict==0.13.0",
 ]
+
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+exclude = [
+    "sample-resources/",
+    "*.ipynb",
+    "validation-service/"
+]
+
+[tool.ruff.lint]
+select = [
+    "A",     # flake8-builtins
+    # "ANN",   # flake8-annotations
+    "ARG",   # flake8-unused-arguments
+    "ASYNC", # flake8-async
+    "B",     # flake8-bugbear - bug patterns
+    "BLE",   # flake8-blind-except
+    "C4",    # flake8-comprehensions
+    "C90",   # McCabe - complexity
+    "D",     # Pydocstyle - docstrings
+    "DTZ",   # flake8-datetimez - timezone aware
+    "E",     # Pycodestyle errors
+    "EM",    # flake8-errmsg
+    "EXE",   # flake8-executable
+    "F",     # Pyflakes - syntax errors and basic mistakes
+    "FAST",  # FastAPI - FastAPI-specific rules
+    "FBT",   # flake8-boolean-trap
+    "G",     # flake8-logging-format
+    "I",     # isort - import ordering
+    "ICN",   # flake8-import-conventions
+    "INP",   # flake8-no-pep420 - requires __init__.py
+    "ISC",   # flake8-implicit-str-concat
+    "N",     # PEP8 naming
+    "NPY",   # NumPy-specific
+    "PD",    # pandas-vet
+    "PERF",  # perflint - performance
+    "PIE",   # flake8-pie - improvements
+    "PL",    # Pylint
+    "PT",    # flake8-pytest-style
+    "PTH",   # flake8-use-pathlib - prefer pathlib
+    "Q",     # flake8-quotes
+    "RET",   # flake8-return
+    "RSE",   # flake8-raise
+    "RUF",   # Ruff-specific rules
+    "S",     # flake8-bandit - security
+    "SIM",   # flake8-simplify
+    "SLF",   # flake8-self
+    "SLOT",  # flake8-slots
+    "T10",   # flake8-debugger
+    "T20",   # flake8-print - no print statements
+    "TID",   # flake8-tidy-imports
+    "TRY",   # tryceratops - exception handling
+    "UP",    # Pyupgrade - modern Python syntax
+    "W",     # Pycodestyle warnings
+    "YTT",   # flake8-2020 - sys.version checks
+]
+
+ignore = [
+    "B027",    # Allow non-abstract empty methods in abstract base classes
+    "B904",    # Exception chaining not always needed in SDK error wrapping
+    "BLE001",  # Catching Exception acceptable in decorators/wrappers
+    "C901",    # Ignore complexity (practical for SDK abstractions)
+    # Docstring
+    # ------------------------------------------------------------------------
+    "D100",    # Missing docstring in public module (add when documenting)
+    "D101",    # Missing docstring in public class (add when documenting)
+    "D102",    # Missing docstring in public method (add when documenting)
+    "D103",    # Missing docstring in public function
+    "D104",    # Missing docstring in public package
+    "D105",    # Missing docstring in magic method
+    "D107",    # Missing docstring in __init__ (done in class docstring)
+    "D203",    # Pydocstyle - one-blank-line-before-class
+    # -------------------------------------------------------------------------
+    "E501",    # Allow long lines (enforced by line-length instead)
+    "EM101",   # String literals in exceptions (common in SDK error wrapping)
+    "F401",    # Allow unused imports in __all__ (common pattern for re-exports)
+    "FBT001",  # Boolean arguments acceptable in SDK interfaces
+    "N818",    # Exception naming convention (existing name is fine)
+    # Complexity
+    # -------------------------------------------------------------------------
+    "PLR0912", # Ignore complexity - too many branches
+    "PLR0913", # Ignore complexity - too many arguments
+    "PLR0915", # Ignore complexity - too many statements
+    # -------------------------------------------------------------------------
+    "RET504",  # Unnecessary variable assignment before return
+    "RUF012",  # Class variable type annotations not critical
+    # TRY exception handling
+    # -------------------------------------------------------------------------
+    "TRY003",  # Long exception messages not in exception class (common in SDK error wrapping)
+    "TRY201",  # Exception handling style preferences
+    "TRY300",  # Exception handling style preferences
+    # -------------------------------------------------------------------------
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["daolib"]
+lines-after-imports = 2
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests: allow magic values, assertions, relative imports, no docstrings, print, pseudorandomness
+# PT009/PT027 - unittest-style assertions are fine, BLE001 - catching Exception in test cleanup is acceptable
+# PLC0415 - local imports in tests, S314 - XML parsing in tests, T203 - pprint for debugging
+# B017 - asserting on Exception is acceptable in unittest tests, PD901 - df is acceptable in tests
+"**/tests/**/*" = ["ANN", "PLR2004", "S101", "TID252", "D", "S311", "T201", "PTH", "PT009", "PT027", "BLE001", "PLC0415", "S314", "T203", "B017", "PD901"]
+"**/test_*.py" = ["ANN", "PLR2004", "S101", "TID252", "D", "S311", "T201", "PTH", "PT009", "PT027", "BLE001", "PLC0415", "S314", "T203", "B017", "PD901"]
+# CI scripts: allow prints, magic values, assertions, no docstrings
+"ci/**/*" = ["T201", "PLR2004", "S101", "D", "S311", "INP001"]
+# Setup files: allow magic values, no __init__.py requirement
+"**/setup.py" = ["PLR2004", "D100", "INP001"]
+# SQLAlchemy event hooks use context._query_start_time for per-execution timing (standard pattern)
+"SDKs/DAO/daolib/drivers/sql/driver.py" = ["SLF001"]
+# Config validation: raising inside try to verify file exists before reading is intentional
+"core/utils/mongo_helper.py" = ["TRY301"]

@@ -63,6 +63,7 @@ Generate SQLAlchemy connection string.
 **Returns**: `str` - URL-encoded connection string
 
 **Example**:
+
 ```python
 config = DbConnectionEntry(system="postgresql", username="user", ...)
 conn_str = config.connection_string()
@@ -76,6 +77,7 @@ Get host label without credentials for logging.
 **Returns**: `str` - Safe host identifier
 
 **Example**:
+
 ```python
 label = config.safe_host_label()
 # Returns: "postgresql@host:5432/db"
@@ -86,6 +88,7 @@ label = config.safe_host_label()
 Validate configuration after initialization.
 
 **Raises**:
+
 - `ValueError` - Invalid pool parameters or missing required fields
 
 ---
@@ -110,7 +113,7 @@ class DatabaseType(str, Enum):
 
 ### 2.1 SQLDriver
 
-**Module**: `daolib.drivers.sql.sql_db_driver`
+**Module**: `daolib.drivers.sql.driver`
 
 **Description**: Low-level driver for creating SQLAlchemy engines with query logging.
 
@@ -130,10 +133,11 @@ def __init__(
 ```
 
 **Parameters**:
+
 - `primary_config` - Configuration for write (primary) database
 - `secondary_config` - Optional configuration for read (replica) database
 
-#### Methods
+#### Methods (SQLDriver)
 
 ##### `connect() -> Tuple[Engine, Optional[Engine]]`
 
@@ -142,12 +146,14 @@ Create and validate SQLAlchemy engines.
 **Returns**: `Tuple[Engine, Optional[Engine]]` - (write_engine, read_engine)
 
 **Raises**:
+
 - `SqlDaoException(InfraErrorCode.CONF_INVALID)` - Invalid configuration
 - `SqlDaoException(InfraErrorCode.NET_TIMEOUT)` - Connection timeout
 - `SqlDaoException(InfraErrorCode.AUTH_FAILURE)` - Authentication failed
 - `SqlDaoException(InfraErrorCode.NET_UNREACHABLE)` - Host unreachable
 
 **Example**:
+
 ```python
 driver = SQLDriver(primary_config, secondary_config)
 write_engine, read_engine = driver.connect()
@@ -160,6 +166,7 @@ Dispose engines and clear state.
 **Returns**: `None`
 
 **Example**:
+
 ```python
 driver.disconnect()
 ```
@@ -168,7 +175,7 @@ driver.disconnect()
 
 ### 2.2 SQLQueryLogger
 
-**Module**: `daolib.drivers.sql.sql_db_driver`
+**Module**: `daolib.drivers.sql.driver`
 
 **Description**: SQLAlchemy event listener for automatic query logging.
 
@@ -177,7 +184,7 @@ class SQLQueryLogger:
     """Event-based query logger with thread-safe timing."""
 ```
 
-#### Constructor
+#### Constructor (SQLQueryLogger)
 
 ```python
 def __init__(
@@ -189,6 +196,7 @@ def __init__(
 ```
 
 **Parameters**:
+
 - `logger` - Python logger instance
 - `db_system` - Database system name (postgresql, mysql, etc.)
 - `host` - Database host for logging context
@@ -259,20 +267,22 @@ class RdbmsConnector(Connector):
 | `_read_engine` | `Optional[Engine]` | Secondary (read) engine singleton |
 | `_primary_cfg` | `Optional[DbConnectionEntry]` | Primary configuration |
 
-#### Constructor
+#### Constructor (RdbmsConnector)
 
 ```python
 def __init__(self)
 ```
 
 **Side Effects**:
+
 - First instantiation: Creates engines via `read_and_load_configs()` and `SQLDriver.connect()`
 - Subsequent instantiations: Reuses existing engines
 
 **Raises**:
+
 - `SqlDaoException(InfraErrorCode.*)` - Engine creation failures
 
-#### Abstract Methods
+#### Abstract Methods (RdbmsConnector)
 
 ##### `read_and_load_configs() -> Tuple[DbConnectionEntry, Optional[DbConnectionEntry]]`
 
@@ -283,6 +293,7 @@ Load primary and optional secondary database configurations.
 **Must be implemented by**: Application subclass
 
 **Example**:
+
 ```python
 class MyConnector(RdbmsConnector):
     def read_and_load_configs(self):
@@ -291,7 +302,7 @@ class MyConnector(RdbmsConnector):
         return primary, secondary
 ```
 
-#### Methods
+#### Methods (RdbmsConnector)
 
 ##### `get_write_connection() -> Connection`
 
@@ -300,6 +311,7 @@ Get connection from write (primary) engine.
 **Returns**: `Connection` - SQLAlchemy connection for write operations
 
 **Example**:
+
 ```python
 conn = connector.get_write_connection()
 try:
@@ -315,6 +327,7 @@ Get connection from read engine (falls back to write if no secondary configured)
 **Returns**: `Connection` - SQLAlchemy connection for read operations
 
 **Example**:
+
 ```python
 conn = connector.get_read_connection()
 ```
@@ -328,6 +341,7 @@ Dispose all engines and clear singleton state.
 **Side Effects**: Logs SQL_CLOSE event
 
 **Example**:
+
 ```python
 connector.dispose()
 ```
@@ -373,7 +387,7 @@ class BaseDAOInterface(ABC):
     """Base DAO interface."""
 ```
 
-#### Attributes
+#### Attributes (BaseDAOInterface)
 
 | Name | Type | Description |
 |------|------|-------------|
@@ -392,13 +406,14 @@ class BaseSqlDao(BaseDAOInterface):
     """Base SQL DAO with query execution and exception wrapping."""
 ```
 
-#### Constructor
+#### Constructor (BaseSqlDao)
 
 ```python
 def __init__(self, connector: Connector)
 ```
 
 **Parameters**:
+
 - `connector` - RdbmsConnector instance
 
 #### CRUD Methods
@@ -408,6 +423,7 @@ def __init__(self, connector: Connector)
 Execute INSERT query.
 
 **Parameters**:
+
 - `connection` - SQLAlchemy connection (injected by decorator)
 - `query` - SQL INSERT statement
 - `params` - Query parameters (list)
@@ -415,11 +431,13 @@ Execute INSERT query.
 **Returns**: `CursorResult` - Result with `lastrowid`, `rowcount`
 
 **Raises**:
+
 - `SqlDaoException(DaoErrorCode.INTEGRITY_ERROR)` - Constraint violation
 - `SqlDaoException(DaoErrorCode.OPERATIONAL_ERROR)` - Database error
 - `SqlDaoException(DaoErrorCode.*)` - Other query errors
 
 **Example**:
+
 ```python
 @InjectConnection(is_write=True)
 def create_user(self, connection, username):
@@ -433,6 +451,7 @@ def create_user(self, connection, username):
 Execute SELECT query.
 
 **Parameters**:
+
 - `connection` - SQLAlchemy connection
 - `query` - SQL SELECT statement
 - `params` - Query parameters (list)
@@ -440,11 +459,13 @@ Execute SELECT query.
 **Returns**: `List` - List of row tuples
 
 **Raises**:
+
 - `SqlDaoException(DaoErrorCode.INTEGRITY_SELECT)` - Integrity error
 - `SqlDaoException(DaoErrorCode.OPERATIONAL_SELECT)` - Operational error
 - `SqlDaoException(DaoErrorCode.*)` - Other query errors
 
 **Example**:
+
 ```python
 @InjectConnection(is_write=False)
 def get_user(self, connection, user_id):
@@ -458,6 +479,7 @@ def get_user(self, connection, user_id):
 Execute UPDATE query.
 
 **Parameters**:
+
 - `connection` - SQLAlchemy connection
 - `query` - SQL UPDATE statement
 - `params` - Query parameters (list)
@@ -465,9 +487,11 @@ Execute UPDATE query.
 **Returns**: `CursorResult` - Result with `rowcount`
 
 **Raises**:
+
 - `SqlDaoException(DaoErrorCode.*)` - Query errors
 
 **Example**:
+
 ```python
 @InjectConnection(is_write=True)
 def update_email(self, connection, user_id, email):
@@ -481,6 +505,7 @@ def update_email(self, connection, user_id, email):
 Execute DELETE query.
 
 **Parameters**:
+
 - `connection` - SQLAlchemy connection
 - `query` - SQL DELETE statement
 - `params` - Query parameters (list)
@@ -488,6 +513,7 @@ Execute DELETE query.
 **Returns**: `CursorResult` - Result with `rowcount`
 
 **Raises**:
+
 - `SqlDaoException(DaoErrorCode.*)` - Query errors
 
 #### DataFrame Methods
@@ -497,6 +523,7 @@ Execute DELETE query.
 Execute SELECT and return pandas DataFrame.
 
 **Parameters**:
+
 - `connection` - SQLAlchemy connection
 - `query` - SQL SELECT statement
 - `params` - Query parameters (list)
@@ -506,6 +533,7 @@ Execute SELECT and return pandas DataFrame.
 **Requires**: `pandas` library
 
 **Example**:
+
 ```python
 @InjectConnection(is_write=False)
 def get_sales_report(self, connection, start_date, end_date):
@@ -518,11 +546,13 @@ def get_sales_report(self, connection, start_date, end_date):
 Generate SQL placeholders and parameters from DataFrame.
 
 **Parameters**:
+
 - `df` - pandas DataFrame with insert data
 
 **Returns**: `Tuple[str, List]` - (placeholders_string, flat_params_list)
 
 **Example**:
+
 ```python
 placeholders, params = self.df_placeholders_mapping(products_df)
 query = f"INSERT INTO products (name, price) VALUES {placeholders}"
@@ -544,7 +574,7 @@ class InjectConnection:
     """Decorator for connection lifecycle and transaction management."""
 ```
 
-#### Constructor
+#### Constructor (InjectConnection)
 
 ```python
 def __init__(
@@ -555,6 +585,7 @@ def __init__(
 ```
 
 **Parameters**:
+
 - `connector_attr` - Name of connector attribute on DAO instance (default: "connector")
 - `is_write` - If True, uses write connection and manages transaction
 
@@ -567,7 +598,7 @@ class UserDao(BaseSqlDao):
         # connection auto-injected
         # transaction auto-managed (begin/commit/rollback)
         pass
-    
+
     @InjectConnection(is_write=False)
     def get_user(self, connection, user_id):
         # connection auto-injected
@@ -578,6 +609,7 @@ class UserDao(BaseSqlDao):
 #### Behavior
 
 **For `is_write=True`**:
+
 1. Gets write connection from connector
 2. Begins transaction (`with conn.begin()`)
 3. Executes decorated method
@@ -585,11 +617,13 @@ class UserDao(BaseSqlDao):
 5. Closes connection
 
 **For `is_write=False`**:
+
 1. Gets read connection from connector
 2. Executes decorated method (no transaction)
 3. Closes connection
 
 **Manual Injection Support**:
+
 - If first argument is already a `Connection`, uses it directly (for testing)
 
 ---
@@ -607,7 +641,7 @@ class DaoException(Exception):
     """Base DAO exception with error code."""
 ```
 
-#### Constructor
+#### Constructor (DaoException)
 
 ```python
 def __init__(
@@ -619,11 +653,12 @@ def __init__(
 ```
 
 **Parameters**:
+
 - `err_code` - Error code enum value
 - `msg` - Error message
 - `original_exception` - Original exception (if wrapping)
 
-#### Attributes
+#### Attributes (DaoException)
 
 | Name | Type | Description |
 |------|------|-------------|
@@ -644,7 +679,7 @@ class SqlDaoException(DaoException):
     """SQL DAO exception for infrastructure and query errors."""
 ```
 
-#### Constructor
+#### Constructor (SqlDaoException)
 
 ```python
 def __init__(
@@ -656,6 +691,7 @@ def __init__(
 ```
 
 **Usage**:
+
 ```python
 try:
     dao.create_user(username="alice")
@@ -683,22 +719,24 @@ class LogBuilder:
     """Fluent builder for structured log events."""
 ```
 
-#### Constructor
+#### Constructor (LogBuilder)
 
 ```python
 def __init__(self, logger: Logger)
 ```
 
 **Parameters**:
+
 - `logger` - Python logger instance
 
-#### Methods
+#### Methods (LogBuilder)
 
 ##### `event(event: LogEvent) -> LogBuilder`
 
 Set log event type.
 
 **Parameters**:
+
 - `event` - LogEvent enum value
 
 **Returns**: `self` for chaining
@@ -714,6 +752,7 @@ Mark event as successful (INFO level).
 Mark event as failed (ERROR level).
 
 **Parameters**:
+
 - `error_code` - Error code enum value
 - `exc` - Exception instance
 
@@ -724,6 +763,7 @@ Mark event as failed (ERROR level).
 Add structured field to log.
 
 **Parameters**:
+
 - `key` - Field name
 - `value` - Field value
 
@@ -734,6 +774,7 @@ Add structured field to log.
 Set log message.
 
 **Parameters**:
+
 - `message` - Log message string
 
 **Returns**: `self` for chaining
@@ -745,6 +786,7 @@ Emit the log event.
 **Returns**: `None`
 
 **Example**:
+
 ```python
 LogBuilder(logger) \
     .event(LogEvent.SQL_QUERY) \
@@ -766,7 +808,7 @@ LogBuilder(logger) \
 ```python
 class LogEvent(str, Enum):
     """SQL log event taxonomy."""
-    
+
     SQL_INIT = "sql.init"
     SQL_PING = "sql.ping"
     SQL_POOL_READY = "sql.pool.ready"
@@ -819,7 +861,7 @@ class DaoErrorCode(IntEnum):
     """DAO-layer query execution error codes."""
 ```
 
-#### Values
+#### Values (DaoErrorCode)
 
 | Code | Name | Description |
 |------|------|-------------|
@@ -861,4 +903,4 @@ from pandas import DataFrame
 **Document Version**: 2.0.0  
 **Last Updated**: January 2026  
 **For Architecture Details**: See [SQL_ARCHITECTURE.md](./SQL_ARCHITECTURE.md)  
-**For NoSQL API**: See [NOSQL_API_REFERENCE.md](./NOSQL_API_REFERENCE.md)
+**For NoSQL**: See [NOSQL_ARCHITECTURE.md](./NOSQL_ARCHITECTURE.md)

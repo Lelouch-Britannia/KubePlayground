@@ -24,7 +24,7 @@ import QuizPanel from './components/RightPanel/QuizPanel';
 export default function App() {
   const [currentExerciseIdx, setCurrentExerciseIdx] = useState(0);
   const [leftWidth, setLeftWidth] = useState(40);
-  const [code, setCode] = useState(EXERCISES[0].template);
+  const [code, setCode] = useState(EXERCISES[0].template || '');
   const [consoleOpen, setConsoleOpen] = useState(true);
   const [activeRightTab, setActiveRightTab] = useState<'code' | 'solution'>('code');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -40,7 +40,7 @@ export default function App() {
     setActiveRightTab('code');
   }, [currentExerciseIdx, currentExercise]);
 
-  const handleDrag = (e: DragEvent) => {
+  const handleDrag = (e: React.DragEvent<HTMLDivElement>) => {
     if (e.clientX === 0) return;
     const newWidth = (e.clientX / window.innerWidth) * 100;
     if (newWidth > 25 && newWidth < 75) setLeftWidth(newWidth);
@@ -204,7 +204,7 @@ export default function App() {
                   Solution
                 </button>
                 <button
-                  onClick={() => setCode(currentExercise.template)}
+                  onClick={() => setCode(currentExercise.template || '')}
                   className="ml-auto mr-3 text-xs text-gray-500 hover:text-gray-900 dark:hover:text-white flex items-center gap-1.5 transition-colors"
                 >
                   <RotateCcw size={12} /> Reset Template
@@ -232,7 +232,7 @@ export default function App() {
             </>
           )}
 
-          {currentExercise.type === 'quiz' && (
+          {currentExercise.type === 'quiz' && currentExercise.quizData && (
             <QuizPanel quizData={currentExercise.quizData} />
           )}
         </div>

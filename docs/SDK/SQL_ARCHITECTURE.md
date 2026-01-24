@@ -25,7 +25,6 @@
 
 <img src="../images/sql-sequence-diagram.png" alt="SQL Query Execution Flow" width="1000" />
 
-
 ---
 
 ## 2. Layer Design
@@ -37,6 +36,7 @@
 **Component**: `DbConnectionEntry` (dataclass)
 
 **Responsibilities**:
+
 - Store credentials, host, port, database name
 - Pool configuration (size, overflow, recycle, timeout)
 - SSL/TLS settings
@@ -44,6 +44,7 @@
 - Generate connection strings with URL encoding
 
 **Interface**:
+
 ```python
 @dataclass
 class DbConnectionEntry:
@@ -61,13 +62,14 @@ class DbConnectionEntry:
     use_ssl: bool = False
     ssl_verify: bool = True
     ssl_ca_path: str = ""
-    
+
     def connection_string() -> str
     def safe_host_label() -> str
     def __post_init__()
 ```
 
 **Validation Rules**:
+
 - System must be valid DatabaseType (postgresql, mysql, mssql, sqlite)
 - Pool parameters must be positive integers
 - SQLite: No auth credentials, requires `path` parameter
@@ -82,6 +84,7 @@ class DbConnectionEntry:
 **Component**: `SQLDriver`
 
 **Responsibilities**:
+
 - Create Engine objects from DbConnectionEntry
 - Register SQLQueryLogger event listeners
 - Fail-fast connectivity validation (ping)
@@ -89,16 +92,17 @@ class DbConnectionEntry:
 - Engine cleanup on disconnect
 
 **Interface**:
+
 ```python
 class SQLDriver:
-    def __init__(primary_config: DbConnectionEntry, 
+    def __init__(primary_config: DbConnectionEntry,
                  secondary_config: Optional[DbConnectionEntry])
-    
+
     def connect() -> Tuple[Engine, Optional[Engine]]
         """Returns (write_engine, read_engine)"""
-    
+
     def disconnect() -> None
-    
+
     # Private methods
     def _create_engine(config: DbConnectionEntry) -> Engine
     def _ping_engine(engine: Engine) -> None
@@ -112,6 +116,7 @@ class SQLDriver:
 **Component**: `SQLQueryLogger` (SQLAlchemy event listener)
 
 **Responsibilities**:
+
 - Thread-safe query timing using `context._query_start_time`
 - Statement hashing (SHA-256) to avoid logging sensitive data
 - Parameter count logging (not values for security)
@@ -119,15 +124,16 @@ class SQLDriver:
 - Automatic error code mapping
 
 **Interface**:
+
 ```python
 class SQLQueryLogger:
     def __init__(logger: Logger, db_system: str, host: str)
-    
+
     # SQLAlchemy event hooks
     def before_cursor_execute(conn, cursor, statement, params, context, executemany)
     def after_cursor_execute(conn, cursor, statement, params, context, executemany)
     def handle_error(exception_context)
-    
+
     # Private methods
     def _get_operation(context) -> str
     def _hash_statement(statement: str) -> str
@@ -143,6 +149,7 @@ class SQLQueryLogger:
 **Component**: `RdbmsConnector` (abstract base class)
 
 **Responsibilities**:
+
 - Singleton pattern: Engines created once per application
 - Call `read_and_load_configs()` to get DbConnectionEntry
 - Instantiate SQLDriver and call `connect()`
@@ -151,24 +158,25 @@ class SQLQueryLogger:
 - Cleanup: `dispose()` disposes engines
 
 **Interface**:
+
 ```python
 class RdbmsConnector(Connector):
     # Class-level singleton state
     _write_engine: Optional[Engine] = None
     _read_engine: Optional[Engine] = None
     _primary_cfg: Optional[DbConnectionEntry] = None
-    
+
     def __init__()
         """Initialize on first instantiation only"""
-    
+
     @abstractmethod
     def read_and_load_configs() -> Tuple[DbConnectionEntry, Optional[DbConnectionEntry]]
         """Application implements this"""
-    
+
     def get_write_connection() -> Connection
     def get_read_connection() -> Connection
     def dispose() -> None
-    
+
     # Properties
     @property
     def dialect() -> str
@@ -191,28 +199,30 @@ class RdbmsConnector(Connector):
 **Component**: `BaseSqlDao`
 
 **Responsibilities**:
+
 - Execute queries using `connection.execute(text(query))`
 - Wrap SQLAlchemy exceptions into `SqlDaoException` with `DaoErrorCode`
 - **NO logging** (SQLQueryLogger handles it automatically)
 - Helper methods for DataFrame integration
 
 **Interface**:
+
 ```python
 class BaseSqlDao:
     connector: Connector
-    
+
     def __init__(connector: Connector)
-    
+
     # Protected methods (exception wrapping)
     def _execute_query(connection: Connection, query: str, params: List) -> CursorResult
     def _execute_and_retrieve(connection: Connection, query: str, params: List) -> List
-    
+
     # Public CRUD interface
     def insert(connection: Connection, query: str, params: List) -> CursorResult
     def read(connection: Connection, query: str, params: List) -> List
     def update(connection: Connection, query: str, params: List) -> CursorResult
     def delete(connection: Connection, query: str, params: List) -> CursorResult
-    
+
     # DataFrame integration
     def _read_from_pandas(connection: Connection, query: str, params: List) -> DataFrame
     def df_placeholders_mapping(df: DataFrame) -> Tuple[str, List]
@@ -238,12 +248,14 @@ class BaseSqlDao:
 **Component**: `@InjectConnection` decorator
 
 **Responsibilities**:
+
 - Get connection from connector (read or write)
 - Manage transaction begin/commit/rollback for writes
 - Auto-close connection after method execution
 - Handle manual connection injection for testing
 
 **Interface**:
+
 ```python
 class InjectConnection:
     def __init__(connector_attr: str = "connector", is_write: bool = False)
@@ -251,6 +263,7 @@ class InjectConnection:
 ```
 
 **Behavior**:
+
 - If `is_write=True`: Wraps execution in `with conn.begin()` transaction
 - If `is_write=False`: No transaction, just connection lifecycle
 - Auto-detects manual connection injection (testing support)
@@ -277,10 +290,11 @@ All SQL operations emit structured logs using the LogEvent taxonomy:
 **Purpose**: Fluent API for structured logging with LogEvent taxonomy.
 
 **Interface**:
+
 ```python
 class LogBuilder:
     def __init__(logger: Logger)
-    
+
     def event(event: LogEvent) -> LogBuilder
     def success() -> LogBuilder
     def failure(error_code: Union[InfraErrorCode, DaoErrorCode], exc: Exception) -> LogBuilder
@@ -292,16 +306,19 @@ class LogBuilder:
 ### 3.3 Query Logging Security
 
 **Statement Hashing**:
+
 - SQL statements are hashed (SHA-256) before logging
 - Prevents sensitive data in WHERE clauses from appearing in logs
 - Only first 16 characters of hash logged for readability
 
 **Parameter Safety**:
+
 - Only parameter **count** is logged, never values
 - Prevents PII, credentials, or sensitive data leakage
 - Sufficient for query pattern analysis
 
 **Thread Safety**:
+
 - Uses `context._query_start_time` attribute (not class variable)
 - Prevents race conditions in concurrent query execution
 - Each query execution has isolated timing context
@@ -315,6 +332,7 @@ class LogBuilder:
 **Design Rationale**: Separate infrastructure failures from application-level query errors.
 
 #### **Tier 1: InfraErrorCode (1000-9999)**
+
 Infrastructure-level errors from Driver/Connector layer.
 
 | Range | Category | Examples | Usage |
@@ -325,10 +343,11 @@ Infrastructure-level errors from Driver/Connector layer.
 | 4000-4999 | Schema/ODM | QUERY_SYNTAX, DATA_VALIDATION | Schema issues |
 | 9000+ | Unknown | UNKNOWN_FATAL | Unexpected errors |
 
-**Used By**: SQLDriver.connect(), RdbmsConnector.__init__()  
+**Used By**: SQLDriver.connect(), RdbmsConnector.**init**()
 **Logged By**: SQLQueryLogger (in SQL_INIT, SQL_PING events)
 
 #### **Tier 2: DaoErrorCode (50000-50999)**
+
 Query execution errors from DAO layer.
 
 | Range | Category | Examples | Usage |
@@ -360,6 +379,7 @@ Application handles based on err_code (no SQLAlchemy knowledge needed)
 ```
 
 **Why Wrapping?**
+
 - **Database Agnostic**: Application code never imports SQLAlchemy
 - **Stable API**: Error codes don't change with SQLAlchemy upgrades
 - **Programmatic Handling**: Applications can handle errors by code, not exception type
@@ -395,11 +415,13 @@ DaoException (base)
 **Design Decision**: Separate read and write connections for replica support.
 
 **Write Connection (`is_write=True`)**:
+
 - Always uses `_write_engine` (primary database)
 - Transaction managed by decorator (`with conn.begin()`)
 - Use for: INSERT, UPDATE, DELETE operations
 
 **Read Connection (`is_write=False`)**:
+
 - Uses `_read_engine` if configured, else falls back to `_write_engine`
 - No transaction wrapping (SELECT doesn't need transactions)
 - Use for: SELECT operations
@@ -415,6 +437,7 @@ DaoException (base)
 **Problem**: Multiple connector instances = duplicate engine creation = resource leaks
 
 **Solution**: Class-level singleton state
+
 - Engines stored as class variables (`_write_engine`, `_read_engine`)
 - First instantiation creates engines
 - Subsequent instantiations reuse existing engines
@@ -426,11 +449,13 @@ DaoException (base)
 **Problem**: Manual logging in DAO duplicates code and is error-prone
 
 **Solution**: SQLAlchemy event system
+
 - `before_cursor_execute`: Start timing
 - `after_cursor_execute`: Log success with duration
 - `handle_error`: Log failure with error code
 
 **Benefits**:
+
 - Zero application code changes
 - Automatic for all queries
 - Thread-safe timing
@@ -441,11 +466,13 @@ DaoException (base)
 **Problem**: Boilerplate connection and transaction management in every DAO method
 
 **Solution**: `@InjectConnection` decorator
+
 - Auto-injects connection from connector
 - Manages transaction lifecycle
 - Auto-closes connection
 
 **Benefits**:
+
 - Clean DAO code (focus on business logic)
 - Consistent transaction handling
 - Impossible to forget connection cleanup
@@ -454,11 +481,13 @@ DaoException (base)
 
 **Problem**: Different layers have different error contexts
 
-**Solution**: 
+**Solution**:
+
 - **InfraErrorCode**: Infrastructure failures (before query execution)
 - **DaoErrorCode**: Query execution failures (during query execution)
 
 **Benefits**:
+
 - Clear separation of concerns
 - Enables different alerting strategies (infra vs app errors)
 - Dashboard metrics by error category
@@ -470,6 +499,7 @@ DaoException (base)
 **Solution**: Wrap in `SqlDaoException` with stable error codes
 
 **Benefits**:
+
 - Database agnostic application code
 - Stable API (error codes don't change with library upgrades)
 - Programmatic error handling (by code, not exception type)
@@ -481,6 +511,7 @@ DaoException (base)
 **Solution**: Remove all logging from DAO layer
 
 **Rationale**:
+
 - SQLQueryLogger already logs every query automatically
 - DAO logging would create duplicate, inconsistent logs
 - DAO should focus on query execution and exception wrapping
