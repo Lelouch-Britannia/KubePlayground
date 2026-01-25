@@ -1,8 +1,10 @@
 import logging
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, HTTPException
+from auth.dependencies import get_current_user
+from auth.models import User
+from fastapi import APIRouter, Depends, HTTPException
 from models import LearningUnit, UserSolution
 from schema import (
     AutosaveRequest,
@@ -18,15 +20,25 @@ from starlette import status
 router = APIRouter(prefix="/api/solutions", tags=["solutions"])
 logger = logging.getLogger(__name__)
 
+# Dependency injection for authenticated user
+current_user_dependency = Annotated[User, Depends(get_current_user)]
+
 
 @router.post("/autosave")
-async def autosave_solution(request: AutosaveRequest) -> AutosaveResponse:
+async def autosave_solution(
+    request: AutosaveRequest,
+    current_user: current_user_dependency,
+) -> AutosaveResponse:
     """Auto-save user's work in progress to MongoDB.
 
     Creates new version or updates latest save.
 
+    Requires:
+        Authorization: Bearer <token> header
+
     Args:
-        request: AutosaveRequest with unit_slug, user_id, code, language
+        request: AutosaveRequest with unit_slug, code, language
+        current_user: Authenticated user from JWT token
 
     Returns:
         AutosaveResponse: Save confirmation with timestamp and version
@@ -40,7 +52,10 @@ async def autosave_solution(request: AutosaveRequest) -> AutosaveResponse:
 
     # Find latest version for this user+unit
     latest = (
-        await UserSolution.find(UserSolution.user_id == request.user_id, UserSolution.unit_id == unit.id)
+        await UserSolution.find(
+            UserSolution.user_id == str(current_user.id),
+            UserSolution.unit_id == unit.id,
+        )
         .sort(-UserSolution.version)
         .first_or_none()
     )  # type: ignore
@@ -51,7 +66,7 @@ async def autosave_solution(request: AutosaveRequest) -> AutosaveResponse:
 
     # Create new save
     solution = UserSolution(
-        user_id=request.user_id,
+        user_id=str(current_user.id),
         unit_id=unit.id,  # type: ignore
         content=request.code,
         version=new_version,
@@ -63,12 +78,18 @@ async def autosave_solution(request: AutosaveRequest) -> AutosaveResponse:
 
 
 @router.get("/{unit_slug}/history")
-async def get_solution_history(unit_slug: str, user_id: str) -> SolutionHistoryResponse:
-    """Get all save points for user's work on specific unit.
+async def get_solution_history(
+    unit_slug: str,
+    current_user: current_user_dependency,
+) -> SolutionHistoryResponse:
+    """Get all save points for authenticated user's work on specific unit.
+
+    Requires:
+        Authorization: Bearer <token> header
 
     Args:
         unit_slug: Unit identifier
-        user_id: User/session identifier
+        current_user: Authenticated user from JWT token
 
     Returns:
         SolutionHistoryResponse: List of all saves with previews
@@ -83,15 +104,15 @@ async def get_solution_history(unit_slug: str, user_id: str) -> SolutionHistoryR
 
     # Find all saves for this user+unit
     saves = (
-        await UserSolution.find(UserSolution.user_id == user_id, UserSolution.unit_id == unit.id)
+        await UserSolution.find(
+            UserSolution.user_id == str(current_user.id),
+            UserSolution.unit_id == unit.id,
+        )
         .sort(-UserSolution.version)
         .to_list()
     )  # type: ignore
 
-    if not saves:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No saves found for this unit")
-
-    # Build history items with previews
+    # Build history items with previews (return empty list if no saves)
     history_items = [
         SolutionHistoryItem(
             version=save.version, saved_at=save.auto_saved_at, code_preview=save.content[:100] if save.content else ""
@@ -103,12 +124,20 @@ async def get_solution_history(unit_slug: str, user_id: str) -> SolutionHistoryR
 
 
 @router.post("/{unit_slug}/restore")
-async def restore_solution(unit_slug: str, request: RestoreSolutionRequest) -> RestoreSolutionResponse:
+async def restore_solution(
+    unit_slug: str,
+    request: RestoreSolutionRequest,
+    current_user: current_user_dependency,
+) -> RestoreSolutionResponse:
     """Restore code from specific save point.
+
+    Requires:
+        Authorization: Bearer <token> header
 
     Args:
         unit_slug: Unit identifier (must match request)
-        request: RestoreSolutionRequest with user_id and version
+        request: RestoreSolutionRequest with version
+        current_user: Authenticated user from JWT token
 
     Returns:
         RestoreSolutionResponse: Complete code from requested version
@@ -130,7 +159,7 @@ async def restore_solution(unit_slug: str, request: RestoreSolutionRequest) -> R
 
     # Find specific version
     solution = await UserSolution.find_one(
-        UserSolution.user_id == request.user_id,
+        UserSolution.user_id == str(current_user.id),
         UserSolution.unit_id == unit.id,
         UserSolution.version == request.version,
     )

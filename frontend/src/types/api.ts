@@ -56,10 +56,10 @@ export interface TopicProgress {
 }
 
 export interface DashboardData {
-  user_id: string;
-  greeting: string;
+  user_id?: string;
+  greeting?: string;
   topics: TopicProgress[];
-  overall_completion: number;
+  overall_completion?: number;
   total_units: number;
   completed_count: number;
   in_progress_count: number;

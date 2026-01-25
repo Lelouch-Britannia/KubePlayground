@@ -45,6 +45,7 @@ services:
     environment:
       ENVIRONMENT: development
       MONGO_PASSWORD_DEV: ${MONGO_PASSWORD:-password}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production-please}
     depends_on:
       mongodb:
         condition: service_healthy
@@ -52,6 +53,8 @@ services:
       # Mount sample resources for seeding database
       # Inside container: /app/seed-data/k8s/pods101/*.yaml etc.
       - ./sample-resources:/app/seed-data:ro
+      # Persist SQLite database for IAM (user accounts, sessions, activity)
+      - sqlite_data:/app/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -121,3 +124,6 @@ volumes:
     driver: local
   mongodb_config:
     driver: local
+  sqlite_data:
+    driver: local
+    # Stores: user accounts, refresh tokens, activity logs, streaks

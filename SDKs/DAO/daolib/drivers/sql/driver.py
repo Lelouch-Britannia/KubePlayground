@@ -97,6 +97,7 @@ class SQLQueryLogger:
         Note:
             Uses context built-in flags instead of string parsing for reliability.
             Handles multi-line statements, comments, and CTEs correctly.
+            SQLite ExecutionContext doesn't have isselect, so we check it last.
         """
         if context.isinsert:
             return "INSERT"
@@ -104,7 +105,12 @@ class SQLQueryLogger:
             return "UPDATE"
         if context.isdelete:
             return "DELETE"
-        if context.isselect:
+        # SQLite ExecutionContext doesn't have isselect attribute
+        # Check if it's a SELECT by checking if it's not a write operation
+        if hasattr(context, "isselect") and context.isselect:
+            return "SELECT"
+        # Fallback: check statement string for SELECT
+        if context.statement and context.statement.strip().upper().startswith("SELECT"):
             return "SELECT"
         # DDL, CALL, PRAGMA, or other non-CRUD
         return "OTHER"

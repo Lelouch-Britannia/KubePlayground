@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
-from database import init_db
+from auth import router as auth_router
+from database import Base, engine, init_db
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import content, dashboard, grading, progress, seed, solutions
@@ -11,7 +12,7 @@ from utils.logger import setup_logging
 async def lifespan(_app: FastAPI):
     # Setup structured logging
     setup_logging()
-    # Initialize database connection
+    # Initialize MongoDB connection (async)
     await init_db()
     yield
 
@@ -26,6 +27,9 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all headers
 )
 
+# Create all SQLAlchemy tables (IAM models) at module level
+Base.metadata.create_all(bind=engine)
+
 
 @app.get("/health")
 async def health_check():
@@ -33,6 +37,7 @@ async def health_check():
     return {"status": "healthy"}
 
 
+app.include_router(auth_router.router)
 app.include_router(seed.router)
 app.include_router(dashboard.router)
 app.include_router(content.router)

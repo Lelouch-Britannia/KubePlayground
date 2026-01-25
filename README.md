@@ -54,14 +54,14 @@ open http://localhost:8080
 
 **What you can do:**
 
-* Browse exercises from curated curriculum
-* **Dual-Mode Learning**:
-  * **Conceptual Modules**: Markdown lessons with interactive quizzes (multiple-choice)
-  * **Coding Exercises**: Write YAML solutions in browser with Monaco Editor (VS Code-like experience)
-* Validate against your local Kubernetes cluster (Minikube/MicroK8s)
-* Save and track progress with auto-save (MongoDB-based)
-* Get instant feedback via automated verification steps
-* Secure grading via split-brain architecture (answer keys never exposed to frontend)
+- Browse exercises from curated curriculum
+- **Dual-Mode Learning**:
+  - **Conceptual Modules**: Markdown lessons with interactive quizzes (multiple-choice)
+  - **Coding Exercises**: Write YAML solutions in browser with Monaco Editor (VS Code-like experience)
+- Validate against your local Kubernetes cluster (Minikube/MicroK8s)
+- Save and track progress with auto-save (MongoDB-based)
+- Get instant feedback via automated verification steps
+- Secure grading via split-brain architecture (answer keys never exposed to frontend)
 
 ---
 
@@ -78,61 +78,61 @@ open http://localhost:8080
 
 **Role**: The Foundation (Library)
 
-* **Responsibilities**:
-  * **Unified Connectivity**: Manages connection pooling for SQL (SQLAlchemy) and NoSQL (Motor/Beanie).
-  * **Singleton Management**: Ensures single instances of database drivers across the application.
-  * **SQL Data Access**: BaseSqlDao with @InjectConnection decorator for transaction management.
-  * **NoSQL Data Access**: Direct Beanie Document models (Active Record pattern, no DAO layer).
-  * **Structured Logging**: LogBuilder with LogEvent taxonomy for operational monitoring.
-  * **Error Handling**: Two-tier for SQL (InfraErrorCode + DaoErrorCode), single-tier for NoSQL
+- **Responsibilities**:
+  - **Unified Connectivity**: Manages connection pooling for SQL (SQLAlchemy) and NoSQL (Motor/Beanie).
+  - **Singleton Management**: Ensures single instances of database drivers across the application.
+  - **SQL Data Access**: BaseSqlDao with @InjectConnection decorator for transaction management.
+  - **NoSQL Data Access**: Direct Beanie Document models (Active Record pattern, no DAO layer).
+  - **Structured Logging**: LogBuilder with LogEvent taxonomy for operational monitoring.
+  - **Error Handling**: Two-tier for SQL (InfraErrorCode + DaoErrorCode), single-tier for NoSQL
     (InfraErrorCode).
 
-* **Tech**: Python, Motor, Beanie, SQLAlchemy 2.0+.
-* **Documentation**: [SDK Architecture Docs](./docs/SDK/)
+- **Tech**: Python, Motor, Beanie, SQLAlchemy 2.0+.
+- **Documentation**: [SDK Architecture Docs](./docs/SDK/)
 
 ### 1. Core Service (Port 8000)
 
 **Role**: The "Brain" (Monolith)
 
-* **Responsibilities**:
-  * **API Gateway**: Single entry point for Frontend.
-  * **Content Delivery**: Serves public learning content (exercises, lessons).
-  * **Secure Grading**: Server-side quiz/code validation using split-brain architecture.
-  * **Exercise Domain**: Manages public content (questions, instructions) and private solutions (answer
+- **Responsibilities**:
+  - **API Gateway**: Single entry point for Frontend.
+  - **Content Delivery**: Serves public learning content (exercises, lessons).
+  - **Secure Grading**: Server-side quiz/code validation using split-brain architecture.
+  - **Exercise Domain**: Manages public content (questions, instructions) and private solutions (answer
     keys, validation scripts).
-  * **User Solution Domain**: Handles user code/quiz submissions, versioning, and auto-save.
-  * **Progress Tracking**: Records user completion status and scores.
-  * **Orchestration**: Dispatches validation jobs to background worker (future).
-  * **WebSocket Manager**: Streams real-time validation logs (future).
+  - **User Solution Domain**: Handles user code/quiz submissions, versioning, and auto-save.
+  - **Progress Tracking**: Records user completion status and scores.
+  - **Orchestration**: Dispatches validation jobs to background worker (future).
+  - **WebSocket Manager**: Streams real-time validation logs (future).
 
-* **Tech**: FastAPI, `dbdaolib` (NoSQL Driver).
-* **Database**: MongoDB (via SDK).
-  * **Collections**:
-    * `learning_units` (Public): Questions, instructions, initial code templates
-    * `unit_solutions` (Private): Answer keys, validation scripts (**never exposed to frontend**)
-    * `user_solutions` (User Data): Code submissions, quiz answers, versioning, auto-save
-    * `user_progress` (Permanent State): Completion tracking, scores, timestamps
+- **Tech**: FastAPI, `dbdaolib` (NoSQL Driver).
+- **Database**: MongoDB (via SDK).
+  - **Collections**:
+    - `learning_units` (Public): Questions, instructions, initial code templates
+    - `unit_solutions` (Private): Answer keys, validation scripts (**never exposed to frontend**)
+    - `user_solutions` (User Data): Code submissions, quiz answers, versioning, auto-save
+    - `user_progress` (Permanent State): Completion tracking, scores, timestamps
 
 ### 2. Validation Service (Background Worker)
 
 **Role**: The "Muscle" (Worker)
 
-* **Responsibilities**:
-* **Job Consumer**: Listens to Redis `validation_queue`.
-* **K8s Interaction**: Applies manifests using official K8s Client.
-* **Namespace Isolation**: Manages ephemeral test environments.
+- **Responsibilities**:
+- **Job Consumer**: Listens to Redis `validation_queue`.
+- **K8s Interaction**: Applies manifests using official K8s Client.
+- **Namespace Isolation**: Manages ephemeral test environments.
 
-* **Tech**: Python (K8s Library).
-* **Database**: Stateless (Uses K8s API).
+- **Tech**: Python (K8s Library).
+- **Database**: Stateless (Uses K8s API).
 
 ### 3. Infrastructure
 
-* **MongoDB**: Centralized storage with split-brain architecture:
-  * Public collections: Safe for frontend (learning_units)
-  * Private collections: Answer keys and validation scripts (unit_solutions)
-  * User data: Submissions and progress tracking (user_solutions, user_progress)
-* **Redis**: Message Broker (Jobs) & Event Bus (Logs) - **Deferred to Phase 6**
-  * **Note**: Auto-save currently uses MongoDB (Redis optimization in v2.0)
+- **MongoDB**: Centralized storage with split-brain architecture:
+  - Public collections: Safe for frontend (learning_units)
+  - Private collections: Answer keys and validation scripts (unit_solutions)
+  - User data: Submissions and progress tracking (user_solutions, user_progress)
+- **Redis**: Message Broker (Jobs) & Event Bus (Logs) - **Deferred to Phase 6**
+  - **Note**: Auto-save currently uses MongoDB (Redis optimization in v2.0)
 
 ---
 
@@ -323,10 +323,10 @@ docker compose down -v
 
 #### Prerequisites
 
-* Python 3.10+
-* Node.js 20+
-* MongoDB 6.0+ (running on localhost:27017)
-* uv (Python package manager)
+- Python 3.10+
+- Node.js 20+
+- MongoDB 6.0+ (running on localhost:27017)
+- uv (Python package manager)
 
 #### Backend Setup
 
@@ -361,7 +361,7 @@ npm run dev
 
 ### Verify Installation
 
-1. Open http://localhost:8080 (Docker) or http://localhost:5173 (local)
+1. Open <http://localhost:8080> (Docker) or <http://localhost:5173> (local)
 2. Dashboard should load with "Kubernetes Pods" topic
 3. Click topic card → navigate to learning unit
 4. Test quiz submission → see animated toast + confetti (on pass)
@@ -409,15 +409,19 @@ npm run dev
 ## Future Roadmap
 
 ### Phase 5: Identity Management & User Association
+
 See [Issue 1](https://github.com/Lelouch-Britannia/KubePlayground/issues/1) for details.
 
 ### Phase 6: K8s Validation Worker  
+
 See [Issue 2](https://github.com/Lelouch-Britannia/KubePlayground/issues/2) for details.
 
 ### Phase 7: Helm Deployment
+
 See [Issue 3](https://github.com/Lelouch-Britannia/KubePlayground/issues/3) for details.
 
 ### v2.0 Features (Long-Term)
+
 - Leaderboards and social features
 - More learning tracks (Deployments, Services, ConfigMaps)
 - Code hints and AI-powered suggestions

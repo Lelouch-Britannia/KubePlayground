@@ -74,7 +74,6 @@ class QuizSubmissionRequest(BaseModel):
     """Submit quiz answers for grading."""
 
     unit_slug: str
-    user_id: str  # Session ID or authenticated user ID
     answers: dict[str, str]  # {quiz_id: selected_option_id}
 
 
@@ -102,7 +101,6 @@ class CodeVerificationRequest(BaseModel):
     """Submit YAML code for validation (Phase 6 - stub for now)."""
 
     unit_slug: str
-    user_id: str
     code: str
     language: str = "yaml"
 
@@ -124,7 +122,6 @@ class AutosaveRequest(BaseModel):
     """Auto-save user's work in progress."""
 
     unit_slug: str
-    user_id: str
     code: str
     language: str = "yaml"
 
@@ -157,7 +154,6 @@ class RestoreSolutionRequest(BaseModel):
     """Restore code from specific save point."""
 
     unit_slug: str
-    user_id: str
     version: int
 
 
@@ -178,7 +174,6 @@ class RestoreSolutionResponse(BaseModel):
 class ProgressUpdateRequest(BaseModel):
     """Update user progress for a unit."""
 
-    user_id: str
     unit_slug: str
     status: Literal["started", "completed"]  # Must match UserProgress model
     score: float | None = None  # Quiz score percentage

@@ -1,6 +1,9 @@
 import logging
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException
+from auth.dependencies import get_current_user
+from auth.models import User
+from fastapi import APIRouter, Depends, HTTPException
 from models import LearningUnit, UnitSolution
 from schema import (
     CodeVerificationRequest,
@@ -17,13 +20,23 @@ PASSING_SCORE_THRESHOLD = 70.0  # Minimum score percentage to pass
 router = APIRouter(prefix="/api/grading", tags=["grading"])
 logger = logging.getLogger(__name__)
 
+# Dependency injection for authenticated user
+current_user_dependency = Annotated[User, Depends(get_current_user)]
+
 
 @router.post("/quiz/submit")
-async def submit_quiz(request: QuizSubmissionRequest) -> QuizSubmissionResponse:
+async def submit_quiz(
+    request: QuizSubmissionRequest,
+    _current_user: current_user_dependency,
+) -> QuizSubmissionResponse:
     """Grade quiz submission by comparing against UnitSolution answer keys.
 
+    Requires:
+        Authorization: Bearer <token> header
+
     Args:
-        request: QuizSubmissionRequest with unit_slug, user_id, answers dict
+        request: QuizSubmissionRequest with unit_slug and answers dict
+        _current_user: Authenticated user (required for authorization)
 
     Returns:
         QuizSubmissionResponse: Detailed results with score and explanations
@@ -87,11 +100,18 @@ async def submit_quiz(request: QuizSubmissionRequest) -> QuizSubmissionResponse:
 
 
 @router.post("/code/verify")
-async def verify_code(_request: CodeVerificationRequest) -> CodeVerificationResponse:
+async def verify_code(
+    _request: CodeVerificationRequest,
+    _current_user: current_user_dependency,
+) -> CodeVerificationResponse:
     """Verify YAML code submission (STUB for Phase 2 - full implementation in Phase 6).
 
+    Requires:
+        Authorization: Bearer <token> header
+
     Args:
-        request: CodeVerificationRequest with unit_slug, user_id, code, language
+        _request: CodeVerificationRequest with unit_slug, code, language (unused in stub)
+        _current_user: Authenticated user (required for authorization)
 
     Returns:
         CodeVerificationResponse: Validation results (stubbed response)

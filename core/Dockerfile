@@ -36,6 +36,9 @@ RUN uv pip install --system -r pyproject.toml
 # ----- Copy application code -----
 COPY core/ /app/
 
+# ----- Create directory for SQLite database -----
+RUN mkdir -p /app/data && chmod 755 /app/data
+
 # ----- Expose port -----
 EXPOSE 8000
 
