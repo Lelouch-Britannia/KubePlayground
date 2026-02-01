@@ -13,7 +13,7 @@ from schema import (
 from starlette import status
 
 
-router = APIRouter(prefix="/api/units", tags=["content"])
+router = APIRouter(prefix="/units", tags=["content"])
 logger = logging.getLogger(__name__)
 
 

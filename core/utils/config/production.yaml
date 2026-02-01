@@ -6,3 +6,8 @@ nosql_creds:
     db_name: "production"
     min_pool_size: 20
     max_pool_size: 100
+sql_credentials:
+  sqlite:
+    path: "/app/data/kubeplayground.db"
+    max_pool_size: 5
+    max_overflow: 10

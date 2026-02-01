@@ -26,7 +26,8 @@ RUN mkdir -p /root/nginx-certs \
     && mkdir -p /etc/nginx/sites-enabled
 
 # Generate self-signed SSL certificates
-RUN apk add --no-cache openssl=3.3.2-r1 && \
+# hadolint ignore=DL3018
+RUN apk add --no-cache openssl && \
     openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
     -keyout /root/nginx-certs/nginx-selfsigned.key \
     -out /root/nginx-certs/nginx-selfsigned.crt \

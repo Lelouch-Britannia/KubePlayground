@@ -29,11 +29,16 @@ class EditorConfig(BaseModel):
 
 
 class LearningUnit(Document):
-    """Public content - safe for frontend (NEVER includes answer keys)."""
+    """Public content - safe for frontend (NEVER includes answer keys).
+
+    Cross-Database Foreign Keys:
+        - course_id: References SQLite courses.id (application-level, not enforced)
+        - topic_id: References SQLite topics.id (application-level, not enforced)
+    """
 
     slug: str  # URL-friendly unique identifier
     title: str = Field(max_length=50, min_length=3)
-    topic: str = Field(max_length=50, min_length=3)
+    topic: str = Field(max_length=50, min_length=3)  # Deprecated: Use topic_id, kept for backward compatibility
     order_index: int = Field(gt=-1)
     type: Literal["conceptual", "coding"]
     difficulty: Literal["beginner", "intermediate", "advanced"] | None = None
@@ -43,13 +48,19 @@ class LearningUnit(Document):
     quizzes: list[Quiz] | None = None  # For conceptual modules
     editor_config: EditorConfig | None = None  # For coding exercises
 
+    # Course/Topic Hierarchy (cross-database FKs)
+    course_id: int | None = None  # FK to SQLite courses.id
+    topic_id: int | None = None  # FK to SQLite topics.id
+
     class Settings:
         """Beanie collection settings."""
 
         name = "learning_units"
         indexes = [
             IndexModel([("slug", ASCENDING)], unique=True),  # Unique constraint
-            IndexModel([("topic", ASCENDING), ("order_index", ASCENDING)]),  # Syllabus queries
+            IndexModel([("topic", ASCENDING), ("order_index", ASCENDING)]),  # Legacy syllabus queries
+            IndexModel([("topic_id", ASCENDING), ("order_index", ASCENDING)]),  # Topic-based queries
+            IndexModel([("course_id", ASCENDING)]),  # Course-based queries
         ]
 
 
@@ -72,9 +83,15 @@ class UnitSolution(Document):
 
 
 class UserSolution(Document):
-    """User submissions with versioning and auto-save support."""
+    """User submissions with versioning and auto-save support.
 
-    user_id: str  # Placeholder session ID (no auth yet)
+    Cross-Database Foreign Key:
+        user_id references SQLite users.id (integer auto-increment PK)
+        No built-in FK constraint - validation must be done at application layer
+        See database.validate_user_exists() for reference integrity checks
+    """
+
+    user_id: int  # Foreign key to SQLite User.id (integer auto-increment)
     unit_id: PydanticObjectId  # Foreign key to LearningUnit
     content: str  # User's code OR quiz selections (JSON string)
     version: int = Field(default=1)  # Auto-increment for version history
@@ -90,9 +107,15 @@ class UserSolution(Document):
 
 
 class UserProgress(Document):
-    """Permanent record of user completion and scores."""
+    """Permanent record of user completion and scores.
 
-    user_id: str  # Placeholder session ID (no auth yet)
+    Cross-Database Foreign Key:
+        user_id references SQLite users.id (integer auto-increment PK)
+        No built-in FK constraint - validation must be done at application layer
+        See database.validate_user_exists() for reference integrity checks
+    """
+
+    user_id: int  # Foreign key to SQLite User.id (integer auto-increment)
     unit_id: PydanticObjectId  # Foreign key to LearningUnit
     status: Literal["started", "completed"]
     score: int | None = None  # Percentage (0-100) for quizzes

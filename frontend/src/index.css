@@ -2,21 +2,161 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import Inter font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@layer base {
+  :root {
+    /* Light Theme Variables (default) */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f6f8fa;
+    --bg-elevated: #ffffff;
+    --border-color: #d0d7de;
+    --hover-color: #f3f4f6;
+    --active-color: #e5e7eb;
+    --text-primary: #1f2937;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --accent-blue: #0969da;
+    --accent-green: #1a7f37;
+    --accent-purple: #8250df;
+    --accent-orange: #bc4c00;
+    --accent-yellow: #9a6700;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  }
+
+  .dark {
+    /* VS Code Dark Modern Theme Variables */
+    --bg-primary: #1e1e1e;
+    --bg-secondary: #252526;
+    --bg-elevated: #2d2d30;
+    --border-color: #3c3c3c;
+    --hover-color: #2a2d2e;
+    --active-color: #37373d;
+    --text-primary: #d4d4d4;
+    --text-secondary: #858585;
+    --text-muted: #6e7681;
+    --accent-blue: #0078d4;
+    --accent-green: #4ec9b0;
+    --accent-purple: #c586c0;
+    --accent-orange: #ce9178;
+    --accent-yellow: #dcdcaa;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  }
+}
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+  font-family: 'JetBrains Mono', source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+/* Custom scrollbar for dark mode */
+.dark ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 5px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #4f4f4f;
+}
+
+/* Light mode scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
+
+/* Focus outline styling */
+*:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+}
+
+/* Selection styling */
+::selection {
+  background-color: rgba(0, 120, 212, 0.3);
+  color: inherit;
+}
+
+.dark ::selection {
+  background-color: rgba(0, 120, 212, 0.4);
+}
+
+/* Utility classes for theme-aware styling */
+@layer utilities {
+  .bg-theme-primary {
+    background-color: var(--bg-primary);
+  }
+  .bg-theme-secondary {
+    background-color: var(--bg-secondary);
+  }
+  .bg-theme-elevated {
+    background-color: var(--bg-elevated);
+  }
+  .border-theme {
+    border-color: var(--border-color);
+  }
+  .text-theme-primary {
+    color: var(--text-primary);
+  }
+  .text-theme-secondary {
+    color: var(--text-secondary);
+  }
+  .text-theme-muted {
+    color: var(--text-muted);
+  }
+  .hover-theme:hover {
+    background-color: var(--hover-color);
+  }
+  .active-theme:active {
+    background-color: var(--active-color);
+  }
 }

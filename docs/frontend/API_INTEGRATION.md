@@ -2,9 +2,11 @@
 
 ## Overview
 
-The frontend React application integrates with a FastAPI backend using a centralized API client. All data is
-stored in MongoDB with a split-brain security architecture where answer keys and validation scripts are never
-exposed to the frontend.
+The frontend React application integrates with a FastAPI backend using a centralized API client with JWT
+authentication. All data is stored in MongoDB (content) and SQLite (users, activity) with a split-brain security
+architecture where answer keys and validation scripts are never exposed to the frontend.
+
+**Authentication:** JWT-based with access tokens (60min) and refresh tokens (7 days). Automatic token refresh on 401 responses.
 
 ---
 
@@ -12,24 +14,310 @@ exposed to the frontend.
 
 ```
 Frontend (React 18 + TypeScript + Vite)
-    ↓ HTTP/REST
+    ↓ HTTP/REST + JWT Bearer Token
 FastAPI Backend (Port 8000)
-    ↓ Beanie ODM
-MongoDB
-    ├── learning_units (Public - safe for frontend)
-    ├── unit_solutions (Private - NEVER exposed)
-    ├── user_solutions (User submissions + autosave)
-    └── user_progress (Completion tracking)
+    ├─ SQLAlchemy ORM → SQLite (users, activity, streaks)
+    └─ Beanie ODM → MongoDB (content, solutions, progress)
+Databases:
+    ├── SQLite (Authentication & Activity)
+    │   ├── users (registration, login)
+    │   ├── user_activity (daily aggregation for heatmap)
+    │   ├── user_streaks (gamification)
+    │   ├── activity_log (audit trail)
+    │   └── refresh_tokens (session management)
+    └── MongoDB (Learning Content)
+        ├── learning_units (Public - safe for frontend)
+        ├── unit_solutions (Private - NEVER exposed)
+        ├── user_solutions (User submissions + autosave)
+        └── user_progress (Completion tracking)
 ```
 
-**Security**: Split-brain architecture ensures answer keys in `unit_solutions` collection are never accessible
-to frontend. All grading happens server-side.
+**Security:**
+
+- Split-brain architecture ensures answer keys in `unit_solutions` collection are never accessible to frontend
+- All grading happens server-side
+- JWT tokens stored in localStorage with automatic refresh
+- Protected routes require valid access token
 
 ---
 
 ## Implemented API Endpoints
 
-### 1. Dashboard API
+### 1. Authentication API
+
+**Base URL**: `http://localhost:8000/api/auth`
+
+#### Register User
+
+```
+POST /register
+
+Body:
+{
+  "email": "user@example.com",
+  "username": "johndoe",
+  "password": "SecurePass123!"
+}
+
+Response (201):
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "unique-refresh-token-string",
+  "token_type": "bearer",
+  "user": {
+    "id": 1,
+    "email": "user@example.com",
+    "username": "johndoe",
+    "created_at": "2025-01-31T10:00:00Z"
+  }
+}
+
+Errors:
+- 409: Email already registered
+- 422: Validation error (weak password, invalid email)
+```
+
+#### Login
+
+```
+POST /login
+
+Body:
+{
+  "email": "user@example.com",
+  "password": "SecurePass123!"
+}
+
+Response (200):
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "unique-refresh-token-string",
+  "token_type": "bearer",
+  "user": {
+    "id": 1,
+    "email": "user@example.com",
+    "username": "johndoe",
+    "last_login": "2025-01-31T10:30:00Z"
+  }
+}
+
+Errors:
+- 401: Invalid credentials
+- 400: Email not verified (future feature)
+```
+
+#### Refresh Token
+
+```
+POST /refresh
+
+Body:
+{
+  "refresh_token": "unique-refresh-token-string"
+}
+
+Response (200):
+{
+  "access_token": "new-access-token",
+  "refresh_token": "new-refresh-token",  // Token rotation
+  "token_type": "bearer"
+}
+
+Errors:
+- 401: Invalid or expired refresh token
+```
+
+#### Get Current User
+
+```
+GET /me
+Authorization: Bearer <access_token>
+
+Response (200):
+{
+  "id": 1,
+  "email": "user@example.com",
+  "username": "johndoe",
+  "created_at": "2025-01-31T10:00:00Z",
+  "last_login": "2025-01-31T10:30:00Z"
+}
+
+Errors:
+- 401: Invalid or expired token
+```
+
+#### Logout
+
+```
+POST /logout
+Authorization: Bearer <access_token>
+
+Body:
+{
+  "refresh_token": "current-refresh-token"
+}
+
+Response (200):
+{
+  "message": "Logged out successfully"
+}
+```
+
+#### Change Password
+
+```
+POST /change-password
+Authorization: Bearer <access_token>
+
+Body:
+{
+  "old_password": "CurrentPass123!",
+  "new_password": "NewSecurePass456!"
+}
+
+Response (200):
+{
+  "message": "Password changed successfully"
+}
+
+Errors:
+- 401: Incorrect old password
+- 422: Weak new password
+```
+
+---
+
+### 2. User Activity API
+
+**Base URL**: `http://localhost:8000/api/auth`
+
+#### Get Activity Heatmap
+
+```
+GET /activity/heatmap?days=365
+Authorization: Bearer <access_token>
+
+Response:
+[
+  {
+    "date": "2025-01-31",
+    "points": 45,
+    "level": 3  // 0-4 scale for color intensity
+  },
+  {
+    "date": "2025-01-30",
+    "points": 15,
+    "level": 2
+  }
+]
+```
+
+**Level Calculation:**
+
+- Level 0: 0 points (empty)
+- Level 1: 1-10 points
+- Level 2: 11-25 points
+- Level 3: 26-50 points
+- Level 4: 51+ points
+
+#### Get Activity by Date Range
+
+```
+GET /activity/my?start_date=2025-01-01&end_date=2025-12-31
+Authorization: Bearer <access_token>
+
+Response:
+[
+  {
+    "activity_date": "2025-01-31",
+    "total_points": 45,
+    "quiz_attempts": 3,
+    "quiz_passes": 2,
+    "exercises_started": 1,
+    "exercises_completed": 1,
+    "time_spent_seconds": 1800
+  }
+]
+```
+
+#### Get Profile Summary
+
+```
+GET /profile/summary
+Authorization: Bearer <access_token>
+
+Response:
+{
+  "total_points": 450,
+  "quizzes_completed": 15,
+  "exercises_completed": 8,
+  "current_streak": 7,
+  "longest_streak": 14,
+  "units_completed": 23,
+  "average_score": 87.5,
+  "last_activity": "2025-01-31T15:30:00Z"
+}
+```
+
+#### Get User Stats
+
+```
+GET /stats
+Authorization: Bearer <access_token>
+
+Response:
+{
+  "total_points": 450,
+  "quizzes_completed": 15,
+  "exercises_completed": 8,
+  "units_completed": 23,
+  "time_spent_hours": 12.5
+}
+```
+
+#### Log Activity (Internal - called by grading router)
+
+```
+POST /activity
+Authorization: Bearer <access_token>
+
+Body:
+{
+  "activity_type": "quiz_pass",
+  "unit_slug": "k8s-pods-101-what-is-pod",
+  "points_earned": 25,
+  "score_percentage": 90,
+  "metadata": {"answers": {"q1": "b", "q2": "a"}}
+}
+
+Response (201):
+{
+  "activity_id": 123,
+  "points_awarded": 25,
+  "is_first_pass": true,
+  "streak_updated": true,
+  "current_streak": 8
+}
+```
+
+**Activity Types:**
+
+- `quiz_attempt` - User submitted quiz (no points)
+- `quiz_pass` - User passed quiz (points awarded on first pass only)
+- `exercise_start` - User opened coding exercise
+- `exercise_complete` - User completed coding exercise
+- `login` - User logged in (daily login bonus)
+
+**Points System:**
+
+- Quiz attempt: 0 points (encourages practice)
+- Quiz pass (first time): 10 base + score bonus (max 25 points)
+- Exercise complete (first time): 20-30 points
+- Daily login: 5 points
+
+---
+
+### 3. Dashboard API
 
 **Base URL**: `http://localhost:8000/api`
 
@@ -132,37 +420,42 @@ Response:
 
 ---
 
-### 3. Progress API
+### 4. Progress API
+
+**Base URL**: `http://localhost:8000/api`
 
 #### Update User Progress
 
 ```
 POST /progress/update
+Authorization: Bearer <access_token>
 
 Body:
 {
-  "user_id": "guest-user-001",
   "unit_slug": "k8s-pods-101-what-is-pod",
-  "status": "completed",  // "not_started" | "in_progress" | "completed"
+  "status": "completed",  // "started" | "completed"
   "score": 85.0,
   "time_spent_seconds": 120
 }
 
 Response:
 {
-  "updated_at": "2025-01-16T20:30:00Z",
+  "updated_at": "2025-01-31T20:30:00Z",
   "message": "Progress updated successfully"
 }
+
+Note: user_id is extracted from JWT token (no longer in request body)
 ```
 
 #### Get User Progress
 
 ```
-GET /progress/{user_id}
+GET /progress/me
+Authorization: Bearer <access_token>
 
 Response:
 {
-  "user_id": "guest-user-001",
+  "user_id": 1,
   "units_completed": 5,
   "units_in_progress": 2,
   "overall_completion": 45.5,
@@ -171,25 +464,27 @@ Response:
       "unit_slug": "k8s-pods-101-what-is-pod",
       "status": "completed",
       "score": 85.0,
-      "completed_at": "2025-01-16T20:30:00Z"
+      "completed_at": "2025-01-31T20:30:00Z"
     }
   ]
 }
+
+Note: Endpoint changed from /progress/{user_id} to /progress/me (uses JWT user)
 ```
 
 ---
 
-### 4. Solutions API (Auto-save)
+### 5. Solutions API (Auto-save)
 
 #### Auto-save User Solution
 
 ```
 POST /solutions/autosave
+Authorization: Bearer <access_token>
 
 Body:
 {
   "unit_slug": "k8s-deploy-101-fix-broken",
-  "user_id": "guest-user-001",
   "code": "apiVersion: apps/v1\nkind: Deployment\n...",
   "language": "yaml"
 }
@@ -197,15 +492,18 @@ Body:
 Response:
 {
   "version": 3,
-  "auto_saved_at": "2025-01-16T20:35:00Z",
+  "auto_saved_at": "2025-01-31T20:35:00Z",
   "message": "Solution auto-saved successfully"
 }
+
+Note: user_id extracted from JWT token
 ```
 
 #### Get Solution History
 
 ```
-GET /solutions/{unit_slug}/history?user_id={user_id}&limit=10
+GET /solutions/{unit_slug}/history?limit=10
+Authorization: Bearer <access_token>
 
 Response:
 {
@@ -214,26 +512,28 @@ Response:
     {
       "version": 3,
       "code_preview": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: nginx-deployment...",
-      "auto_saved_at": "2025-01-16T20:35:00Z"
+      "auto_saved_at": "2025-01-31T20:35:00Z"
     },
     {
       "version": 2,
       "code_preview": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: nginx...",
-      "auto_saved_at": "2025-01-16T20:30:00Z"
+      "auto_saved_at": "2025-01-31T20:30:00Z"
     }
   ],
   "total_versions": 3
 }
+
+Note: user_id extracted from JWT token
 ```
 
 #### Restore Previous Version
 
 ```
 POST /solutions/{unit_slug}/restore
+Authorization: Bearer <access_token>
 
 Body:
 {
-  "user_id": "guest-user-001",
   "version": 2
 }
 
@@ -243,21 +543,23 @@ Response:
   "restored_from_version": 2,
   "message": "Version 2 restored successfully"
 }
+
+Note: user_id extracted from JWT token
 ```
 
 ---
 
-### 5. Grading API
+### 6. Grading API
 
 #### Submit Quiz
 
 ```
 POST /grading/quiz/submit
+Authorization: Bearer <access_token>
 
 Body:
 {
   "unit_slug": "k8s-pods-101-what-is-pod",
-  "user_id": "guest-user-001",
   "answers": {
     "q1": "b",
     "q2": "a",
@@ -289,21 +591,32 @@ Response:
       "correct_answer": "b"
     }
   ],
-  "message": "You scored 66.67%. Keep trying!"
+  "message": "You scored 66.67%. Keep trying!",
+  "points_awarded": 0,  // 0 if not first pass or below 70%
+  "is_first_pass": false
 }
+
+Note: user_id extracted from JWT token
 ```
 
 **Security**: Correct answers are retrieved from `unit_solutions` collection (server-side only).
+
+**Points Logic:**
+
+- Only first passing attempt (≥70%) awards points
+- Base: 10 points
+- Bonus: (score_percentage / 10) rounded
+- Max: 25 points (for 100% score)
 
 #### Verify Code (Stub)
 
 ```
 POST /grading/code/verify
+Authorization: Bearer <access_token>
 
 Body:
 {
   "unit_slug": "k8s-deploy-101-fix-broken",
-  "user_id": "guest-user-001",
   "code": "apiVersion: apps/v1\nkind: Deployment\n...",
   "language": "yaml"
 }
@@ -313,6 +626,8 @@ Response:
   "success": true,
   "message": "Code verification successful (stubbed)"
 }
+
+Note: user_id extracted from JWT token
 ```
 
 **Note**: Phase 6 will implement actual Kubernetes validation.
@@ -320,6 +635,79 @@ Response:
 ---
 
 ## Frontend TypeScript Interfaces
+
+### Authentication Types
+
+```typescript
+export interface User {
+  id: number;
+  email: string;
+  username: string;
+  created_at: string;
+  last_login?: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  username: string;
+  password: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  user: User;
+}
+
+export interface RefreshTokenRequest {
+  refresh_token: string;
+}
+```
+
+### Activity Types
+
+```typescript
+export interface HeatmapDay {
+  date: string;  // ISO date "2025-01-31"
+  points: number;
+  level: number;  // 0-4 scale
+}
+
+export interface UserActivity {
+  activity_date: string;
+  total_points: number;
+  quiz_attempts: number;
+  quiz_passes: number;
+  exercises_started: number;
+  exercises_completed: number;
+  time_spent_seconds: number;
+}
+
+export interface ProfileSummary {
+  total_points: number;
+  quizzes_completed: number;
+  exercises_completed: number;
+  current_streak: number;
+  longest_streak: number;
+  units_completed: number;
+  average_score: number;
+  last_activity: string;
+}
+
+export interface UserStats {
+  total_points: number;
+  quizzes_completed: number;
+  exercises_completed: number;
+  units_completed: number;
+  time_spent_hours: number;
+}
+```
 
 ### Content Types
 
@@ -544,32 +932,69 @@ export const apiClient = new ApiClient();
 
 ### Completed ✅
 
+**Backend APIs:**
+
+- [x] Authentication (`/api/auth/register`, `/api/auth/login`, `/api/auth/refresh`)
+- [x] User profile (`/api/auth/me`)
+- [x] Activity logging (`/api/auth/activity`)
+- [x] Activity heatmap (`/api/auth/activity/heatmap`)
+- [x] Activity date range (`/api/auth/activity/my`)
+- [x] Profile summary (`/api/auth/profile/summary`)
+- [x] User stats (`/api/auth/stats`)
 - [x] Dashboard API (`/api/dashboard`) - Topic-grouped progress overview
 - [x] Content API (`/api/units/syllabus`, `/api/units/{slug}`) - Unit listing and details
-- [x] Progress API (`/api/progress/update`, `/api/progress/{user_id}`) - Completion tracking
+- [x] Progress API (`/api/progress/update`, `/api/progress/me`) - Completion tracking with JWT auth
 - [x] Solutions API (`/api/solutions/autosave`, `/api/solutions/{slug}/history`,
-  `/api/solutions/{slug}/restore`) - Auto-save with versioning
-- [x] Grading API (`/api/grading/quiz/submit`, `/api/grading/code/verify`) - Quiz grading + code stub
-- [x] Frontend API client (`src/services/api.ts`) with TypeScript types
+      `/api/solutions/{slug}/restore`) - Auto-save with versioning
+- [x] Grading API (`/api/grading/quiz/submit`, `/api/grading/code/verify`) - Quiz grading with
+      first-pass-only points
+
+**Frontend Implementation:**
+
+- [x] API client (`src/services/api.ts`) with automatic token refresh
+- [x] AuthContext with login/register/logout state management
+- [x] Protected routes with authentication checks
+- [x] Login/Register page with form validation
+- [x] Token storage in localStorage
 - [x] Dashboard page with topic cards
 - [x] LearningUnit page with split-screen layout
 - [x] Quiz submission with animated toast notifications
 - [x] Code editor with submit functionality
+- [x] Profile page with GitHub-style activity heatmap
+- [x] Heatmap with year dropdown selector
+- [x] NavHeader component with logo and user menu
 - [x] React Router navigation
 - [x] Dracula theme implementation
-- [x] Optimized loading experience (no full-page reload)
+- [x] Optimized loading experience
 - [x] Confetti animation on quiz pass
 - [x] Error handling and loading states
+- [x] First-pass-only scoring display
 
 ### Pending for Future Phases ⏳
+
+**Backend:**
+
+- [ ] OAuth2 (Google) integration
+- [ ] Rate limiting on auth endpoints
+- [ ] Multi-device session management
+- [ ] Remember me functionality (extended tokens)
+- [ ] Export user data (JSON/CSV)
+- [ ] Phase 6: WebSocket validation streaming
+- [ ] Phase 6: Real Kubernetes cluster validation
+- [ ] Redis caching for performance optimization
+
+**Frontend:**
 
 - [ ] Code autosave with debouncing (currently manual submit)
 - [ ] Solution history UI (API exists, UI not implemented)
 - [ ] Restore previous version UI
-- [ ] User authentication (currently guest-user-001)
-- [ ] Phase 6: WebSocket validation streaming
-- [ ] Phase 6: Real Kubernetes cluster validation
-- [ ] Redis caching for performance optimization
+- [ ] OAuth2 social login buttons
+- [ ] Multi-device session viewer
+- [ ] Real-time activity notifications
+- [ ] Data export UI
+
+**Note:** This is a locally-hosted application. Email-based features (verification, password reset) and
+leaderboards are not planned.
 
 ---
 

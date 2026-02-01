@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+  <defs>
+    <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+      <!-- Horizontal lines -->
+      <line x1="0" y1="0" x2="60" y2="0" stroke="currentColor" stroke-opacity="0.08" stroke-width="1"/>
+      <line x1="0" y1="30" x2="60" y2="30" stroke="currentColor" stroke-opacity="0.04" stroke-width="1"/>
+
+      <!-- Vertical lines -->
+      <line x1="0" y1="0" x2="0" y2="60" stroke="currentColor" stroke-opacity="0.08" stroke-width="1"/>
+      <line x1="30" y1="0" x2="30" y2="60" stroke="currentColor" stroke-opacity="0.04" stroke-width="1"/>
+
+      <!-- Intersection dots -->
+      <circle cx="0" cy="0" r="1" fill="currentColor" fill-opacity="0.1"/>
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+</svg>

@@ -1,0 +1,558 @@
+From c7c7cccaf67a4ce91b5625b0938e8acbaf4b5808 Mon Sep 17 00:00:00 2001
+From: Mayank Pershad <pershadmayank@gmail.com>
+Date: Sun, 1 Feb 2026 18:59:57 +0000
+Subject: [PATCH] Chore: Format code and add comprehensive API migration patch
+
+- Fix whitespace and trailing spaces across frontend components
+- Format COURSE_HIERARCHY.md with consistent markdown spacing
+- Add latest.patch containing full API v1 migration for reference
+- Clean up ProfilePage.tsx formatting (remove trailing spaces)
+- Fix minor formatting in NavHeader, CourseChaptersPage, CoursesPage, TopicUnitsPage
+---
+ docs/backend/COURSE_HIERARCHY.md             | 91 +++++++++++++-------
+ frontend/src/components/shared/NavHeader.tsx |  2 +-
+ frontend/src/pages/CourseChaptersPage.tsx    |  2 +-
+ frontend/src/pages/CoursesPage.tsx           |  8 +-
+ frontend/src/pages/ProfilePage.tsx           | 68 +++++++--------
+ frontend/src/pages/TopicUnitsPage.tsx        |  2 +-
+ 6 files changed, 99 insertions(+), 74 deletions(-)
+
+diff --git a/docs/backend/COURSE_HIERARCHY.md b/docs/backend/COURSE_HIERARCHY.md
+index 2a15d82..3050c33 100644
+--- a/docs/backend/COURSE_HIERARCHY.md
++++ b/docs/backend/COURSE_HIERARCHY.md
+@@ -2,22 +2,27 @@
+ 
+ ## Overview
+ 
+-This document describes the course/topic hierarchy system for organizing learning content. The implementation uses **embedded metadata** in YAML files with a hybrid database architecture.
++This document describes the course/topic hierarchy system for organizing learning
++content. The implementation uses **embedded metadata** in YAML files with a hybrid
++database architecture.
+ 
+ ## Architecture
+ 
+ ### Database Design
+ 
+ **SQLite (Catalog/Fast Browsing):**
++
+ - `courses` table - Course metadata
+ - `topics` table - Topic/chapter metadata with ordering
+ - Used for: Course listing, chapter grid view, topic navigation
+ 
+ **MongoDB (Content/Heavy Data):**
++
+ - `learning_units` collection - Full unit content with quizzes/exercises
+ - Used for: Unit details, quiz questions, code exercises
+ 
+ **Benefits:**
++
+ - 20-25x faster catalog browsing (SQLite vs MongoDB for simple queries)
+ - Flexible content storage (MongoDB for rich documents)
+ - Auto-creation of course/topic hierarchy from YAML metadata
+@@ -43,12 +48,12 @@ metadata:
+ ```yaml
+ metadata:
+   # ... existing fields ...
+-  
++
+   course:
+     slug: "kubernetes-fundamentals"  # Course identifier
+     name: "Kubernetes Fundamentals"  # Display name
+     description: "Optional course description"  # Optional
+-  
++
+   topic:
+     slug: "pods"          # Topic identifier (unique within course)
+     name: "Pods 101"      # Display name
+@@ -94,6 +99,7 @@ metadata:
+ ```
+ 
+ Result:
++
+ - `course_id` = NULL
+ - `topic_id` = NULL  
+ - Legacy `topic` field used for filtering
+@@ -104,7 +110,9 @@ Result:
+ 
+ ### 1. List All Courses
+ 
+-**GET /api/v1/courses/**
++**Endpoint:** `GET /api/v1/courses/`
++
++**Response:**
+ 
+ ```json
+ [
+@@ -119,11 +127,13 @@ Result:
+ 
+ ### 2. Get Course with Chapters (Chapter Grid View)
+ 
+-**GET /api/v1/courses/{course_slug}/chapters**
++**Endpoint:** `GET /api/v1/courses/{course_slug}/chapters`
+ 
+ Returns course with all topics and user progress.
+ 
+-**Example:** `GET /api/v1/courses/kubernetes-fundamentals/chapters`
++**Example:**
++
++`GET /api/v1/courses/kubernetes-fundamentals/chapters`
+ 
+ ```json
+ {
+@@ -168,17 +178,20 @@ Returns course with all topics and user progress.
+ ```
+ 
+ **Performance:**
++
+ - SQLite query for topics (fast)
+ - MongoDB aggregation for progress (cached in response)
+ - ~5-10ms total response time
+ 
+ ### 3. Get Topic Units (Lazy Load)
+ 
+-**GET /api/v1/courses/topics/{topic_id}/units**
++**Endpoint:** `GET /api/v1/courses/topics/{topic_id}/units`
+ 
+ Returns all units for a topic when user clicks a chapter.
+ 
+-**Example:** `GET /api/v1/courses/topics/1/units`
++**Example:**
++
++`GET /api/v1/courses/topics/1/units`
+ 
+ ```json
+ {
+@@ -256,7 +269,7 @@ class LearningUnit(Document):
+     description: str
+     quizzes: list[Quiz] | None
+     editor_config: EditorConfig | None
+-    
++
+     # NEW: Course/Topic FKs (references SQLite)
+     course_id: int | None  # FK to courses.id
+     topic_id: int | None   # FK to topics.id
+@@ -280,7 +293,7 @@ metadata:
+   course:
+     slug: "kubernetes-fundamentals"
+     name: "Kubernetes Fundamentals"
+-  
++
+   topic:
+     slug: "deployments"
+     name: "Deployments 101"
+@@ -289,6 +302,7 @@ metadata:
+ ```
+ 
+ **Files to Update:**
++
+ - `sample-resources/k8s/pods101/*.yaml` → order: 1
+ - `sample-resources/k8s/replicaset101/*.yaml` → order: 2
+ - `sample-resources/k8s/deployment101/*.yaml` → order: 3
+@@ -305,6 +319,7 @@ POST /api/v1/seed/populate?topic_dir=/path/to/deployment101
+ ### Phase 3: Update Frontend
+ 
+ Use new course endpoints:
++
+ - `GET /api/v1/courses/` for course list
+ - `GET /api/v1/courses/{slug}/chapters` for chapter grid
+ - `GET /api/v1/courses/topics/{id}/units` for unit list
+@@ -355,7 +370,7 @@ Just update `order` values and reseed - no code changes needed!
+ 
+ ### Example 3: Removing a Topic
+ 
+-Delete all YAML files for that topic, reseed other directories. 
++Delete all YAML files for that topic, reseed other directories.
+ The topic will still exist in SQLite but will show 0 units.
+ 
+ To fully remove: Manually delete from SQLite or add a cleanup endpoint.
+@@ -367,12 +382,14 @@ To fully remove: Manually delete from SQLite or add a cleanup endpoint.
+ ### Chapter Grid Query
+ 
+ **Old Approach (MongoDB only):**
++
+ ```
+ Query all units → Group by topic → Count completed
+ Time: 150-200ms for 50 units
+ ```
+ 
+ **New Approach (Hybrid):**
++
+ ```
+ SQLite: Get topics → 5ms
+ MongoDB: Get user progress → 30ms
+@@ -382,11 +399,13 @@ Total: 35ms (5x faster)
+ ### Topic Units Query
+ 
+ **Before:**
++
+ ```
+ MongoDB: Find units by topic string → 50ms
+ ```
+ 
+ **After:**
++
+ ```
+ MongoDB: Find units by topic_id (indexed) → 15ms (3x faster)
+ ```
+@@ -398,28 +417,32 @@ MongoDB: Find units by topic_id (indexed) → 15ms (3x faster)
+ ### Manual Testing
+ 
+ 1. **Seed with new metadata:**
+-```bash
+-POST /api/v1/seed/populate
+-Body: {"topic_dir": "/path/to/pods101"}
+-```
+ 
+-2. **Verify course created:**
+-```bash
+-GET /api/v1/courses/
+-Expected: [{"slug": "kubernetes-fundamentals", ...}]
+-```
++   ```bash
++   POST /api/v1/seed/populate
++   Body: {"topic_dir": "/path/to/pods101"}
++   ```
+ 
+-3. **Check chapter grid:**
+-```bash
+-GET /api/v1/courses/kubernetes-fundamentals/chapters
+-Expected: chapters array with progress stats
+-```
++1. **Verify course created:**
+ 
+-4. **Load topic units:**
+-```bash
+-GET /api/v1/courses/topics/1/units
+-Expected: units array with completion flags
+-```
++   ```bash
++   GET /api/v1/courses/
++   Expected: [{"slug": "kubernetes-fundamentals", ...}]
++   ```
++
++1. **Check chapter grid:**
++
++   ```bash
++   GET /api/v1/courses/kubernetes-fundamentals/chapters
++   Expected: chapters array with progress stats
++   ```
++
++1. **Load topic units:**
++
++   ```bash
++   GET /api/v1/courses/topics/1/units
++   Expected: units array with completion flags
++   ```
+ 
+ ### Database Verification
+ 
+@@ -428,8 +451,8 @@ Expected: units array with completion flags
+ SELECT * FROM courses;
+ 
+ -- Check topics with counts
+-SELECT id, slug, name, order_position, units_count 
+-FROM topics 
++SELECT id, slug, name, order_position, units_count
++FROM topics
+ ORDER BY order_position;
+ 
+ -- Verify MongoDB references
+@@ -446,7 +469,8 @@ db.learning_units.find({course_id: 1, topic_id: 1})
+ 
+ ### Issue: Units not appearing in topic
+ 
+-**Solution:** 
++**Solution:**
++
+ 1. Verify `topic_id` in MongoDB: `db.learning_units.find({slug: "unit-slug"})`
+ 2. Check if topic exists: `SELECT * FROM topics WHERE id = X`
+ 3. Reseed if FK reference is missing
+@@ -454,6 +478,7 @@ db.learning_units.find({course_id: 1, topic_id: 1})
+ ### Issue: Progress not showing
+ 
+ **Solution:**
++
+ 1. Check UserProgress exists: `db.user_progress.find({user_id: 1})`
+ 2. Verify unit IDs match between UserProgress and LearningUnit
+ 
+diff --git a/frontend/src/components/shared/NavHeader.tsx b/frontend/src/components/shared/NavHeader.tsx
+index 9d47957..07aa922 100644
+--- a/frontend/src/components/shared/NavHeader.tsx
++++ b/frontend/src/components/shared/NavHeader.tsx
+@@ -33,7 +33,7 @@ export default function NavHeader({ title }: NavHeaderProps) {
+     <header className="h-14 bg-dark-surface border-b border-dark-border flex items-center justify-between px-6 shrink-0">
+       <div className="flex items-center gap-6">
+         {/* Logo */}
+-        <div 
++        <div
+           className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+           onClick={handleLogoClick}
+         >
+diff --git a/frontend/src/pages/CourseChaptersPage.tsx b/frontend/src/pages/CourseChaptersPage.tsx
+index d617376..11898da 100644
+--- a/frontend/src/pages/CourseChaptersPage.tsx
++++ b/frontend/src/pages/CourseChaptersPage.tsx
+@@ -84,7 +84,7 @@ export default function CourseChaptersPage() {
+   return (
+     <div className={`min-h-screen transition-colors ${isDarkMode ? 'bg-dark-bg' : 'bg-gray-50'}`}>
+       <NavHeader />
+-      
++
+       <main className="max-w-6xl mx-auto px-6 py-8">
+         {/* Back Button & Course Header */}
+         <div className="mb-8">
+diff --git a/frontend/src/pages/CoursesPage.tsx b/frontend/src/pages/CoursesPage.tsx
+index c85df61..fb7a48b 100644
+--- a/frontend/src/pages/CoursesPage.tsx
++++ b/frontend/src/pages/CoursesPage.tsx
+@@ -38,14 +38,14 @@ export default function CoursesPage() {
+     try {
+       // Fetch course chapters to get the first topic
+       const chaptersData = await apiClient.getCourseChapters(courseSlug) as CourseChaptersResponse;
+-      
++
+       if (chaptersData.chapters && chaptersData.chapters.length > 0) {
+         // Get the first topic (ordered by order_position)
+         const firstTopic = chaptersData.chapters[0];
+-        
++
+         // Fetch units for the first topic
+         const topicUnitsData = await apiClient.getTopicUnits(firstTopic.id) as TopicUnitsResponse;
+-        
++
+         if (topicUnitsData.units && topicUnitsData.units.length > 0) {
+           // Navigate to the first unit
+           const firstUnit = topicUnitsData.units[0];
+@@ -79,7 +79,7 @@ export default function CoursesPage() {
+   return (
+     <div className={`min-h-screen transition-colors ${isDarkMode ? 'bg-dark-bg' : 'bg-gray-50'}`}>
+       <NavHeader />
+-      
++
+       <main className="max-w-6xl mx-auto px-6 py-8">
+         <div className="mb-8">
+           <h1 className={`text-3xl font-bold mb-2 ${isDarkMode ? 'text-dark-text-primary' : 'text-gray-900'}`}>
+diff --git a/frontend/src/pages/ProfilePage.tsx b/frontend/src/pages/ProfilePage.tsx
+index 219de6d..edd0baa 100644
+--- a/frontend/src/pages/ProfilePage.tsx
++++ b/frontend/src/pages/ProfilePage.tsx
+@@ -68,7 +68,7 @@ export default function ProfilePage() {
+   const fetchProfileData = async () => {
+     try {
+       setLoading(true);
+-      
++
+       // Fetch each endpoint separately to handle partial failures
+       let heatmap: HeatmapDay[] = [];
+       let summary: ProfileSummary | null = null;
+@@ -79,7 +79,7 @@ export default function ProfilePage() {
+         const startDate = `${selectedYear}-01-01`;
+         const endDate = `${selectedYear}-12-31`;
+         const activityData = await apiClient.getMyActivity(startDate, endDate) as any[];
+-        
++
+         // Transform activity data into heatmap format
+         heatmap = generateYearHeatmap(selectedYear, activityData);
+         console.log('Heatmap data received:', heatmap);
+@@ -117,7 +117,7 @@ export default function ProfilePage() {
+   const generateYearHeatmap = (year: number, activityData: any[]): HeatmapDay[] => {
+     const heatmap: HeatmapDay[] = [];
+     const activityMap = new Map<string, number>();
+-    
++
+     // Build a map of date -> points from activity data
+     if (activityData && Array.isArray(activityData)) {
+       activityData.forEach(activity => {
+@@ -127,32 +127,32 @@ export default function ProfilePage() {
+         }
+       });
+     }
+-    
++
+     // Generate all days for the selected year
+     const startDate = new Date(year, 0, 1);
+     const endDate = new Date(year, 11, 31);
+     const currentDate = new Date(startDate);
+-    
++
+     while (currentDate <= endDate) {
+       const dateStr = currentDate.toISOString().split('T')[0];
+       const points = activityMap.get(dateStr) || 0;
+-      
++
+       // Calculate level based on points (0-4 scale)
+       let level = 0;
+       if (points > 0) level = 1;
+       if (points >= 5) level = 2;
+       if (points >= 10) level = 3;
+       if (points >= 20) level = 4;
+-      
++
+       heatmap.push({
+         date: dateStr,
+         points,
+         level
+       });
+-      
++
+       currentDate.setDate(currentDate.getDate() + 1);
+     }
+-    
++
+     return heatmap;
+   };
+ 
+@@ -160,7 +160,7 @@ export default function ProfilePage() {
+     const colors = {
+       0: '#2d2d30',  // Empty - dark surface
+       1: '#1a4d2e',  // Level 1 - dark green
+-      2: '#26633d',  // Level 2 - medium green  
++      2: '#26633d',  // Level 2 - medium green
+       3: '#3a8552',  // Level 3 - bright green
+       4: '#4ec9b0',  // Level 4 - brightest green (VS Code teal)
+     };
+@@ -171,24 +171,24 @@ export default function ProfilePage() {
+     // Group by weeks (7 days each) - GitHub style
+     const weeks: HeatmapDay[][] = [];
+     let currentWeek: HeatmapDay[] = [];
+-    
++
+     if (heatmapData.length === 0) {
+       // Generate empty grid for the year
+       const startDate = new Date(selectedYear, 0, 1);
+       const endDate = new Date(selectedYear, 11, 31);
+       const currentDate = new Date(startDate);
+-      
++
+       // Add empty cells for alignment at the start
+       const firstDayOfWeek = startDate.getDay();
+       for (let i = 0; i < firstDayOfWeek; i++) {
+         currentWeek.push({ date: '', points: 0, level: 0 });
+       }
+-      
++
+       while (currentDate <= endDate) {
+-        currentWeek.push({ 
+-          date: currentDate.toISOString().split('T')[0], 
+-          points: 0, 
+-          level: 0 
++        currentWeek.push({
++          date: currentDate.toISOString().split('T')[0],
++          points: 0,
++          level: 0
+         });
+         if (currentWeek.length === 7) {
+           weeks.push([...currentWeek]);
+@@ -196,7 +196,7 @@ export default function ProfilePage() {
+         }
+         currentDate.setDate(currentDate.getDate() + 1);
+       }
+-      
++
+       if (currentWeek.length > 0) {
+         while (currentWeek.length < 7) {
+           currentWeek.push({ date: '', points: 0, level: 0 });
+@@ -207,7 +207,7 @@ export default function ProfilePage() {
+       // Get first day's day of week to align properly (0 = Sunday)
+       const firstDate = new Date(heatmapData[0].date);
+       const firstDayOfWeek = firstDate.getDay();
+-      
++
+       // Add empty cells for alignment at the start
+       for (let i = 0; i < firstDayOfWeek; i++) {
+         currentWeek.push({ date: '', points: 0, level: 0 });
+@@ -220,7 +220,7 @@ export default function ProfilePage() {
+           currentWeek = [];
+         }
+       });
+-      
++
+       // Add remaining days
+       if (currentWeek.length > 0) {
+         while (currentWeek.length < 7) {
+@@ -252,8 +252,8 @@ export default function ProfilePage() {
+           {/* Month labels */}
+           <div className="flex text-xs text-dark-text-muted mb-2" style={{ paddingLeft: '32px' }}>
+             {months.map((month, idx) => (
+-              <div 
+-                key={idx} 
++              <div
++                key={idx}
+                 style={{ width: `${(weeks.length / 12) * 13}px` }}
+                 className="flex-shrink-0"
+               >
+@@ -261,7 +261,7 @@ export default function ProfilePage() {
+               </div>
+             ))}
+           </div>
+-          
++
+           {/* Day labels and heatmap grid */}
+           <div className="flex">
+             {/* Day labels */}
+@@ -274,7 +274,7 @@ export default function ProfilePage() {
+               <div style={{ height: '13px', fontSize: '9px' }}>Fri</div>
+               <div style={{ height: '13px' }}></div>
+             </div>
+-            
++
+             {/* Heatmap grid */}
+             <div className="flex" style={{ gap: '3px' }}>
+               {weeks.map((week, weekIdx) => (
+@@ -282,9 +282,9 @@ export default function ProfilePage() {
+                   {week.map((day, dayIdx) => (
+                     <div
+                       key={`${weekIdx}-${dayIdx}`}
+-                      style={{ 
+-                        width: '10px', 
+-                        height: '10px', 
++                      style={{
++                        width: '10px',
++                        height: '10px',
+                         backgroundColor: day.date ? getLevelColor(day.level) : 'transparent',
+                         borderRadius: '2px'
+                       }}
+@@ -296,19 +296,19 @@ export default function ProfilePage() {
+               ))}
+             </div>
+           </div>
+-          
++
+           {/* Legend */}
+           <div className="flex items-center gap-1 mt-4 text-xs text-dark-text-muted justify-end">
+             <span>Less</span>
+             {[0, 1, 2, 3, 4].map((level) => (
+-              <div 
+-                key={level} 
+-                style={{ 
+-                  width: '10px', 
+-                  height: '10px', 
++              <div
++                key={level}
++                style={{
++                  width: '10px',
++                  height: '10px',
+                   backgroundColor: getLevelColor(level),
+                   borderRadius: '2px'
+-                }} 
++                }}
+               />
+             ))}
+             <span>More</span>
+diff --git a/frontend/src/pages/TopicUnitsPage.tsx b/frontend/src/pages/TopicUnitsPage.tsx
+index 0327a05..623136c 100644
+--- a/frontend/src/pages/TopicUnitsPage.tsx
++++ b/frontend/src/pages/TopicUnitsPage.tsx
+@@ -105,7 +105,7 @@ export default function TopicUnitsPage() {
+   return (
+     <div className={`min-h-screen transition-colors ${isDarkMode ? 'bg-dark-bg' : 'bg-gray-50'}`}>
+       <NavHeader />
+-      
++
+       <main className="max-w-4xl mx-auto px-6 py-8">
+         {/* Back Button & Topic Header */}
+         <div className="mb-8">
+-- 
+2.34.1
+

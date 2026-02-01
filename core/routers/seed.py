@@ -2,8 +2,11 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from auth.dependencies import db_dependency
+from auth.models import Course, Topic
+from fastapi import APIRouter, Depends, HTTPException
 from models import EditorConfig, LearningUnit, Quiz, QuizOption, UnitSolution
+from sqlalchemy.orm import Session
 from starlette import status
 from utils.file_operator import FileReadEntry, YamlFileOperator
 
@@ -12,13 +15,111 @@ router = APIRouter(prefix="/seed", tags=["seed"])
 logger = logging.getLogger(__name__)
 
 
+def _ensure_course_exists(db: Session, slug: str, name: str, description: str | None = None) -> Course:
+    """Ensure course exists in SQLite, create if missing (upsert).
+
+    Args:
+        db: SQLite database session
+        slug: Course slug (unique identifier)
+        name: Course display name
+        description: Optional course description
+
+    Returns:
+        Course: Existing or newly created course
+    """
+    course = db.query(Course).filter(Course.slug == slug).first()
+
+    if course:
+        # Update name/description if changed
+        if course.name != name or course.description != description:
+            course.name = name
+            course.description = description
+            db.commit()
+            db.refresh(course)
+            logger.info("Updated course: %s", slug)
+    else:
+        # Create new course
+        course = Course(slug=slug, name=name, description=description)
+        db.add(course)
+        db.commit()
+        db.refresh(course)
+        logger.info("Created course: %s", slug)
+
+    return course
+
+
+def _ensure_topic_exists(
+    db: Session, course_id: int, slug: str, name: str, order: int, icon: str | None = None
+) -> Topic:
+    """Ensure topic exists in SQLite, create if missing (upsert).
+
+    Args:
+        db: SQLite database session
+        course_id: Parent course ID
+        slug: Topic slug (unique within course)
+        name: Topic display name
+        order: Topic order in learning path
+        icon: Optional emoji/icon
+
+    Returns:
+        Topic: Existing or newly created topic
+    """
+    topic = db.query(Topic).filter(Topic.course_id == course_id, Topic.slug == slug).first()
+
+    if topic:
+        # Update fields if changed
+        changed = False
+        if topic.name != name:
+            topic.name = name
+            changed = True
+        if topic.order_position != order:
+            topic.order_position = order
+            changed = True
+        if icon and topic.icon != icon:
+            topic.icon = icon
+            changed = True
+
+        if changed:
+            db.commit()
+            db.refresh(topic)
+            logger.info("Updated topic: %s (order=%s)", slug, order)
+    else:
+        # Create new topic
+        topic = Topic(course_id=course_id, slug=slug, name=name, order_position=order, icon=icon, units_count=0)
+        db.add(topic)
+        db.commit()
+        db.refresh(topic)
+        logger.info("Created topic: %s (order=%s)", slug, order)
+
+    return topic
+
+
+def _increment_topic_units_count(db: Session, topic_id: int) -> None:
+    """Increment units_count for a topic (cached count).
+
+    Args:
+        db: SQLite database session
+        topic_id: Topic ID to update
+    """
+    topic = db.query(Topic).filter(Topic.id == topic_id).first()
+    if topic:
+        topic.units_count += 1
+        db.commit()
+
+
 @router.post("/populate")
-async def populate_database(topic_dir: str, *, skip_existing: bool = True) -> dict[str, Any]:
+async def populate_database(topic_dir: str, *, skip_existing: bool = True, db: db_dependency) -> dict[str, Any]:
     """Seed database from YAML files in specified directory.
+
+    Supports course/topic hierarchy via embedded metadata:
+    - course: {slug, name} - Auto-creates course if missing
+    - topic: {slug, name, order, icon} - Auto-creates topic if missing
+    - Dual-write: SQLite (catalog) + MongoDB (content)
 
     Args:
         topic_dir: Absolute path to directory containing YAML files
         skip_existing: If True, skip units with existing slugs
+        db: SQLite database session
 
     Returns:
         Summary statistics (created, skipped, errors, files_processed)
@@ -55,6 +156,50 @@ async def populate_database(topic_dir: str, *, skip_existing: bool = True) -> di
             stats["skipped"] += 1
             continue
 
+        # Parse course/topic metadata (optional for backward compatibility)
+        topic_metadata = metadata.get("topic", {})
+
+        # Handle both nested dict and legacy string formats
+        if isinstance(topic_metadata, dict):
+            course_info = metadata.get("course", {})
+            topic_info = topic_metadata
+            # Use topic name for legacy field
+            legacy_topic_str = topic_info.get("name", "General")
+        else:
+            # Legacy format: topic is a string
+            course_info = {}
+            topic_info = {}
+            legacy_topic_str = topic_metadata if isinstance(topic_metadata, str) else "General"
+
+        # Ensure course and topic exist in SQLite (if metadata provided)
+        course_id = None
+        topic_id = None
+
+        if course_info and topic_info:
+            try:
+                # Create/update course
+                course = _ensure_course_exists(
+                    db=db,
+                    slug=course_info.get("slug", ""),
+                    name=course_info.get("name", ""),
+                    description=course_info.get("description"),
+                )
+                course_id = course.id
+
+                # Create/update topic
+                topic = _ensure_topic_exists(
+                    db=db,
+                    course_id=course_id,
+                    slug=topic_info.get("slug", ""),
+                    name=topic_info.get("name", ""),
+                    order=topic_info.get("order", 999),
+                    icon=topic_info.get("icon"),
+                )
+                topic_id = topic.id
+            except Exception as e:
+                stats["errors"].append(f"{yaml_file.name}: Failed to create course/topic - {e!s}")
+                continue
+
         # Validate data integrity based on unit type
         solution_data = data.get("_solution", {})
 
@@ -78,7 +223,7 @@ async def populate_database(topic_dir: str, *, skip_existing: bool = True) -> di
             learning_unit = LearningUnit(
                 slug=metadata["slug"],
                 title=metadata["title"],
-                topic=metadata["topic"],
+                topic=legacy_topic_str,  # Backward compatibility
                 order_index=metadata["order_index"],
                 type=unit_type,
                 difficulty=metadata.get("difficulty"),
@@ -87,11 +232,18 @@ async def populate_database(topic_dir: str, *, skip_existing: bool = True) -> di
                 hints=metadata.get("hints"),
                 quizzes=_parse_quizzes(data.get("quizzes")) if unit_type == "conceptual" else None,
                 editor_config=_parse_editor_config(data.get("editor_config")) if unit_type == "coding" else None,
+                # Course/Topic hierarchy
+                course_id=course_id,
+                topic_id=topic_id,
             )
 
             # Insert LearningUnit and capture ID for foreign key
             await learning_unit.insert()
             unit_id = learning_unit.id
+
+            # Update topic units_count in SQLite (cached count)
+            if topic_id:
+                _increment_topic_units_count(db, topic_id)
 
             # Build and insert UnitSolution (private data)
             unit_solution = UnitSolution(

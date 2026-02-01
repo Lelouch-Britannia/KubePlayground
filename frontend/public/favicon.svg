@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Background circle with gradient -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0078d4"/>
+      <stop offset="100%" stop-color="#4ec9b0"/>
+    </linearGradient>
+    <linearGradient id="cubeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#e0e0e0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="url(#bgGradient)"/>
+
+  <!-- Kubernetes-inspired hexagon/cube shape -->
+  <g transform="translate(32, 32)">
+    <!-- Main hexagon outline -->
+    <polygon
+      points="0,-20 17.3,-10 17.3,10 0,20 -17.3,10 -17.3,-10"
+      fill="none"
+      stroke="white"
+      stroke-width="2.5"
+      stroke-linejoin="round"
+    />
+
+    <!-- Inner connecting lines (helm wheel spokes) -->
+    <line x1="0" y1="-20" x2="0" y2="0" stroke="white" stroke-width="2"/>
+    <line x1="17.3" y1="-10" x2="0" y2="0" stroke="white" stroke-width="2"/>
+    <line x1="17.3" y1="10" x2="0" y2="0" stroke="white" stroke-width="2"/>
+    <line x1="0" y1="20" x2="0" y2="0" stroke="white" stroke-width="2"/>
+    <line x1="-17.3" y1="10" x2="0" y2="0" stroke="white" stroke-width="2"/>
+    <line x1="-17.3" y1="-10" x2="0" y2="0" stroke="white" stroke-width="2"/>
+
+    <!-- Center circle -->
+    <circle cx="0" cy="0" r="5" fill="white"/>
+
+    <!-- Corner circles (nodes) -->
+    <circle cx="0" cy="-20" r="3" fill="white"/>
+    <circle cx="17.3" cy="-10" r="3" fill="white"/>
+    <circle cx="17.3" cy="10" r="3" fill="white"/>
+    <circle cx="0" cy="20" r="3" fill="white"/>
+    <circle cx="-17.3" cy="10" r="3" fill="white"/>
+    <circle cx="-17.3" cy="-10" r="3" fill="white"/>
+  </g>
+</svg>
