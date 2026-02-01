@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 
 // User type matching backend UserResponse
 export interface User {
-  id: string;
+  id: number;
   email: string;
   username: string;
   is_active: boolean;
@@ -83,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Register new user
   const register = async (email: string, username: string, password: string) => {
-    const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, username, password }),
@@ -100,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Login user
   const login = async (email: string, password: string) => {
-    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -112,14 +112,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const data: TokenResponse = await response.json();
+    console.log('Login response:', data);
+    console.log('Saving access token:', data.access_token);
     saveAuth(data);
+    console.log('Token saved. localStorage check:', localStorage.getItem(ACCESS_TOKEN_KEY));
   };
 
   // Logout user
   const logout = async () => {
     if (accessToken && refreshToken) {
       try {
-        await fetch(`${API_BASE_URL}/api/auth/logout`, {
+        await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -139,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!refreshToken) return false;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: refreshToken }),

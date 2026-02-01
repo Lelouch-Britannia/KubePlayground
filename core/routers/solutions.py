@@ -4,7 +4,7 @@ from typing import Annotated, Optional
 
 from auth.dependencies import get_current_user
 from auth.models import User
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from models import LearningUnit, UserSolution
 from schema import (
     AutosaveRequest,
@@ -14,10 +14,15 @@ from schema import (
     SolutionHistoryItem,
     SolutionHistoryResponse,
 )
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from starlette import status
 
 
-router = APIRouter(prefix="/api/solutions", tags=["solutions"])
+# Rate limiter instance
+limiter = Limiter(key_func=get_remote_address)
+
+router = APIRouter(prefix="/solutions", tags=["solutions"])
 logger = logging.getLogger(__name__)
 
 # Dependency injection for authenticated user
@@ -25,8 +30,10 @@ current_user_dependency = Annotated[User, Depends(get_current_user)]
 
 
 @router.post("/autosave")
+@limiter.limit("60/minute")  # Allow frequent autosaves but prevent abuse
 async def autosave_solution(
-    request: AutosaveRequest,
+    _request: Request,
+    autosave_req: AutosaveRequest,
     current_user: current_user_dependency,
 ) -> AutosaveResponse:
     """Auto-save user's work in progress to MongoDB.
@@ -37,23 +44,24 @@ async def autosave_solution(
         Authorization: Bearer <token> header
 
     Args:
-        request: AutosaveRequest with unit_slug, code, language
+        request: FastAPI Request object (for rate limiting)
+        autosave_req: AutosaveRequest with unit_slug, code, language
         current_user: Authenticated user from JWT token
 
     Returns:
         AutosaveResponse: Save confirmation with timestamp and version
     """
     # Find unit by slug
-    unit = await LearningUnit.find_one(LearningUnit.slug == request.unit_slug)
+    unit = await LearningUnit.find_one(LearningUnit.slug == autosave_req.unit_slug)
     if not unit:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"Learning unit not found: {request.unit_slug}"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Learning unit not found: {autosave_req.unit_slug}"
         )
 
     # Find latest version for this user+unit
     latest = (
         await UserSolution.find(
-            UserSolution.user_id == str(current_user.id),
+            UserSolution.user_id == current_user.id,
             UserSolution.unit_id == unit.id,
         )
         .sort(-UserSolution.version)
@@ -66,9 +74,9 @@ async def autosave_solution(
 
     # Create new save
     solution = UserSolution(
-        user_id=str(current_user.id),
+        user_id=current_user.id,
         unit_id=unit.id,  # type: ignore
-        content=request.code,
+        content=autosave_req.code,
         version=new_version,
         auto_saved_at=now,
     )
@@ -105,7 +113,7 @@ async def get_solution_history(
     # Find all saves for this user+unit
     saves = (
         await UserSolution.find(
-            UserSolution.user_id == str(current_user.id),
+            UserSolution.user_id == current_user.id,
             UserSolution.unit_id == unit.id,
         )
         .sort(-UserSolution.version)
@@ -121,6 +129,49 @@ async def get_solution_history(
     ]
 
     return SolutionHistoryResponse(unit_slug=unit_slug, saves=history_items, total_saves=len(history_items))
+
+
+@router.get("/{unit_slug}/latest")
+async def get_latest_solution(
+    unit_slug: str,
+    current_user: current_user_dependency,
+) -> RestoreSolutionResponse:
+    """Get the most recent saved solution for a unit.
+
+    Requires:
+        Authorization: Bearer <token> header
+
+    Args:
+        unit_slug: Unit identifier
+        current_user: Authenticated user from JWT token
+
+    Returns:
+        RestoreSolutionResponse: Latest saved code
+
+    Raises:
+        HTTPException 404: No saves found for this unit
+    """
+    # Find unit by slug
+    unit = await LearningUnit.find_one(LearningUnit.slug == unit_slug)
+    if not unit:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Learning unit not found: {unit_slug}")
+
+    # Find latest save for this user+unit
+    latest = (
+        await UserSolution.find(
+            UserSolution.user_id == current_user.id,
+            UserSolution.unit_id == unit.id,
+        )
+        .sort(-UserSolution.version)
+        .first_or_none()
+    )  # type: ignore
+
+    if not latest:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No saved solution found for this unit")
+
+    return RestoreSolutionResponse(
+        code=latest.content, language="yaml", saved_at=latest.auto_saved_at, version=latest.version
+    )
 
 
 @router.post("/{unit_slug}/restore")
@@ -159,7 +210,7 @@ async def restore_solution(
 
     # Find specific version
     solution = await UserSolution.find_one(
-        UserSolution.user_id == str(current_user.id),
+        UserSolution.user_id == current_user.id,
         UserSolution.unit_id == unit.id,
         UserSolution.version == request.version,
     )

@@ -1,27 +1,119 @@
+import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from auth.dependencies import get_current_user
-from auth.models import User
-from fastapi import APIRouter, Depends, HTTPException
+from auth.dependencies import db_dependency, get_current_user
+from auth.models import ActivityLog, User, UserActivity, UserStreak
+from database import get_db
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from models import LearningUnit, UserProgress
 from schema import ProgressUpdateRequest, ProgressUpdateResponse, UnitProgressItem, UserProgressResponse
+from sqlalchemy.orm import Session
 from starlette import status
 
 
-router = APIRouter(prefix="/api/progress", tags=["progress"])
+router = APIRouter(prefix="/progress", tags=["progress"])
 logger = logging.getLogger(__name__)
 
 # Dependency injection for authenticated user
 current_user_dependency = Annotated[User, Depends(get_current_user)]
 
 
+def update_user_streak_background(user_id: int, activity_date: datetime) -> None:
+    """Background task to update user streak calculation.
+
+    This function runs asynchronously after the response is sent to avoid
+    blocking the API response. Prevents N+1 query problem by isolating
+    streak calculation from the main request/response cycle.
+
+    Performance Optimization:
+        - Moves streak calculation out of critical path
+        - Separate DB session to avoid transaction conflicts
+        - Only runs on completed exercises (not every activity)
+
+    Args:
+        user_id: User ID from SQLite
+        activity_date: Date of the activity (normalized to midnight UTC)
+
+    Note:
+        Uses a fresh database session to avoid stale connection issues.
+        Timezone handling ensures accurate day-boundary calculations.
+    """
+    # Create new session for background task
+    from database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        today = activity_date.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        user_streak = db.query(UserStreak).filter(UserStreak.user_id == user_id).first()
+
+        if user_streak:
+            # Check if activity was yesterday (streak continues) or today (same day)
+            if user_streak.last_activity_date:
+                last_activity_date = user_streak.last_activity_date
+                if last_activity_date.tzinfo is None:
+                    last_activity_date = last_activity_date.replace(tzinfo=timezone.utc)
+                days_diff = (today - last_activity_date.replace(hour=0, minute=0, second=0, microsecond=0)).days
+            else:
+                days_diff = 999
+
+            if days_diff == 0:
+                # Same day activity - no streak change
+                pass
+            elif days_diff == 1:
+                # Consecutive day - increment streak
+                user_streak.current_streak += 1
+                user_streak.longest_streak = max(user_streak.longest_streak, user_streak.current_streak)
+                user_streak.last_activity_date = now
+            else:
+                # Streak broken - reset to 1
+                user_streak.current_streak = 1
+                user_streak.streak_start_date = now
+                user_streak.last_activity_date = now
+
+            user_streak.updated_at = now
+        else:
+            # First time tracking streak for this user
+            user_streak = UserStreak(
+                user_id=user_id,
+                current_streak=1,
+                longest_streak=1,
+                last_activity_date=now,
+                streak_start_date=now,
+                updated_at=now,
+            )
+            db.add(user_streak)
+
+        db.commit()
+        logger.info("Background: Updated streak for user %s, current_streak=%s", user_id, user_streak.current_streak)
+    except Exception:
+        logger.exception("Background streak update failed for user %s", user_id)
+        db.rollback()
+    finally:
+        db.close()
+
+
 @router.post("/update")
 async def update_progress(
     request: ProgressUpdateRequest,
     current_user: current_user_dependency,
+    db: db_dependency,
+    background_tasks: BackgroundTasks,
 ) -> ProgressUpdateResponse:
+    """Update user progress for a learning unit.
+
+    Args:
+        request: Progress update request
+        current_user: Authenticated user
+        db: Database session
+        background_tasks: Background task scheduler
+
+    Returns:
+        ProgressUpdateResponse: Updated progress status
+    """
     """Update user progress for specific unit.
 
     Creates new progress record or updates existing one.
@@ -45,30 +137,89 @@ async def update_progress(
 
     # Find existing progress record
     existing = await UserProgress.find_one(
-        UserProgress.user_id == str(current_user.id),
+        UserProgress.user_id == current_user.id,
         UserProgress.unit_id == unit.id,
     )
 
     now = datetime.now(tz=timezone.utc)
 
     if existing:
-        # Update existing record
-        existing.status = request.status  # type: ignore
+        # Update existing record - don't downgrade from completed to started
+        if existing.status != "completed" or request.status == "completed":
+            existing.status = request.status  # type: ignore
         if request.score is not None:
             existing.score = int(request.score)
-        if request.status == "completed":
+        if request.status == "completed" and not existing.completed_at:
             existing.completed_at = now
         await existing.save()
     else:
         # Create new record
         progress = UserProgress(
-            user_id=str(current_user.id),
+            user_id=current_user.id,
             unit_id=unit.id,  # type: ignore
             status=request.status,  # type: ignore
             score=int(request.score) if request.score else None,
             completed_at=now if request.status == "completed" else None,
         )
         await progress.insert()
+
+    # Log activity to SQLite
+    # Note: Points are NOT awarded here to avoid double-counting
+    # - Conceptual (quiz) units: Points awarded in grading.py on first pass (1 per correct answer)
+    # - Coding units: Points awarded in grading.py on successful verification (3/5/10 by difficulty)
+    points_earned = 0
+    activity_type = "exercise_started" if request.status == "started" else "exercise_completed"
+
+    activity_log = ActivityLog(
+        user_id=current_user.id,
+        activity_type=activity_type,
+        unit_slug=request.unit_slug,
+        points_earned=points_earned,
+        score_percentage=int(request.score) if request.score else None,
+        activity_metadata=json.dumps(
+            {
+                "unit_type": unit.type,
+                "status": request.status,
+            }
+        ),
+        created_at=now,
+    )
+    db.add(activity_log)
+
+    # Update daily activity aggregation
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    user_activity = (
+        db.query(UserActivity)
+        .filter(UserActivity.user_id == current_user.id, UserActivity.activity_date == today)
+        .first()
+    )
+
+    if user_activity:
+        if request.status == "started":
+            user_activity.exercises_started += 1
+        elif request.status == "completed":
+            user_activity.exercises_completed += 1
+            user_activity.total_points += points_earned
+        user_activity.updated_at = now
+    else:
+        user_activity = UserActivity(
+            user_id=current_user.id,
+            activity_date=today,
+            total_points=points_earned,
+            exercises_started=1 if request.status == "started" else 0,
+            exercises_completed=1 if request.status == "completed" else 0,
+            created_at=now,
+        )
+        db.add(user_activity)
+
+    # Schedule streak update as background task (only for completed exercises)
+    # Performance Note: This prevents N+1 query problem by moving streak calculation
+    # out of the main request/response cycle. Response is sent immediately while
+    # streak calculation happens asynchronously.
+    if request.status == "completed":
+        background_tasks.add_task(update_user_streak_background, current_user.id, today)
+
+    db.commit()
 
     return ProgressUpdateResponse(updated_at=now, message="Progress updated successfully")
 
@@ -89,7 +240,7 @@ async def get_user_progress(
         HTTPException 404: User has no progress records
     """
     # Fetch all progress for user
-    progress_records = await UserProgress.find(UserProgress.user_id == str(current_user.id)).to_list()
+    progress_records = await UserProgress.find(UserProgress.user_id == current_user.id).to_list()
 
     # Fetch all units to get total count and slugs
     all_units = await LearningUnit.find_all().to_list()
@@ -122,7 +273,7 @@ async def get_user_progress(
     completion_pct = (completed_count / total_units * 100) if total_units > 0 else 0.0
 
     return UserProgressResponse(
-        user_id=str(current_user.id),
+        user_id=current_user.id,
         units=progress_items,
         total_completed=completed_count,
         total_units=total_units,

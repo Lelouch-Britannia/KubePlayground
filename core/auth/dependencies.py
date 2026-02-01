@@ -38,10 +38,13 @@ def get_current_user(db: db_dependency, token: str = Depends(oauth2_scheme)) -> 
 
     try:
         payload = decode_token(token)
-        user_id: str = payload.get("sub")
+        user_id: int | str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
-    except PyJWTError as exc:
+        # Convert to int if it's a string
+        if isinstance(user_id, str):
+            user_id = int(user_id)
+    except (PyJWTError, ValueError) as exc:
         raise credentials_exception from exc
 
     # Query user from database
@@ -54,7 +57,6 @@ def get_current_user(db: db_dependency, token: str = Depends(oauth2_scheme)) -> 
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is deactivated",
         )
-
     return user
 
 
@@ -71,6 +73,6 @@ def get_current_user_optional(db: db_dependency, token: str = Depends(oauth2_sch
         User | None: The authenticated user or None
     """
     try:
-        return get_current_user(token, db)
+        return get_current_user(db, token)
     except HTTPException:
         return None

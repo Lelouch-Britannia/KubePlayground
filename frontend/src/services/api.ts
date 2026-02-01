@@ -37,7 +37,7 @@ class ApiClient {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/api/auth/refresh`, {
+      const response = await fetch(`${this.baseUrl}/api/v1/auth/refresh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -95,6 +95,9 @@ class ApiClient {
     const url = `${this.baseUrl}${endpoint}`;
     const accessToken = getAccessToken();
 
+    console.log(`API Request: ${endpoint}`);
+    console.log('Access token from storage:', accessToken ? `${accessToken.substring(0, 20)}...` : 'null');
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       ...options?.headers,
@@ -103,6 +106,9 @@ class ApiClient {
     // Add Authorization header if we have a token and this isn't a skip-auth request
     if (!skipAuth && accessToken) {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${accessToken}`;
+      console.log('Authorization header added');
+    } else {
+      console.log('No auth header added. skipAuth:', skipAuth, 'hasToken:', !!accessToken);
     }
 
     const response = await fetch(url, {
@@ -135,39 +141,39 @@ class ApiClient {
   // ==================== Auth API (no auth header needed) ====================
 
   async login(email: string, password: string) {
-    return this.request('/api/auth/login', {
+    return this.request('/api/v1/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }, true); // skipAuth = true
   }
 
   async register(email: string, username: string, password: string) {
-    return this.request('/api/auth/register', {
+    return this.request('/api/v1/auth/register', {
       method: 'POST',
       body: JSON.stringify({ email, username, password }),
     }, true); // skipAuth = true
   }
 
   async logout(refreshToken: string) {
-    return this.request('/api/auth/logout', {
+    return this.request('/api/v1/auth/logout', {
       method: 'POST',
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
   }
 
   async refreshToken(refreshToken: string) {
-    return this.request('/api/auth/refresh', {
+    return this.request('/api/v1/auth/refresh', {
       method: 'POST',
       body: JSON.stringify({ refresh_token: refreshToken }),
     }, true); // skipAuth = true
   }
 
   async getCurrentUser() {
-    return this.request('/api/auth/me');
+    return this.request('/api/v1/auth/me');
   }
 
   async changePassword(currentPassword: string, newPassword: string) {
-    return this.request('/api/auth/change-password', {
+    return this.request('/api/v1/auth/change-password', {
       method: 'POST',
       body: JSON.stringify({
         current_password: currentPassword,
@@ -177,7 +183,7 @@ class ApiClient {
   }
 
   async logoutAllDevices() {
-    return this.request('/api/auth/logout-all-devices', {
+    return this.request('/api/v1/auth/logout-all-devices', {
       method: 'POST',
     });
   }
@@ -185,7 +191,7 @@ class ApiClient {
   // ==================== Activity API ====================
 
   async recordActivity(activityType: string, metadata?: Record<string, unknown>) {
-    return this.request('/api/auth/activity', {
+    return this.request('/api/v1/auth/activity', {
       method: 'POST',
       body: JSON.stringify({
         activity_type: activityType,
@@ -199,36 +205,40 @@ class ApiClient {
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
     const query = params.toString();
-    return this.request(`/api/auth/me/activity${query ? `?${query}` : ''}`);
+    return this.request(`/api/v1/auth/me/activity${query ? `?${query}` : ''}`);
   }
 
-  async getActivityHeatmap(year?: number) {
-    const query = year ? `?year=${year}` : '';
-    return this.request(`/api/auth/me/activity/heatmap${query}`);
+  async getActivityHeatmap(days: number = 365) {
+    const query = days ? `?days=${days}` : '';
+    return this.request(`/api/v1/auth/me/activity/heatmap${query}`);
   }
 
   async getMyStreak() {
-    return this.request('/api/auth/me/streak');
+    return this.request('/api/v1/auth/me/streak');
   }
 
   async getMyStats() {
-    return this.request('/api/auth/me/stats');
+    return this.request('/api/v1/auth/me/stats');
+  }
+
+  async getProfileSummary() {
+    return this.request('/api/v1/auth/me/profile-summary');
   }
 
   // ==================== Dashboard API ====================
 
   async getDashboard() {
-    return this.request('/api/dashboard');
+    return this.request('/api/v1/dashboard');
   }
 
   // ==================== Content API ====================
 
   async getSyllabus() {
-    return this.request('/api/units/syllabus');
+    return this.request('/api/v1/units/syllabus');
   }
 
   async getUnitDetail(slug: string) {
-    return this.request(`/api/units/${slug}`);
+    return this.request(`/api/v1/units/${slug}`);
   }
 
   // ==================== Progress API ====================
@@ -239,14 +249,14 @@ class ApiClient {
     score?: number;
     time_spent_seconds?: number;
   }) {
-    return this.request('/api/progress/update', {
+    return this.request('/api/v1/progress/update', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
   async getMyProgress() {
-    return this.request('/api/progress/me');
+    return this.request('/api/v1/progress/me');
   }
 
   // ==================== Solutions API ====================
@@ -256,21 +266,25 @@ class ApiClient {
     code: string;
     language?: string;
   }) {
-    return this.request('/api/solutions/autosave', {
+    return this.request('/api/v1/solutions/autosave', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
   async getSolutionHistory(unitSlug: string) {
-    return this.request(`/api/solutions/${unitSlug}/history`);
+    return this.request(`/api/v1/solutions/${unitSlug}/history`);
+  }
+
+  async getLatestSolution(unitSlug: string) {
+    return this.request(`/api/v1/solutions/${unitSlug}/latest`);
   }
 
   async restoreSolution(unitSlug: string, data: {
     unit_slug: string;
     version: number;
   }) {
-    return this.request(`/api/solutions/${unitSlug}/restore`, {
+    return this.request(`/api/v1/solutions/${unitSlug}/restore`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -282,10 +296,14 @@ class ApiClient {
     unit_slug: string;
     answers: Record<string, string>;
   }) {
-    return this.request('/api/grading/quiz/submit', {
+    return this.request('/api/v1/grading/quiz/submit', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  async getLastQuizSubmission(unitSlug: string) {
+    return this.request(`/api/v1/grading/quiz/${unitSlug}/last-submission`);
   }
 
   async verifyCode(data: {
@@ -293,10 +311,24 @@ class ApiClient {
     code: string;
     language?: string;
   }) {
-    return this.request('/api/grading/code/verify', {
+    return this.request('/api/v1/grading/code/verify', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  // ==================== Courses API ====================
+
+  async getCourses() {
+    return this.request('/api/v1/courses/');
+  }
+
+  async getCourseChapters(courseSlug: string) {
+    return this.request(`/api/v1/courses/${courseSlug}/chapters`);
+  }
+
+  async getTopicUnits(topicId: number) {
+    return this.request(`/api/v1/courses/topics/${topicId}/units`);
   }
 }
 

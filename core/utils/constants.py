@@ -22,6 +22,17 @@ class Constants:
         bearer = "bearer"
         MIN_PASSWORD_LENGTH = 8
 
+        # Points System
+        QUIZ_POINTS_PER_CORRECT = 1  # 1 point per correct answer
+        PASSING_SCORE_THRESHOLD = 70.0  # Minimum percentage to pass
+
+        # Coding exercise points by difficulty
+        CODING_POINTS = {
+            "beginner": 3,
+            "intermediate": 5,
+            "advanced": 10,
+        }
+
     class DBConstants:
         """Database-related constants."""
 

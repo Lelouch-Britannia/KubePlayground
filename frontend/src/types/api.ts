@@ -48,6 +48,9 @@ export interface UnitDetail {
 // Dashboard API Types
 export interface TopicProgress {
   topic: string;
+  topic_slug?: string;
+  topic_icon?: string;
+  topic_order?: number;
   total_units: number;
   completed_units: number;
   in_progress_units: number;
@@ -55,10 +58,17 @@ export interface TopicProgress {
   units: SyllabusItem[];
 }
 
+export interface CourseProgress {
+  course_name: string;
+  course_slug: string;
+  course_description?: string;
+  topics: TopicProgress[];
+}
+
 export interface DashboardData {
   user_id?: string;
   greeting?: string;
-  topics: TopicProgress[];
+  courses: CourseProgress[];
   overall_completion?: number;
   total_units: number;
   completed_count: number;
@@ -66,9 +76,50 @@ export interface DashboardData {
   current_streak: number;
 }
 
+// Course Hierarchy API Types
+export interface CourseInfo {
+  id: number;
+  slug: string;
+  name: string;
+  description?: string;
+  topics_count: number;
+  total_units: number;
+}
+
+export interface TopicSummary {
+  id: number;
+  slug: string;
+  name: string;
+  order_position: number;
+  icon?: string;
+  units_count: number;
+  completed_units: number;
+  in_progress_units: number;
+  completion_percentage: number;
+}
+
+export interface CourseChaptersResponse {
+  course: CourseInfo;
+  chapters: TopicSummary[];
+}
+
+export interface LearningUnitSummary {
+  slug: string;
+  title: string;
+  order_index: number;
+  type: 'conceptual' | 'coding';
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  status?: 'not_started' | 'in_progress' | 'completed';
+  score?: number;
+}
+
+export interface TopicUnitsResponse {
+  topic: TopicSummary;
+  units: LearningUnitSummary[];
+}
+
 // Progress API Types
 export interface ProgressUpdateRequest {
-  user_id: string;
   unit_slug: string;
   status: 'started' | 'completed';  // Matches backend UserProgress model
   score?: number;
@@ -100,7 +151,6 @@ export interface UserProgressResponse {
 // Solutions API Types
 export interface AutosaveRequest {
   unit_slug: string;
-  user_id: string;
   code: string;
   language?: string;
 }
@@ -133,7 +183,6 @@ export interface RestoreSolutionResponse {
 // Grading API Types
 export interface QuizSubmissionRequest {
   unit_slug: string;
-  user_id: string;
   answers: Record<string, string>;
 }
 

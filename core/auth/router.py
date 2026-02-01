@@ -1,7 +1,10 @@
+import json
+import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
+import numpy as np
 from auth.dependencies import db_dependency, get_current_user
 from auth.models import ActivityLog, RefreshToken, User, UserActivity, UserStreak
 from auth.schemas import (
@@ -9,6 +12,7 @@ from auth.schemas import (
     HeatmapDataResponse,
     LoginRequest,
     PasswordChangeRequest,
+    ProfileSummaryResponse,
     RefreshTokenRequest,
     TokenResponse,
     UserActivityResponse,
@@ -27,14 +31,24 @@ from auth.security import (
     verify_refresh_token,
     verify_token_hash,
 )
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import EmailStr, Field
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from utils.constants import Constants
 
 
+# Constants for activity tracking
+MAX_ACTIVITY_DAYS = 730
+
+# Rate limiter instance
+limiter = Limiter(key_func=get_remote_address)
+
 # Create auth router with prefix
-router = APIRouter(prefix="/api/auth", tags=["authentication"])
+router = APIRouter(prefix="/auth", tags=["authentication"])
+logger = logging.getLogger(__name__)
 
 # Dependency injection pattern for current authenticated user
 current_user_dependency = Annotated[User, Depends(get_current_user)]
@@ -47,7 +61,8 @@ async def auth_health():
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
-async def register(user: UserCreate, db: db_dependency):
+@limiter.limit("5/hour")  # Prevent spam registrations
+async def register(_request: Request, user: UserCreate, db: db_dependency):
     """Register a new user."""
     # Check if email already exists
     existing_user = db.query(User).filter(User.email == user.email).first()
@@ -59,7 +74,6 @@ async def register(user: UserCreate, db: db_dependency):
 
     # Create new user with hashed password
     db_user = User(
-        id=str(uuid.uuid4()),
         email=user.email,
         username=user.username,
         password_hash=hash_password(user.password),
@@ -87,7 +101,7 @@ async def register(user: UserCreate, db: db_dependency):
 
     # Store refresh token hash in database
     db_refresh_token = RefreshToken(
-        user_id=str(db_user.id),
+        user_id=db_user.id,
         token_hash=hash_token(refresh_token),
         expires_at=datetime.now(timezone.utc) + timedelta(days=7),
     )
@@ -103,7 +117,8 @@ async def register(user: UserCreate, db: db_dependency):
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(login_req: LoginRequest, db: db_dependency):
+@limiter.limit("10/minute")  # Prevent brute force password attacks
+async def login(_request: Request, login_req: LoginRequest, db: db_dependency):
     """Authenticate user and return JWT token."""
     user = db.query(User).filter(User.email == login_req.email).first()
 
@@ -139,7 +154,7 @@ async def login(login_req: LoginRequest, db: db_dependency):
 
     # Store refresh token hash in database (not plaintext!)
     db_refresh_token = RefreshToken(
-        user_id=str(user.id),
+        user_id=user.id,
         token_hash=hash_token(refresh_token),  # Use SHA256, not bcrypt
         expires_at=datetime.now(timezone.utc) + timedelta(days=7),
     )
@@ -188,7 +203,7 @@ async def logout(
     # Revoke only the provided refresh token
     token_hash = hash_token(refresh_request.refresh_token)
     db.query(RefreshToken).filter(
-        RefreshToken.user_id == str(current_user.id),
+        RefreshToken.user_id == current_user.id,
         RefreshToken.token_hash == token_hash,
         RefreshToken.revoked_at.is_(None),
     ).update({"revoked_at": datetime.now(timezone.utc)})
@@ -238,7 +253,9 @@ async def update_user_profile(
 
 
 @router.post("/change-password")
+@limiter.limit("5/hour")  # Prevent password change abuse
 async def change_password(
+    _request: Request,
     password_change: PasswordChangeRequest,
     current_user: current_user_dependency,
     db: db_dependency,
@@ -292,6 +309,12 @@ async def refresh_access_token(
     user_id = verify_refresh_token(refresh_request.refresh_token)
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    # Convert user_id to integer (JWT stores as string)
+    try:
+        user_id = int(user_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=401, detail="Invalid user ID in refresh token")
 
     # Verify token exists in database and not revoked
     token_hash = hash_token(refresh_request.refresh_token)
@@ -352,7 +375,7 @@ async def logout_all_devices(
     revoked_count = (
         db.query(RefreshToken)
         .filter(
-            RefreshToken.user_id == str(current_user.id),
+            RefreshToken.user_id == current_user.id,
             RefreshToken.revoked_at.is_(None),
         )
         .update({"revoked_at": datetime.now(timezone.utc)})
@@ -368,58 +391,8 @@ async def logout_all_devices(
 # ============================================================================
 # User Activity Tracking Endpoints
 # ============================================================================
-
-
-@router.post("/activity", status_code=201)
-async def log_activity(
-    activity: ActivityLogCreate,
-    current_user: current_user_dependency,
-    db: db_dependency,
-):
-    """Log a user activity (quiz attempt, exercise completion, etc.).
-
-    This endpoint should be called when user:
-    - Starts/completes a quiz
-    - Starts/completes an exercise
-    - Logs in (optional)
-
-    Requires:
-        Authorization: Bearer <token> header
-
-    Returns:
-        dict: Success message with activity details
-    """
-    # Step 1: Create activity log entry for audit trail
-    # - Insert into activity_log table
-    # - Include: user_id, activity_type, unit_slug, points_earned, metadata, created_at
-
-    # Step 2: Get today's date (UTC, date only - no time)
-    # - Use datetime.now(timezone.utc).date() for consistency
-    # - This ensures all activities on same calendar day are grouped
-
-    # Step 3: Upsert user_activity table (daily aggregation)
-    # - Query for existing record: user_id + activity_date
-    # - If exists: update counters (quiz_attempts++, total_points+=, etc.)
-    # - If not exists: create new record with initial values
-    # - Update appropriate fields based on activity_type:
-    #   * quiz_attempt -> quiz_attempts++
-    #   * quiz_pass -> quiz_passes++, total_points += points
-    #   * exercise_start -> exercises_started++
-    #   * exercise_complete -> exercises_completed++, total_points += points
-
-    # Step 4: Update user streak
-    # - Query user_streaks table for user_id
-    # - Get last_activity_date
-    # - Calculate days difference between today and last_activity_date
-    # - If difference == 1: current_streak++, update longest_streak if needed
-    # - If difference > 1: reset current_streak = 1, update streak_start_date
-    # - If difference == 0: same day, don't update streak (already counted)
-    # - Update last_activity_date to today
-    # - If no streak record exists: create with current_streak=1, longest_streak=1
-
-    # Step 5: Commit transaction and return response
-    # - db.commit()
-    # - Return success message with points earned and updated streak
+# Note: Activity logging (POST) is handled automatically by grading/progress routers.
+# These endpoints provide read-only access to activity data for analytics/dashboards.
 
 
 @router.get("/me/activity", response_model=list[UserActivityResponse])
@@ -443,25 +416,60 @@ async def get_user_activity(
     Returns:
         List[UserActivityResponse]: Daily activity records
     """
-    # Step 1: Parse and validate date parameters
-    # - If start_date provided: parse string to datetime
-    # - If end_date provided: parse string to datetime
-    # - If not provided: default to last 365 days
-    # - Validate: start_date <= end_date
-    # - Validate: limit between 1 and 730
+    # Validate limit
+    if limit < 1 or limit > MAX_ACTIVITY_DAYS:
+        raise HTTPException(status_code=400, detail=f"Limit must be between 1 and {MAX_ACTIVITY_DAYS}")
 
-    # Step 2: Query user_activity table
-    # - Filter by user_id = current_user.id
-    # - Filter by activity_date >= start_date AND activity_date <= end_date
-    # - Order by activity_date DESC
-    # - Limit to specified limit
-    # - Select: activity_date, total_points, quiz_attempts, quiz_passes,
-    #           exercises_started, exercises_completed, time_spent_seconds
+    # Parse dates or use defaults
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD")
+    else:
+        start_dt = datetime.now(timezone.utc) - timedelta(days=limit)
 
-    # Step 3: Convert to response format
-    # - Map each record to UserActivityResponse
-    # - Format activity_date as YYYY-MM-DD string
-    # - Return list of activity records
+    if end_date:
+        try:
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
+    else:
+        end_dt = datetime.now(timezone.utc)
+
+    if start_dt > end_dt:
+        raise HTTPException(status_code=400, detail="start_date must be before end_date")
+
+    # Query activities
+    activities = (
+        db.query(UserActivity)
+        .filter(
+            UserActivity.user_id == current_user.id,
+            UserActivity.activity_date >= start_dt,
+            UserActivity.activity_date <= end_dt,
+        )
+        .order_by(UserActivity.activity_date.desc())
+        .limit(limit)
+        .all()
+    )
+
+    logger.info("Activity query for user %s: found %s records", current_user.id, len(activities))
+    if activities:
+        logger.info("Sample: date=%s, points=%s", activities[0].activity_date, activities[0].total_points)
+
+    # Convert to response
+    return [
+        UserActivityResponse(
+            activity_date=activity.activity_date.strftime("%Y-%m-%d"),
+            total_points=activity.total_points,
+            quiz_attempts=activity.quiz_attempts,
+            quiz_passes=activity.quiz_passes,
+            exercises_started=activity.exercises_started,
+            exercises_completed=activity.exercises_completed,
+            time_spent_seconds=activity.time_spent_seconds,
+        )
+        for activity in activities
+    ]
 
 
 @router.get("/me/activity/heatmap", response_model=list[HeatmapDataResponse])
@@ -483,33 +491,77 @@ async def get_activity_heatmap(
     Returns:
         List[HeatmapDataResponse]: Heatmap data with date, points, and level
     """
-    # Step 1: Validate and calculate date range
-    # - Validate: days between 1 and 730
-    # - Calculate start_date = today - days
-    # - Calculate end_date = today
+    # Validate days
+    if days < 1 or days > MAX_ACTIVITY_DAYS:
+        raise HTTPException(status_code=400, detail=f"Days must be between 1 and {MAX_ACTIVITY_DAYS}")
 
-    # Step 2: Query user_activity for date range
-    # - Filter by user_id = current_user.id
-    # - Filter by activity_date >= start_date
-    # - Order by activity_date ASC
-    # - Select: activity_date, total_points
+    # Calculate date range
+    end_date = datetime.now(timezone.utc).date()
+    start_date = end_date - timedelta(days=days - 1)
 
-    # Step 3: Calculate percentile thresholds for intensity levels
-    # - Collect all non-zero points values
-    # - Calculate quartiles (25th, 50th, 75th, 90th percentiles)
-    # - Define thresholds:
-    #   * Level 0: 0 points (no activity)
-    #   * Level 1: > 0 to 25th percentile
-    #   * Level 2: 25th to 50th percentile
-    #   * Level 3: 50th to 75th percentile
-    #   * Level 4: > 75th percentile
+    # Query activities
+    activities = (
+        db.query(UserActivity)
+        .filter(
+            UserActivity.user_id == current_user.id,
+            UserActivity.activity_date
+            >= datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc),
+        )
+        .order_by(UserActivity.activity_date.asc())
+        .all()
+    )
 
-    # Step 4: Map activity to heatmap data
-    # - For each day in range:
-    #   * If activity exists: map to level based on points and thresholds
-    #   * If no activity: create entry with 0 points, level 0
-    # - Format date as YYYY-MM-DD
-    # - Return list with all days (including zero-activity days for complete heatmap)
+    logger.info("Heatmap query for user %s: found %s activity records", current_user.id, len(activities))
+    if activities:
+        logger.info("Sample activity: %s", activities[0])
+
+    # Create lookup dict
+    activity_map = {activity.activity_date.date(): activity.total_points for activity in activities}
+
+    # Get all non-zero points for percentile calculation
+    non_zero_points = [p for p in activity_map.values() if p > 0]
+
+    # Calculate thresholds
+    if non_zero_points:
+        thresholds = {
+            1: np.percentile(non_zero_points, 25),
+            2: np.percentile(non_zero_points, 50),
+            3: np.percentile(non_zero_points, 75),
+            4: np.percentile(non_zero_points, 90),
+        }
+    else:
+        thresholds = {1: 1, 2: 25, 3: 50, 4: 75}
+
+    # Build complete heatmap data
+    heatmap_data = []
+    current_date = start_date
+
+    while current_date <= end_date:
+        points = activity_map.get(current_date, 0)
+
+        # Calculate level
+        if points == 0:
+            level = 0
+        elif points <= thresholds[1]:
+            level = 1
+        elif points <= thresholds[2]:
+            level = 2
+        elif points <= thresholds[3]:
+            level = 3
+        else:
+            level = 4
+
+        heatmap_data.append(
+            HeatmapDataResponse(
+                date=current_date.strftime("%Y-%m-%d"),
+                points=points,
+                level=level,
+            )
+        )
+
+        current_date += timedelta(days=1)
+
+    return heatmap_data
 
 
 @router.get("/me/streak", response_model=UserStreakResponse)
@@ -525,23 +577,38 @@ async def get_user_streak(
     Returns:
         UserStreakResponse: Streak information
     """
-    # Step 1: Query user_streaks table
-    # - Filter by user_id = current_user.id
-    # - Select: current_streak, longest_streak, last_activity_date, streak_start_date
+    user_streak = db.query(UserStreak).filter(UserStreak.user_id == current_user.id).first()
 
-    # Step 2: Handle no streak record case
-    # - If not found: return default values (all zeros, no dates)
+    if not user_streak:
+        return UserStreakResponse(
+            current_streak=0,
+            longest_streak=0,
+            last_activity_date=None,
+            streak_start_date=None,
+        )
 
-    # Step 3: Verify streak is still valid
-    # - Get today's date
-    # - Calculate days since last_activity_date
-    # - If days > 1: streak is broken, reset current_streak to 0
-    # - If days == 1 or 0: streak is active
+    # Verify streak is still valid
+    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    if user_streak.last_activity_date:
+        last_activity = user_streak.last_activity_date
+        if last_activity.tzinfo is None:
+            last_activity = last_activity.replace(tzinfo=timezone.utc)
+        last_activity = last_activity.replace(hour=0, minute=0, second=0, microsecond=0)
+        days_diff = (today - last_activity).days
 
-    # Step 4: Convert to response format
-    # - Map to UserStreakResponse
-    # - Format dates as YYYY-MM-DD strings
-    # - Return streak data
+        # If more than 1 day since last activity, streak is broken
+        if days_diff > 1:
+            user_streak.current_streak = 0
+            db.commit()
+
+    return UserStreakResponse(
+        current_streak=user_streak.current_streak,
+        longest_streak=user_streak.longest_streak,
+        last_activity_date=user_streak.last_activity_date.strftime("%Y-%m-%d")
+        if user_streak.last_activity_date
+        else None,
+        streak_start_date=user_streak.streak_start_date.strftime("%Y-%m-%d") if user_streak.streak_start_date else None,
+    )
 
 
 @router.get("/me/stats", response_model=UserStatsResponse)
@@ -559,22 +626,131 @@ async def get_user_stats(
     Returns:
         UserStatsResponse: Overall statistics
     """
-    # Step 1: Query user_activity for lifetime aggregates
-    # - Filter by user_id = current_user.id
-    # - Aggregate using SUM():
-    #   * total_points = SUM(total_points)
-    #   * quizzes_completed = SUM(quiz_passes)
-    #   * exercises_completed = SUM(exercises_completed)
-    #   * total_time_spent_hours = SUM(time_spent_seconds) / 3600
-    # - Count distinct activity_date for days_active
+    # Aggregate from user_activity
+    aggregates = (
+        db.query(
+            func.sum(UserActivity.total_points).label("total_points"),
+            func.sum(UserActivity.quiz_passes).label("quizzes_completed"),
+            func.sum(UserActivity.exercises_completed).label("exercises_completed"),
+            func.sum(UserActivity.time_spent_seconds).label("total_time_spent_seconds"),
+            func.count(UserActivity.activity_date).label("days_active"),
+        )
+        .filter(UserActivity.user_id == current_user.id)
+        .first()
+    )
 
-    # Step 2: Calculate average quiz score (optional, requires additional data)
-    # - Query activity_log for quiz_pass activities
-    # - If score_percentage is stored: AVG(score_percentage)
-    # - If not available: return None
+    # Calculate average quiz score from activity logs
+    avg_score_query = (
+        db.query(func.avg(ActivityLog.score_percentage).label("avg_score"))
+        .filter(
+            ActivityLog.user_id == current_user.id,
+            ActivityLog.activity_type == "quiz_submission",
+            ActivityLog.score_percentage.isnot(None),
+        )
+        .first()
+    )
 
-    # Step 3: Build response
-    # - Map aggregated values to UserStatsResponse
-    # - Convert time_spent_seconds to hours (divide by 3600)
-    # - Round avg_quiz_score to 2 decimal places
-    # - Return statistics summary
+    avg_quiz_score = round(avg_score_query.avg_score, 2) if avg_score_query.avg_score else None
+
+    return UserStatsResponse(
+        total_points=aggregates.total_points or 0,
+        quizzes_completed=aggregates.quizzes_completed or 0,
+        exercises_completed=aggregates.exercises_completed or 0,
+        avg_quiz_score=avg_quiz_score,
+        total_time_spent_hours=round((aggregates.total_time_spent_seconds or 0) / 3600, 2),
+        days_active=aggregates.days_active or 0,
+    )
+
+
+@router.get("/me/profile-summary", response_model=ProfileSummaryResponse)
+async def get_profile_summary(
+    current_user: current_user_dependency,
+    db: db_dependency,
+):
+    """Get combined profile data (user info, stats, streak) in single request.
+
+    Optimized endpoint for profile page - reduces frontend API calls.
+
+    Requires:
+        Authorization: Bearer <token> header
+
+    Returns:
+        ProfileSummaryResponse: Combined user data
+    """
+    # Get user info
+    user_data = UserResponse.model_validate(current_user)
+
+    # Get stats
+    aggregates = (
+        db.query(
+            func.sum(UserActivity.total_points).label("total_points"),
+            func.sum(UserActivity.quiz_passes).label("quizzes_completed"),
+            func.sum(UserActivity.exercises_completed).label("exercises_completed"),
+            func.sum(UserActivity.time_spent_seconds).label("total_time_spent_seconds"),
+            func.count(UserActivity.activity_date).label("days_active"),
+        )
+        .filter(UserActivity.user_id == current_user.id)
+        .first()
+    )
+
+    avg_score_query = (
+        db.query(func.avg(ActivityLog.score_percentage).label("avg_score"))
+        .filter(
+            ActivityLog.user_id == current_user.id,
+            ActivityLog.activity_type == "quiz_submission",
+            ActivityLog.score_percentage.isnot(None),
+        )
+        .first()
+    )
+
+    avg_quiz_score = round(avg_score_query.avg_score, 2) if avg_score_query.avg_score else None
+
+    stats_data = UserStatsResponse(
+        total_points=aggregates.total_points or 0,
+        quizzes_completed=aggregates.quizzes_completed or 0,
+        exercises_completed=aggregates.exercises_completed or 0,
+        avg_quiz_score=avg_quiz_score,
+        total_time_spent_hours=round((aggregates.total_time_spent_seconds or 0) / 3600, 2),
+        days_active=aggregates.days_active or 0,
+    )
+
+    # Get streak
+    user_streak = db.query(UserStreak).filter(UserStreak.user_id == current_user.id).first()
+
+    if user_streak:
+        # Verify streak is still valid
+        today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        if user_streak.last_activity_date:
+            last_activity = user_streak.last_activity_date
+            if last_activity.tzinfo is None:
+                last_activity = last_activity.replace(tzinfo=timezone.utc)
+            last_activity = last_activity.replace(hour=0, minute=0, second=0, microsecond=0)
+            days_diff = (today - last_activity).days
+
+            if days_diff > 1:
+                user_streak.current_streak = 0
+                db.commit()
+
+        streak_data = UserStreakResponse(
+            current_streak=user_streak.current_streak,
+            longest_streak=user_streak.longest_streak,
+            last_activity_date=user_streak.last_activity_date.strftime("%Y-%m-%d")
+            if user_streak.last_activity_date
+            else None,
+            streak_start_date=user_streak.streak_start_date.strftime("%Y-%m-%d")
+            if user_streak.streak_start_date
+            else None,
+        )
+    else:
+        streak_data = UserStreakResponse(
+            current_streak=0,
+            longest_streak=0,
+            last_activity_date=None,
+            streak_start_date=None,
+        )
+
+    return ProfileSummaryResponse(
+        user=user_data,
+        stats=stats_data,
+        streak=streak_data,
+    )

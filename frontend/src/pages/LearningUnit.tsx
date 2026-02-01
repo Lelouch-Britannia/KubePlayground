@@ -1,16 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Home, RotateCcw, ChevronDown, BookOpen, FileText, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCcw, ChevronDown, BookOpen, FileText, Clock } from 'lucide-react';
 import { apiClient } from '../services/api';
 import type { UnitDetail, SyllabusItem } from '../types/api';
 import MarkdownRenderer from '../components/shared/MarkdownRenderer';
 import Toast from '../components/shared/Toast';
 import Confetti from '../components/shared/Confetti';
 import CodeEditor from '../components/RightPanel/CodeEditor';
+import UserMenu from '../components/shared/UserMenu';
+import UnitNavigation from '../components/shared/UnitNavigation';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function LearningUnit() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [unit, setUnit] = useState<UnitDetail | null>(null);
   const [allUnits, setAllUnits] = useState<SyllabusItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
@@ -33,6 +37,11 @@ export default function LearningUnit() {
   const [consoleExpanded, setConsoleExpanded] = useState(false);
   const [solutionHistory, setSolutionHistory] = useState<any[]>([]);
   const [loadingSolution, setLoadingSolution] = useState(false);
+  const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [lastSavedCode, setLastSavedCode] = useState('');
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [completedScore, setCompletedScore] = useState<number | null>(null);
+  const [quizResults, setQuizResults] = useState<Record<string, { is_correct: boolean }>>({});
 
   useEffect(() => {
     fetchSyllabus();
@@ -46,6 +55,30 @@ export default function LearningUnit() {
     }
   }, [slug, allUnits]);
 
+  // Autosave code changes (debounced)
+  useEffect(() => {
+    if (!unit || unit.type !== 'coding' || !code || code === lastSavedCode) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        setAutosaveStatus('saving');
+        await apiClient.autosaveSolution({
+          unit_slug: unit.slug,
+          code,
+          language: unit.editor_config?.language || 'yaml',
+        });
+        setLastSavedCode(code);
+        setAutosaveStatus('saved');
+        setTimeout(() => setAutosaveStatus('idle'), 2000);
+      } catch (err) {
+        console.error('Autosave failed:', err);
+        setAutosaveStatus('idle');
+      }
+    }, 2000); // 2 second debounce
+
+    return () => clearTimeout(timer);
+  }, [code, unit, lastSavedCode]);
+
   const fetchSyllabus = async () => {
     try {
       const data = await apiClient.getSyllabus() as { units: SyllabusItem[] };
@@ -57,6 +90,12 @@ export default function LearningUnit() {
 
   const fetchUnit = async (unitSlug: string) => {
     try {
+      // Reset completion state for new unit
+      setIsCompleted(false);
+      setCompletedScore(null);
+      setQuizResults({});
+      setSelectedAnswers({}); // Reset selected answers when navigating to new unit
+
       // Only show full loading on initial load, use subtle indicator for navigation
       if (!unit) {
         setLoading(true);
@@ -67,13 +106,75 @@ export default function LearningUnit() {
       const data = await apiClient.getUnitDetail(unitSlug) as UnitDetail;
       setUnit(data);
 
-      // Initialize code editor with template if coding exercise
+      // Load previous solution for coding exercises
       if (data.editor_config) {
-        setCode(data.editor_config.initial_code);
+        try {
+          const solution = await apiClient.getLatestSolution(unitSlug) as any;
+          if (solution?.content) {
+            setCode(solution.content);
+            setLastSavedCode(solution.content);
+          } else {
+            setCode(data.editor_config.initial_code);
+            setLastSavedCode('');
+          }
+        } catch {
+          // No previous solution, use template
+          setCode(data.editor_config.initial_code);
+          setLastSavedCode('');
+        }
       }
 
-      // Reset quiz answers
-      setSelectedAnswers({});
+      // Check if unit was already completed
+      let alreadyCompleted = false;
+      try {
+        const progress = await apiClient.getMyProgress() as any;
+        const unitProgress = progress.units?.find((u: any) => u.unit_slug === unitSlug);
+        if (unitProgress?.status === 'completed') {
+          alreadyCompleted = true;
+          setIsCompleted(true);
+          setCompletedScore(unitProgress.quiz_score || null);
+
+          // For conceptual/quiz units, load previous answers and results
+          if (data.type === 'conceptual' && data.quizzes) {
+            try {
+              const lastSubmission = await apiClient.getLastQuizSubmission(unitSlug) as any;
+              console.log('Last quiz submission loaded:', lastSubmission);
+              if (lastSubmission?.answers && lastSubmission?.results) {
+                console.log('User answers:', lastSubmission.answers);
+                console.log('Quiz results:', lastSubmission.results);
+                setSelectedAnswers(lastSubmission.answers);
+
+                // Build results map for highlighting (only correctness, no correct answer)
+                const resultsMap: Record<string, { is_correct: boolean }> = {};
+                lastSubmission.results.forEach((r: any) => {
+                  resultsMap[r.quiz_id] = {
+                    is_correct: r.is_correct,
+                  };
+                });
+                setQuizResults(resultsMap);
+              }
+            } catch (err) {
+              console.error('Failed to load quiz results:', err);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load progress:', err);
+      }
+
+      // Mark unit as started ONLY if not already completed (don't overwrite completed status)
+      if (!alreadyCompleted) {
+        try {
+          await apiClient.updateProgress({
+            unit_slug: unitSlug,
+            status: 'started',
+          });
+        } catch (err) {
+          console.error('Failed to track unit start:', err);
+        }
+      }
+
+      // Don't reset quiz answers - keep them if loaded from previous submission
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load unit');
       console.error('Unit fetch error:', err);
@@ -105,16 +206,26 @@ export default function LearningUnit() {
       const result = await apiClient.submitQuiz({
         unit_slug: unit.slug,
         answers: selectedAnswers,
-      }) as { score_percentage: number; passed: boolean };
+      }) as { score_percentage: number; passed: boolean; results: any[] };
 
-      // Show animated toast instead of alert
+      // Store results for answer highlighting
+      const resultsMap: Record<string, { is_correct: boolean; correct_answer: string }> = {};
+      result.results.forEach((r: any) => {
+        resultsMap[r.quiz_id] = {
+          is_correct: r.is_correct,
+          correct_answer: r.correct_answer,
+        };
+      });
+      setQuizResults(resultsMap);
+
+      // Show animated toast
       const correctCount = Math.round((result.score_percentage / 100) * unit.quizzes.length);
       setToast({
         show: true,
         type: result.passed ? 'success' : 'error',
         message: result.passed
           ? 'Excellent work! You passed the quiz!'
-          : `You need 70% to pass. Keep learning and try again!`,
+          : `You need 70% to pass. Review and try again!`,
         score: correctCount,
         total: unit.quizzes.length,
       });
@@ -127,11 +238,18 @@ export default function LearningUnit() {
 
       // Update progress if passed
       if (result.passed) {
-        await apiClient.updateProgress({
-          unit_slug: unit.slug,
-          status: 'completed',
-          score: result.score_percentage,
-        });
+        try {
+          await apiClient.updateProgress({
+            unit_slug: unit.slug,
+            status: 'completed',
+            score: result.score_percentage,
+          });
+          setIsCompleted(true);
+          setCompletedScore(result.score_percentage);
+        } catch (progressErr) {
+          console.error('Failed to update progress:', progressErr);
+          // Don't show error to user - quiz was still graded successfully
+        }
       }
     } catch (err) {
       console.error('Quiz submission error:', err);
@@ -141,6 +259,12 @@ export default function LearningUnit() {
         message: 'Failed to submit quiz. Please try again.',
       });
     }
+  };
+
+  const handleRetryQuiz = () => {
+    // Clear previous results and answers to allow retaking
+    setQuizResults({});
+    setSelectedAnswers({});
   };
 
   const handleCodeSubmit = async () => {
@@ -168,10 +292,17 @@ export default function LearningUnit() {
         message: result.message,
       });
 
-      // Mark as in progress
+      // Show confetti on success!
+      if (result.success) {
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 3000);
+      }
+
+      // Mark as completed if verification succeeds
       await apiClient.updateProgress({
         unit_slug: unit.slug,
-        status: 'started',
+        status: result.success ? 'completed' : 'started',
+        score: result.success ? 100 : undefined,
       });
     } catch (err) {
       console.error('Code submission error:', err);
@@ -239,44 +370,68 @@ export default function LearningUnit() {
         {isNavigating && (
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-dark-accent-green animate-pulse" />
         )}
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-dark-text-secondary hover:text-dark-text-primary transition-colors"
+        <div className="flex items-center gap-6">
+          {/* Logo */}
+          <div
+            className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => user ? navigate('/') : navigate('/auth')}
           >
-            <Home size={18} />
-            <span className="hidden sm:inline text-sm font-medium">Dashboard</span>
-          </button>
-
-          <div className="h-5 w-px bg-dark-border mx-2" />
-
-          <div className="flex items-center gap-2">
-            <div className="text-sm text-dark-text-secondary font-medium">{unit.topic}</div>
-            <div className="text-sm text-dark-text-muted">/</div>
-            <div className="text-sm text-dark-text-primary font-medium">{unit.title}</div>
+            <div className="w-8 h-8 bg-gradient-to-br from-dark-accent-blue to-dark-accent-green rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.5L18.5 7 12 9.5 5.5 7 12 4.5zM4 8.5l7 3.5v7l-7-3.5v-7zm9 10.5v-7l7-3.5v7l-7 3.5z"/>
+              </svg>
+            </div>
+            <span className="text-lg font-bold text-dark-text-primary">KubePlayground</span>
           </div>
+
+          {/* Navigation Links */}
+          <nav className="flex items-center gap-1">
+            <button
+              onClick={() => navigate('/')}
+              className="px-4 py-2 text-sm font-medium rounded text-dark-text-secondary hover:text-dark-text-primary hover:bg-dark-active transition-colors"
+            >
+              Dashboard
+            </button>
+            <button
+              onClick={() => navigate('/courses')}
+              className="px-4 py-2 text-sm font-medium rounded text-dark-text-secondary hover:text-dark-text-primary hover:bg-dark-active transition-colors"
+            >
+              Courses
+            </button>
+          </nav>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
+          {/* User Menu */}
+          <UserMenu />
+        </div>
+      </header>
+
+      {/* Secondary Navigation Banner */}
+      <div className="h-14 bg-dark-surface border-b border-dark-border flex items-center justify-between px-6 shrink-0">
+        <div className="flex items-center gap-4">
+          {/* Unit Navigation Dropdowns */}
+          <UnitNavigation currentUnitSlug={unit.slug} currentTopic={unit.topic} />
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Navigation Arrows */}
           <button
             onClick={() => navigateToUnit('prev')}
             disabled={!hasPrev || isNavigating}
-            className="p-2 text-dark-text-secondary hover:text-dark-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-dark-elevated text-dark-text-primary hover:bg-dark-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronLeft size={20} />
           </button>
-          <span className="text-sm text-dark-text-secondary font-mono font-medium min-w-[60px] text-center">
-            {currentIndex + 1} / {allUnits.length}
-          </span>
           <button
             onClick={() => navigateToUnit('next')}
             disabled={!hasNext || isNavigating}
-            className="p-2 text-dark-text-secondary hover:text-dark-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-dark-accent-yellow text-dark-bg hover:bg-dark-accent-yellow/80 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronRight size={20} />
           </button>
         </div>
-      </header>
+      </div>
 
       {/* Main Workspace */}
       <div className="flex-1 flex overflow-hidden relative p-4 gap-2">
@@ -298,28 +453,32 @@ export default function LearningUnit() {
               <BookOpen className="inline-block w-4 h-4 mr-1.5" />
               Question
             </button>
-            <button
-              onClick={() => setActiveTab('solution')}
-              className={`px-4 py-2 text-sm font-medium transition-colors ${
-                activeTab === 'solution'
-                  ? 'text-dark-text-primary border-b-2 border-dark-accent-purple'
-                  : 'text-dark-text-secondary hover:text-dark-text-primary'
-              }`}
-            >
-              <FileText className="inline-block w-4 h-4 mr-1.5" />
-              Solution
-            </button>
-            <button
-              onClick={() => setActiveTab('submissions')}
-              className={`px-4 py-2 text-sm font-medium transition-colors ${
-                activeTab === 'submissions'
-                  ? 'text-dark-text-primary border-b-2 border-dark-accent-purple'
-                  : 'text-dark-text-secondary hover:text-dark-text-primary'
-              }`}
-            >
-              <Clock className="inline-block w-4 h-4 mr-1.5" />
-              Submissions
-            </button>
+            {!unit.quizzes && (
+              <>
+                <button
+                  onClick={() => setActiveTab('solution')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors ${
+                    activeTab === 'solution'
+                      ? 'text-dark-text-primary border-b-2 border-dark-accent-purple'
+                      : 'text-dark-text-secondary hover:text-dark-text-primary'
+                  }`}
+                >
+                  <FileText className="inline-block w-4 h-4 mr-1.5" />
+                  Solution
+                </button>
+                <button
+                  onClick={() => setActiveTab('submissions')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors ${
+                    activeTab === 'submissions'
+                      ? 'text-dark-text-primary border-b-2 border-dark-accent-purple'
+                      : 'text-dark-text-secondary hover:text-dark-text-primary'
+                  }`}
+                >
+                  <Clock className="inline-block w-4 h-4 mr-1.5" />
+                  Submissions
+                </button>
+              </>
+            )}
           </div>
 
           {/* Tab Content */}
@@ -328,8 +487,8 @@ export default function LearningUnit() {
               <>
                 {/* Description */}
                 <div className="mb-8">
-                  <h2 className="text-2xl font-bold text-dark-accent-purple mb-5">{unit.title}</h2>
-                  <div className="text-dark-text-primary text-base leading-relaxed prose prose-invert max-w-none">
+                  <h2 className="text-2xl font-bold text-[#569cd6] mb-5">{unit.title}</h2>
+                  <div className="text-[#cccccc] text-base leading-relaxed max-w-none">
                     <MarkdownRenderer content={unit.description} />
                   </div>
                 </div>
@@ -337,8 +496,8 @@ export default function LearningUnit() {
                 {/* Steps */}
                 {unit.steps && unit.steps.length > 0 && (
                   <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-dark-accent-green mb-4">Steps</h3>
-                    <ol className="list-decimal list-inside space-y-2.5 text-dark-text-primary text-base leading-relaxed">
+                    <h3 className="text-lg font-semibold text-[#4ec9b0] mb-4">Steps</h3>
+                    <ol className="list-decimal list-inside space-y-2.5 text-[#cccccc] text-base leading-relaxed">
                       {unit.steps.map((step, idx) => (
                         <li key={idx} className="pl-2">{step}</li>
                       ))}
@@ -354,21 +513,21 @@ export default function LearningUnit() {
                       onClick={() => setHintsExpanded(!hintsExpanded)}
                       className="flex items-center justify-between w-full px-4 py-3 bg-dark-elevated hover:bg-dark-active border border-dark-border rounded-lg transition-colors"
                     >
-                      <span className="text-base font-semibold text-dark-accent-yellow flex items-center gap-2">
+                      <span className="text-base font-semibold text-[#dcdcaa] flex items-center gap-2">
                         💡 Hints ({unit.hints.length})
                       </span>
                       <ChevronDown
-                        className={`w-5 h-5 text-dark-accent-yellow transition-transform ${
+                        className={`w-5 h-5 text-[#dcdcaa] transition-transform ${
                           hintsExpanded ? 'rotate-180' : ''
                         }`}
                       />
                     </button>
                     {hintsExpanded && (
                       <div className="mt-3 px-4 py-3 bg-dark-elevated border border-dark-border rounded-lg">
-                        <ul className="space-y-3 text-dark-text-primary text-base leading-relaxed">
+                        <ul className="space-y-3 text-[#cccccc] text-base leading-relaxed">
                           {unit.hints.map((hint, idx) => (
                             <li key={idx} className="flex gap-2">
-                              <span className="text-dark-accent-yellow font-bold">{idx + 1}.</span>
+                              <span className="text-[#dcdcaa] font-bold">{idx + 1}.</span>
                               <span>{hint}</span>
                             </li>
                           ))}
@@ -382,7 +541,7 @@ export default function LearningUnit() {
 
             {activeTab === 'solution' && (
               <div className="text-center py-12">
-                <p className="text-dark-text-secondary text-base">Solutions will be available after completing the exercise.</p>
+                <p className="text-[#9d9d9d] text-base">Solutions will be available after completing the exercise.</p>
               </div>
             )}
 
@@ -390,7 +549,7 @@ export default function LearningUnit() {
               <div>
                 {loadingSolution ? (
                   <div className="text-center py-12">
-                    <p className="text-dark-text-secondary text-base">Loading submissions...</p>
+                    <p className="text-[#9d9d9d] text-base">Loading submissions...</p>
                   </div>
                 ) : solutionHistory.length === 0 ? (
                   <div className="text-center py-12">
@@ -446,6 +605,17 @@ export default function LearningUnit() {
                   <select className="bg-dark-bg text-dark-text-primary text-sm px-3 py-1.5 rounded border border-dark-border focus:outline-none focus:border-dark-accent-purple">
                     <option>Python</option>
                   </select>
+                  {autosaveStatus === 'saving' && (
+                    <span className="text-xs text-dark-text-secondary">Saving...</span>
+                  )}
+                  {autosaveStatus === 'saved' && (
+                    <span className="text-xs text-green-500">✓ Saved</span>
+                  )}
+                  {isCompleted && (
+                    <div className="flex items-center gap-2 px-2 py-1 bg-green-500/10 border border-green-500/30 rounded">
+                      <span className="text-xs font-medium text-green-400">✓ Completed</span>
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={() => setCode(unit.editor_config!.initial_code)}
@@ -499,8 +669,14 @@ export default function LearningUnit() {
           {unit.type === 'conceptual' && unit.quizzes && unit.quizzes.length > 0 && (
             <>
               {/* Quiz Header */}
-              <div className="h-12 bg-dark-elevated border-b border-dark-border flex items-center px-4">
+              <div className="h-12 bg-dark-elevated border-b border-dark-border flex items-center justify-between px-4">
                 <div className="text-sm font-medium text-dark-text-primary">Quiz Assessment</div>
+                {isCompleted && completedScore !== null && (
+                  <div className="flex items-center gap-2 px-3 py-1 bg-green-500/10 border border-green-500/30 rounded">
+                    <span className="text-xs font-medium text-green-400">✓ Passed</span>
+                    <span className="text-xs text-green-300">{completedScore.toFixed(0)}%</span>
+                  </div>
+                )}
               </div>
 
               {/* Quiz Content */}
@@ -513,28 +689,53 @@ export default function LearningUnit() {
                         {quiz.question}
                       </h3>
                       <div className="space-y-2">
-                        {quiz.options.map((option) => (
-                          <label
-                            key={option.id}
-                            className={`flex items-start gap-3 p-3 rounded border cursor-pointer transition-all ${
-                              selectedAnswers[quiz.id] === option.id
-                                ? 'bg-dark-active border-dark-accent-purple'
-                                : 'bg-dark-bg border-dark-border hover:border-dark-text-secondary'
-                            }`}
-                          >
-                            <input
-                              type="radio"
-                              name={quiz.id}
-                              value={option.id}
-                              checked={selectedAnswers[quiz.id] === option.id}
-                              onChange={(e) =>
-                                setSelectedAnswers({ ...selectedAnswers, [quiz.id]: e.target.value })
-                              }
-                              className="mt-1 w-4 h-4 accent-purple-500"
-                            />
-                            <span className="text-sm text-dark-text-primary leading-relaxed">{option.text}</span>
-                          </label>
-                        ))}
+                        {quiz.options.map((option, optionIndex) => {
+                          const isSelected = selectedAnswers[quiz.id] === option.id;
+                          const hasResult = quizResults[quiz.id];
+                          const isCorrectSelection = hasResult && isSelected && quizResults[quiz.id].is_correct;
+                          const isWrongSelection = hasResult && isSelected && !quizResults[quiz.id].is_correct;
+                          const isLocked = Object.keys(quizResults).length > 0; // Lock after submission
+
+                          let borderColor = 'border-dark-border hover:border-dark-text-secondary';
+                          let bgColor = 'bg-dark-bg';
+
+                          if (hasResult && isSelected) {
+                            if (isCorrectSelection) {
+                              borderColor = 'border-green-500';
+                              bgColor = 'bg-green-500/10';
+                            } else if (isWrongSelection) {
+                              borderColor = 'border-red-500';
+                              bgColor = 'bg-red-500/10';
+                            }
+                          } else if (isSelected) {
+                            borderColor = 'border-dark-accent-purple';
+                            bgColor = 'bg-dark-active';
+                          }
+
+                          return (
+                            <label
+                              key={`${quiz.id}-${option.id}-${optionIndex}`}
+                              className={`flex items-start gap-3 p-3 rounded border transition-all ${bgColor} ${borderColor} ${isLocked ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
+                            >
+                              <input
+                                type="radio"
+                                name={quiz.id}
+                                value={option.id}
+                                checked={isSelected}
+                                disabled={isLocked}
+                                onChange={(e) => setSelectedAnswers({ ...selectedAnswers, [quiz.id]: e.target.value })}
+                                className="mt-1 w-4 h-4 accent-purple-500 disabled:cursor-not-allowed"
+                              />
+                              <span className="text-sm text-dark-text-primary leading-relaxed flex-1">{option.text}</span>
+                              {hasResult && isCorrectSelection && (
+                                <span className="text-green-500 text-xs font-semibold">✓ Correct</span>
+                              )}
+                              {hasResult && isWrongSelection && (
+                                <span className="text-red-500 text-xs font-semibold">✗ Wrong</span>
+                              )}
+                            </label>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
@@ -543,13 +744,22 @@ export default function LearningUnit() {
 
               {/* Submit Bar */}
               <div className="h-14 bg-dark-surface border-t border-dark-border flex items-center justify-end px-4 gap-3 shrink-0">
-                <button
-                  onClick={handleQuizSubmit}
-                  disabled={Object.keys(selectedAnswers).length !== unit.quizzes.length}
-                  className="px-6 py-2 bg-dark-accent-green hover:bg-dark-accent-green/80 disabled:bg-dark-elevated disabled:cursor-not-allowed text-dark-bg rounded text-sm font-semibold transition-colors"
-                >
-                  Submit
-                </button>
+                {Object.keys(quizResults).length > 0 ? (
+                  <button
+                    onClick={handleRetryQuiz}
+                    className="px-6 py-2 bg-dark-accent-purple hover:bg-dark-accent-purple/80 text-white rounded text-sm font-semibold transition-colors"
+                  >
+                    Retry Quiz
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleQuizSubmit}
+                    disabled={Object.keys(selectedAnswers).length !== unit.quizzes.length}
+                    className="px-6 py-2 bg-dark-accent-green hover:bg-dark-accent-green/80 disabled:bg-dark-elevated disabled:cursor-not-allowed text-dark-bg rounded text-sm font-semibold transition-colors"
+                  >
+                    Submit
+                  </button>
+                )}
               </div>
             </>
           )}

@@ -2,18 +2,33 @@
 
 ## Table of Contents
 
-1. [Analysis Summary](#1-analysis-summary)
-2. [IAM Implementation Plan](#2-iam-implementation-plan)
+1. [Implementation Summary](#1-implementation-summary)
+2. [IAM Implementation Status](#2-iam-implementation-status)
 3. [User Activity & Streak Plan](#3-user-activity--streak-plan)
 4. [SQL Schema](#4-sql-schema)
 5. [MongoDB Schema Updates](#5-mongodb-schema-updates)
-6. [Quick Win Features](#6-quick-win-features)
+6. [Implementation Status & Roadmap](#6-implementation-status--roadmap)
 
 ---
 
-## 1. Analysis Summary
+## 1. Implementation Summary
 
-### 1.1 SDK Architecture Analysis
+### 1.1 Current Status: ✅ IMPLEMENTED
+
+**Completed Features:**
+
+- ✅ JWT-based authentication with access + refresh tokens
+- ✅ User registration and login with bcrypt password hashing
+- ✅ Protected routes with FastAPI dependency injection
+- ✅ Activity tracking with first-pass-only scoring
+- ✅ Daily activity aggregation for heatmap
+- ✅ Streak calculation with longest/current tracking
+- ✅ Profile API with summary stats
+- ✅ SQLAlchemy ORM with SQLite database
+- ✅ Frontend authentication flow with AuthContext
+- ✅ GitHub-style activity heatmap with year selection
+
+### 1.2 SDK Architecture Analysis
 
 The `dbdaolib` SDK provides a robust multi-database abstraction:
 
@@ -27,16 +42,18 @@ The `dbdaolib` SDK provides a robust multi-database abstraction:
 
 **SQLite Support**: ✅ Fully supported via `DatabaseType.sqlite` with path-based connection.
 
-### 1.2 Core Backend Analysis
+### 1.3 Core Backend Status
 
-| Aspect | Current State | Gap |
-|--------|---------------|-----|
-| **Authentication** | None | No JWT, no user validation |
-| **User Identity** | Hardcoded `guest-user-001` or frontend-generated session ID | Not persistent across sessions |
-| **MongoDB Collections** | `UserSolution`, `UserProgress` use string `user_id` | Ready for real user_id linkage |
-| **Protected Routes** | None | All endpoints publicly accessible |
+| Aspect | Current State | Implementation |
+|--------|---------------|----------------|
+| **Authentication** | ✅ Implemented | JWT with HS256, 60min access + 7day refresh tokens |
+| **User Identity** | ✅ Implemented | Integer auto-increment ID in SQLite users table |
+| **MongoDB Collections** | ✅ Implemented | `UserSolution`, `UserProgress` use integer `user_id` |
+| **Protected Routes** | ✅ Implemented | FastAPI Depends(get_current_user) on all protected endpoints |
+| **Activity Tracking** | ✅ Implemented | ActivityLog (audit), UserActivity (daily), UserStreak (gamification) |
+| **Frontend Integration** | ✅ Implemented | AuthContext with login/register, token refresh, protected routes |
 
-### 1.3 Integration Strategy
+### 1.4 Integration Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -63,18 +80,19 @@ The `dbdaolib` SDK provides a robust multi-database abstraction:
 
 ---
 
-## 2. IAM Implementation Plan
+## 2. IAM Implementation Status
 
-### 2.1 Phase 1: Infrastructure Setup
+### 2.1 ✅ Phase 1: Infrastructure Setup - COMPLETED
 
-#### 2.1.1 Dependencies
+#### 2.1.1 Dependencies - ✅ INSTALLED
 
-Add to `pyproject.toml`:
+Implemented in `pyproject.toml`:
 
-- `pyjwt[crypto]>=2.8.0` - JWT encoding/decoding with RS256 support
-- `python-jose[cryptography]>=3.3.0` - Alternative JWT library (choose one)
-- `bcrypt>=4.0.1` - Already present ✅
-- `passlib[bcrypt]>=1.7.4` - Already present ✅
+- ✅ `pyjwt>=2.8.0` - JWT encoding/decoding with HS256
+- ✅ `bcrypt>=4.0.1` - Password hashing
+- ✅ `passlib[bcrypt]>=1.7.4` - Password utilities
+- ✅ `sqlalchemy>=2.0.0` - ORM for SQLite
+- ✅ `python-multipart` - Form data parsing
 
 #### 2.1.2 Docker Compose Updates
 
@@ -369,29 +387,117 @@ User Completes Quiz/Exercise
 | 26-50 | Level 3 | `#30a14e` |
 | 51+ | Level 4 | `#216e39` |
 
-### 3.5 API Endpoints
+### 3.5 API Endpoints - ✅ IMPLEMENTED
 
-#### GET /api/users/me/activity
-
-| Aspect | Details |
-|--------|---------|
-| **Query Params** | `start_date`, `end_date` (defaults to last 365 days) |
-| **Response** | Array of `{ date: str, points: int, activities: int }` |
-| **Use Case** | Heatmap rendering |
-
-#### GET /api/users/me/streak
+#### GET /api/auth/activity/heatmap
 
 | Aspect | Details |
 |--------|---------|
-| **Response** | `{ current_streak: int, longest_streak: int, last_activity: datetime }` |
-| **Use Case** | Dashboard streak display |
+| **Query Params** | `days` (default: 365) - Number of days to fetch |
+| **Response** | Array of `{ date: str, points: int, level: int }` |
+| **Use Case** | GitHub-style activity heatmap rendering |
+| **Authorization** | Bearer token required |
+| **Implementation** | `core/auth/router.py - get_activity_heatmap()` |
 
-#### GET /api/users/me/stats
+**Response Example:**
+
+```json
+[
+  { "date": "2025-01-31", "points": 45, "level": 3 },
+  { "date": "2025-01-30", "points": 15, "level": 2 }
+]
+```
+
+#### GET /api/auth/activity/my
 
 | Aspect | Details |
 |--------|---------|
-| **Response** | `{ total_points: int, quizzes_completed: int, exercises_completed: int, avg_score: float }` |
-| **Use Case** | Profile statistics |
+| **Query Params** | `start_date`, `end_date` (ISO format: YYYY-MM-DD) |
+| **Response** | Array of `{ activity_date: str, total_points: int, quiz_attempts: int, quiz_passes: int, exercises_started: int, exercises_completed: int, time_spent_seconds: int }` |
+| **Use Case** | Date range activity queries for selected year |
+| **Authorization** | Bearer token required |
+| **Implementation** | `core/auth/router.py - get_my_activity()` |
+
+**Response Example:**
+
+```json
+[
+  {
+    "activity_date": "2025-01-31",
+    "total_points": 45,
+    "quiz_attempts": 3,
+    "quiz_passes": 2,
+    "exercises_started": 1,
+    "exercises_completed": 1,
+    "time_spent_seconds": 1800
+  }
+]
+```
+
+#### GET /api/auth/profile/summary
+
+| Aspect | Details |
+|--------|---------|
+| **Query Params** | None |
+| **Response** | `{ total_points: int, quizzes_completed: int, exercises_completed: int, current_streak: int, longest_streak: int, units_completed: int, average_score: float, last_activity: datetime }` |
+| **Use Case** | Profile page summary stats including streak |
+| **Authorization** | Bearer token required |
+| **Implementation** | `core/auth/router.py - get_profile_summary()` |
+
+**Response Example:**
+
+```json
+{
+  "total_points": 450,
+  "quizzes_completed": 15,
+  "exercises_completed": 8,
+  "current_streak": 7,
+  "longest_streak": 14,
+  "units_completed": 23,
+  "average_score": 87.5,
+  "last_activity": "2025-01-31T15:30:00Z"
+}
+```
+
+#### GET /api/auth/stats
+
+| Aspect | Details |
+|--------|---------|
+| **Query Params** | None |
+| **Response** | `{ total_points: int, quizzes_completed: int, exercises_completed: int, units_completed: int, time_spent_hours: float }` |
+| **Use Case** | User statistics for dashboard |
+| **Authorization** | Bearer token required |
+| **Implementation** | `core/auth/router.py - get_user_stats()` |
+
+**Response Example:**
+
+```json
+{
+  "total_points": 450,
+  "quizzes_completed": 15,
+  "exercises_completed": 8,
+  "units_completed": 23,
+  "time_spent_hours": 12.5
+}
+```
+
+#### POST /api/auth/activity (Internal)
+
+| Aspect | Details |
+|--------|---------|
+| **Request Body** | `{ activity_type: str, unit_slug: str, points_earned: int, score_percentage: int, metadata: dict }` |
+| **Response** | `{ activity_id: int, points_awarded: int, is_first_pass: bool, streak_updated: bool, current_streak: int }` |
+| **Use Case** | Internal endpoint called by grading router to log activity |
+| **Authorization** | Bearer token required |
+| **Implementation** | `core/auth/router.py - log_activity()` |
+
+**Activity Types:**
+
+- `quiz_attempt` - User submitted quiz (no points)
+- `quiz_pass` - User passed quiz (points awarded on first pass only)
+- `exercise_start` - User opened coding exercise
+- `exercise_complete` - User completed coding exercise
+- `login` - User logged in
 
 ---
 
@@ -401,29 +507,66 @@ User Completes Quiz/Exercise
 
 `core/auth/schema.sql`
 
-### 4.2 Users Table
+### 4.2 Users Table - ✅ IMPLEMENTED
 
-```sql
--- Users table for authentication
-CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,                    -- UUID v4
-    email TEXT UNIQUE NOT NULL,             -- Unique email for login
-    username TEXT NOT NULL,                 -- Display name
-    password_hash TEXT NOT NULL,            -- bcrypt hashed password
-    is_active BOOLEAN DEFAULT 1,            -- Soft delete support
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_login TIMESTAMP                    -- Last successful login
-);
+**SQLAlchemy Model:** `core/auth/models.py - User`
+
+```python
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)  # Integer ID (not UUID)
+    email = Column(String, unique=True, nullable=False, index=True)
+    username = Column(String, nullable=False)
+    password_hash = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    last_login = Column(DateTime, nullable=True)
+```
+
+**Key Changes from Original Plan:**
+
+- User ID is **Integer auto-increment** (not UUID) for simpler MongoDB foreign key references
+- JWT token uses `str(user.id)` for "sub" claim (JWT spec requires string)
+- Backend converts JWT "sub" back to integer for database queries
 
 -- Index for email lookups (login flow)
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 -- Index for active users
 CREATE INDEX IF NOT EXISTS idx_users_active ON users(is_active) WHERE is_active = 1;
+
 ```
 
-### 4.3 User Activity Table
+### 4.3 User Activity Table - ✅ IMPLEMENTED
+
+**SQLAlchemy Model:** `core/auth/models.py - UserActivity`
+
+```python
+class UserActivity(Base):
+    __tablename__ = "user_activity"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    activity_date = Column(DateTime, nullable=False)
+    total_points = Column(Integer, default=0, nullable=False)
+    quiz_attempts = Column(Integer, default=0, nullable=False)
+    quiz_passes = Column(Integer, default=0, nullable=False)
+    exercises_started = Column(Integer, default=0, nullable=False)
+    exercises_completed = Column(Integer, default=0, nullable=False)
+    time_spent_seconds = Column(Integer, default=0, nullable=False)
+    sessions_count = Column(Integer, default=1, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+```
+
+**Indexes:**
+
+- `idx_user_activity_date_range` on (user_id, activity_date) for heatmap queries
+- `idx_user_activity_leaderboard` on (activity_date, total_points) for rankings
+
+**Original SQL Schema:**
 
 ```sql
 -- Daily activity aggregation for heatmap
@@ -473,7 +616,36 @@ CREATE TABLE IF NOT EXISTS user_streaks (
 );
 ```
 
-### 4.5 Activity Log Table (Optional - Detailed Tracking)
+### 4.5 Activity Log Table - ✅ IMPLEMENTED
+
+**SQLAlchemy Model:** `core/auth/models.py - ActivityLog`
+
+```python
+class ActivityLog(Base):
+    __tablename__ = "activity_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    activity_type = Column(String, nullable=False, index=True)
+    unit_slug = Column(String, nullable=True, index=True)
+    points_earned = Column(Integer, default=0, nullable=False)
+    score_percentage = Column(Integer, nullable=True)
+    activity_metadata = Column(Text, nullable=True)  # JSON blob
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+```
+
+**Indexes:**
+
+- `idx_activity_log_user_recent` on (user_id, created_at) for recent activity
+- `idx_activity_log_points` on (user_id, points_earned) where points_earned > 0
+
+**Key Implementation Details:**
+
+- **First-pass-only scoring:** Points only awarded on first passing attempt (checks ActivityLog for previous passes)
+- **Activity types:** `quiz_attempt`, `quiz_pass`, `exercise_start`, `exercise_complete`, `login`
+- **Metadata:** Stores quiz answers, exercise completion details as JSON
+
+**Original SQL Schema:**
 
 ```sql
 -- Detailed activity log for audit/analytics
@@ -559,37 +731,54 @@ class UserSolution(Document):
 
 ---
 
-## 6. Quick Win Features
+## 6. Implementation Status & Roadmap
 
-### 6.1 Easy to Implement (1-2 hours each)
+### 6.1 ✅ Completed Features
 
-| Feature | Complexity | Description |
-|---------|------------|-------------|
-| **Password Reset Request** | Low | Add `password_reset_token` column, email endpoint stub |
-| **Remember Me** | Low | Extend JWT expiration to 30 days if checkbox selected |
-| **Username Update** | Low | PUT `/api/users/me` endpoint |
-| **Account Deactivation** | Low | Set `is_active = 0`, reject login |
-| **Session Count** | Low | Track active sessions in Redis |
+| Feature | Status | Implementation Location |
+|---------|--------|-------------------------|
+| **User Registration** | ✅ | `POST /api/auth/register` in `core/auth/router.py` |
+| **User Login** | ✅ | `POST /api/auth/login` with JWT access + refresh tokens |
+| **Token Refresh** | ✅ | `POST /api/auth/refresh` with refresh token rotation |
+| **Password Hashing** | ✅ | bcrypt via passlib in `core/auth/security.py` |
+| **Protected Routes** | ✅ | `Depends(get_current_user)` in all routers |
+| **Activity Logging** | ✅ | `POST /api/auth/activity` creates ActivityLog entries |
+| **Daily Aggregation** | ✅ | UserActivity upsert in progress/grading routers |
+| **Streak Tracking** | ✅ | UserStreak calculation in `core/auth/router.py` |
+| **Profile Summary** | ✅ | `GET /api/auth/profile/summary` returns stats |
+| **Activity Heatmap** | ✅ | `GET /api/auth/activity/heatmap` returns last 365 days |
+| **Activity Date Range** | ✅ | `GET /api/auth/activity/my` with start_date/end_date |
+| **User Stats** | ✅ | `GET /api/auth/stats` returns total points, quizzes, exercises |
+| **Logout** | ✅ | `POST /api/auth/logout` revokes refresh token |
+| **Change Password** | ✅ | `POST /api/auth/change-password` with old password verification |
+| **Frontend Auth** | ✅ | AuthContext with login/register/logout, token management |
+| **Frontend Heatmap** | ✅ | ProfilePage with GitHub-style heatmap, year dropdown |
 
-### 6.2 Medium Effort (4-8 hours each)
+### 6.2 🔜 Pending Features (Local Development Focus)
 
-| Feature | Complexity | Description |
-|---------|------------|-------------|
-| **Email Verification** | Medium | Add `email_verified` column, verification token flow |
-| **OAuth2 (Google)** | Medium | Add `oauth_provider`, `oauth_id` columns |
-| **Rate Limiting (Auth)** | Medium | Redis-based rate limiting on login attempts |
-| **Leaderboard** | Medium | Aggregate points from `user_activity`, rank users |
-| **Weekly Summary Email** | Medium | Cron job to email streak/progress summary |
+| Feature | Complexity | Priority | Description |
+|---------|------------|----------|-------------|
+| **OAuth2 (Google)** | Medium | Medium | Add social login with Google |
+| **Rate Limiting** | Medium | High | Redis-based rate limiting on auth endpoints |
+| **Multi-device Sessions** | Medium | Low | Show active sessions, remote logout |
+| **Remember Me** | Low | Low | Extended refresh token expiration (30 days) |
+| **Export Data** | Low | Medium | Export user activity data as JSON/CSV |
 
-### 6.3 Suggested Implementation Order
+**Note:** Email-based features (verification, password reset, summaries) and leaderboards are not planned for this
+locally-hosted application.
 
-1. ✅ IAM Core (Phases 1-4)
-2. ✅ Protected Routes Migration (Phase 5)
-3. 🔜 User Activity Tracking
-4. 🔜 Streak Calculation
-5. 🔜 Heatmap API
-6. 🔜 Leaderboard
-7. 🔜 OAuth2 Integration
+### 6.3 Implementation Timeline
+
+| Phase | Status | Features |
+|-------|--------|----------|
+| **Phase 1-2** | ✅ COMPLETE | Infrastructure, ORM models, security utilities |
+| **Phase 3-4** | ✅ COMPLETE | Auth endpoints, JWT tokens, protected routes |
+| **Phase 5** | ✅ COMPLETE | Activity tracking, streak calculation |
+| **Phase 6** | ✅ COMPLETE | Heatmap API, profile stats |
+| **Phase 7** | ✅ COMPLETE | Frontend authentication, heatmap UI |
+| **Phase 8** | 🔜 PLANNED | OAuth2, rate limiting (local development focus) |
+
+**Deployment Model:** Locally-hosted application - no email infrastructure or leaderboard features required.
 
 ---
 

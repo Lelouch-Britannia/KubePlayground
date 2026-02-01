@@ -101,8 +101,14 @@ services:
         condition: service_healthy
     command: >
       sh -c "
-        echo 'Seeding pods101...' &&
-        curl -X POST 'http://backend:8000/seed/populate?topic_dir=/app/seed-data/k8s/pods101' &&
+        echo 'Seeding Pods 101...' &&
+        curl -X POST 'http://backend:8000/api/v1/seed/populate?topic_dir=/app/seed-data/k8s/pods101' &&
+        echo '' &&
+        echo 'Seeding ReplicaSet 101...' &&
+        curl -X POST 'http://backend:8000/api/v1/seed/populate?topic_dir=/app/seed-data/k8s/replicaset101' &&
+        echo '' &&
+        echo 'Seeding Deployment 101...' &&
+        curl -X POST 'http://backend:8000/api/v1/seed/populate?topic_dir=/app/seed-data/k8s/deployment101' &&
         echo '' && echo 'Seeding complete!'
       "
     networks:

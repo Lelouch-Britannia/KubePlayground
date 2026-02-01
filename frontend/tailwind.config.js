@@ -13,20 +13,20 @@ export default {
           bg: '#1e1e1e',           // Editor background
           surface: '#252526',      // Sidebar/panels
           elevated: '#2d2d30',     // Elevated surfaces
-          border: '#3c3c3c',       // Borders
+          border: '#3e3e42',       // Borders (slightly lighter for better contrast)
           hover: '#2a2d2e',        // Hover states
           active: '#37373d',       // Active states
           text: {
-            primary: '#d4d4d4',    // Primary text
-            secondary: '#858585',  // Secondary text
-            muted: '#6e7681',      // Muted text
+            primary: '#cccccc',    // Primary text (VS Code default)
+            secondary: '#9d9d9d',  // Secondary text
+            muted: '#6e6e6e',      // Muted text
           },
           accent: {
-            blue: '#0078d4',       // VS Code blue
-            green: '#4ec9b0',      // Teal/cyan
-            purple: '#c586c0',     // Purple
-            orange: '#ce9178',     // Orange strings
-            yellow: '#dcdcaa',     // Function names
+            blue: '#569cd6',       // VS Code blue (keywords)
+            green: '#4ec9b0',      // Teal/cyan (types)
+            purple: '#c586c0',     // Purple (keywords)
+            orange: '#ce9178',     // Orange (strings)
+            yellow: '#dcdcaa',     // Yellow (functions)
           }
         },
         // Modern Light Theme (inspired by GitHub Light)

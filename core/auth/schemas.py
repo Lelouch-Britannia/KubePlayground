@@ -78,7 +78,7 @@ class RefreshTokenRequest(BaseModel):
 class UserResponse(BaseModel):
     """Schema for user response (public information)."""
 
-    id: str = Field(..., description="User UUID")
+    id: int = Field(..., description="User ID")
     email: str = Field(..., description="User's email address")
     username: str = Field(..., description="Display username")
     is_active: bool = Field(..., description="Account active status")
@@ -233,3 +233,11 @@ class UserDeactivateRequest(BaseModel):
     """Schema for user deactivation (admin)."""
 
     reason: str | None = Field(None, description="Reason for deactivation")
+
+
+class ProfileSummaryResponse(BaseModel):
+    """Combined profile data response for efficient frontend loading."""
+
+    user: UserResponse = Field(..., description="User profile information")
+    stats: UserStatsResponse = Field(..., description="User statistics")
+    streak: UserStreakResponse = Field(..., description="User streak information")

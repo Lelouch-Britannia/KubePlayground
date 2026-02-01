@@ -201,7 +201,7 @@ class UnitProgressItem(BaseModel):
 class UserProgressResponse(BaseModel):
     """Complete user progress across all units."""
 
-    user_id: str
+    user_id: int  # Integer matches SQLite User.id
     units: list[UnitProgressItem]
     total_completed: int
     total_units: int
@@ -217,6 +217,9 @@ class TopicProgressSummary(BaseModel):
     """Progress summary for a single topic/chapter."""
 
     topic: str  # "Pods", "Deployments", etc.
+    topic_slug: str | None = None
+    topic_icon: str | None = None
+    topic_order: int | None = None
     total_units: int
     completed_units: int
     in_progress_units: int
@@ -224,14 +227,79 @@ class TopicProgressSummary(BaseModel):
     units: list[SyllabusItemResponse]  # Units in this topic
 
 
-class DashboardResponse(BaseModel):
-    """Complete dashboard view with topic-grouped progress."""
+class CourseProgressSummary(BaseModel):
+    """Progress summary for a course with its topics."""
 
-    user_id: str
-    greeting: str  # "Welcome back, User!"
+    course_name: str
+    course_slug: str
+    course_description: str | None = None
     topics: list[TopicProgressSummary]
+
+
+class DashboardResponse(BaseModel):
+    """Complete dashboard view with course and topic-grouped progress."""
+
+    user_id: int  # Integer matches SQLite User.id
+    greeting: str  # "Welcome back, User!"
+    courses: list[CourseProgressSummary]
     overall_completion: float  # Overall percentage
     total_units: int
     completed_count: int
     in_progress_count: int
     current_streak: int = 0  # Placeholder for future
+
+
+# ============================================================================
+# Course API Schemas (Course/topic hierarchy navigation)
+# ============================================================================
+
+
+class CourseInfo(BaseModel):
+    """Course summary information."""
+
+    id: int
+    slug: str
+    name: str
+    description: str | None = None
+    topics_count: int = 0
+    total_units: int = 0
+
+
+class TopicSummary(BaseModel):
+    """Topic/chapter summary with progress stats."""
+
+    id: int
+    slug: str
+    name: str
+    icon: str | None = None
+    order: int
+    units_total: int
+    units_completed: int
+    progress_percentage: float
+
+
+class CourseChaptersResponse(BaseModel):
+    """Course with chapters and user progress."""
+
+    course: CourseInfo
+    chapters: list[TopicSummary]
+
+
+class LearningUnitSummary(BaseModel):
+    """Lightweight unit summary for topic listings."""
+
+    slug: str
+    title: str
+    type: str
+    difficulty: str | None
+    order_index: int
+    is_completed: bool
+
+
+class TopicUnitsResponse(BaseModel):
+    """Topic with its learning units."""
+
+    topic_id: int
+    topic_name: str
+    topic_slug: str
+    units: list[LearningUnitSummary]

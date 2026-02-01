@@ -82,3 +82,15 @@ class MongoHelper(MongoConnector):
             use_srv=mongo_data.get(Constants.DBConstants.use_srv, False),
             use_ssl=mongo_data.get(Constants.DBConstants.use_ssl, False),
         )
+
+    async def ping(self) -> bool:
+        """Ping MongoDB to verify connection health.
+
+        Returns:
+            bool: True if connection is healthy, raises exception otherwise
+        """
+        if self._client:
+            await self._client.admin.command("ping")
+            return True
+        msg = "MongoDB client not initialized"
+        raise RuntimeError(msg)

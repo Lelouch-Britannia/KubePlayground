@@ -17,7 +17,7 @@ class User(Base):
 
     __tablename__ = "users"
 
-    id = Column(String, primary_key=True)  # UUID v4
+    id = Column(Integer, primary_key=True, autoincrement=True)
     email = Column(String, unique=True, nullable=False, index=True)
     username = Column(String, nullable=False)
     password_hash = Column(String, nullable=False)
@@ -36,7 +36,7 @@ class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String, nullable=False, index=True)
+    user_id = Column(Integer, nullable=False, index=True)
     token_hash = Column(String, unique=True, nullable=False, index=True)
     device_info = Column(String, nullable=True)
     expires_at = Column(DateTime, nullable=False, index=True)
@@ -58,7 +58,7 @@ class UserActivity(Base):
     __tablename__ = "user_activity"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String, nullable=False, index=True)
+    user_id = Column(Integer, nullable=False, index=True)
     activity_date = Column(DateTime, nullable=False)
     total_points = Column(Integer, default=0, nullable=False)
     quiz_attempts = Column(Integer, default=0, nullable=False)
@@ -85,7 +85,7 @@ class UserStreak(Base):
 
     __tablename__ = "user_streaks"
 
-    user_id = Column(String, primary_key=True)
+    user_id = Column(Integer, primary_key=True)
     current_streak = Column(Integer, default=0, nullable=False)
     longest_streak = Column(Integer, default=0, nullable=False)
     last_activity_date = Column(DateTime, nullable=True)
@@ -102,7 +102,7 @@ class ActivityLog(Base):
     __tablename__ = "activity_log"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String, nullable=False, index=True)
+    user_id = Column(Integer, nullable=False, index=True)
     activity_type = Column(String, nullable=False, index=True)
     unit_slug = Column(String, nullable=True, index=True)
     points_earned = Column(Integer, default=0, nullable=False)
@@ -117,3 +117,44 @@ class ActivityLog(Base):
 
     def __repr__(self) -> str:
         return f"<ActivityLog(id={self.id}, user_id={self.user_id}, type={self.activity_type}, points={self.points_earned})>"
+
+
+class Course(Base):
+    """Course catalog for organizing learning content."""
+
+    __tablename__ = "courses"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    slug = Column(String, unique=True, nullable=False, index=True)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<Course(id={self.id}, slug={self.slug}, name={self.name})>"
+
+
+class Topic(Base):
+    """Topics within courses (chapters) with learning path ordering."""
+
+    __tablename__ = "topics"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    course_id = Column(Integer, nullable=False, index=True)
+    slug = Column(String, nullable=False)
+    name = Column(String, nullable=False)
+    order_position = Column(Integer, nullable=False)  # Learning path order (1, 2, 3...)
+    icon = Column(String(10), nullable=True)  # Optional emoji/icon
+    units_count = Column(Integer, default=0, nullable=False)  # Cached count
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("idx_topics_course", "course_id"),
+        Index("idx_topics_order", "course_id", "order_position"),
+        Index("idx_topics_course_slug", "course_id", "slug", unique=True),
+    )
+
+    def __repr__(self) -> str:
+        return f"<Topic(id={self.id}, course={self.course_id}, slug={self.slug}, order={self.order_position})>"

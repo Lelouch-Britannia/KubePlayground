@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import UserBanner from '../components/Dashboard/UserBanner';
 import TopicCard from '../components/Dashboard/TopicCard';
-import UserMenu from '../components/shared/UserMenu';
+import NavHeader from '../components/shared/NavHeader';
 import { BookOpen, CheckCircle2, Clock, Target } from 'lucide-react';
 import { apiClient } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,7 +14,7 @@ const DEFAULT_DASHBOARD_DATA: DashboardData = {
   completed_count: 0,
   in_progress_count: 0,
   current_streak: 0,
-  topics: []
+  courses: []
 };
 
 export default function Dashboard() {
@@ -45,10 +45,13 @@ export default function Dashboard() {
   };
 
   const handleTopicClick = (topic: string) => {
-    // Navigate to first unit in topic
-    const topicData = dashboardData?.topics.find(t => t.topic === topic);
-    if (topicData && topicData.units.length > 0) {
-      window.location.href = `/unit/${topicData.units[0].slug}`;
+    // Navigate to first unit in topic - search across all courses
+    for (const course of dashboardData.courses) {
+      const topicData = course.topics.find(t => t.topic === topic);
+      if (topicData && topicData.units.length > 0) {
+        window.location.href = `/unit/${topicData.units[0].slug}`;
+        return;
+      }
     }
   };
 
@@ -71,25 +74,7 @@ export default function Dashboard() {
       isDarkMode ? 'bg-dark-bg text-dark-text-primary' : 'bg-gray-50 text-gray-900'
     }`}>
       {/* Header */}
-      <header className={`sticky top-0 z-40 border-b backdrop-blur-xl transition-colors ${
-        isDarkMode
-          ? 'border-dark-border bg-dark-surface/80'
-          : 'border-gray-200 bg-white/80'
-      }`}>
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-dark-accent-blue to-dark-accent-green rounded-xl flex items-center justify-center">
-              <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.5L18.5 7 12 9.5 5.5 7 12 4.5zM4 8.5l7 3.5v7l-7-3.5v-7zm9 10.5v-7l7-3.5v7l-7 3.5z"/>
-              </svg>
-            </div>
-            <span className={`text-xl font-bold ${isDarkMode ? 'text-dark-text-primary' : 'text-gray-900'}`}>
-              KubePlayground
-            </span>
-          </div>
-          <UserMenu />
-        </div>
-      </header>
+      <NavHeader />
 
       {/* Container */}
       <div className="max-w-7xl mx-auto px-6 py-8">
@@ -188,18 +173,37 @@ export default function Dashboard() {
           <h2 className={`text-3xl font-bold mb-6 ${isDarkMode ? 'text-dark-accent-purple' : 'text-purple-600'}`}>
             Learning Paths
           </h2>
-          {dashboardData.topics.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {dashboardData.topics.map((topic) => (
-                <TopicCard
-                  key={topic.topic}
-                  topic={topic.topic}
-                  totalUnits={topic.total_units}
-                  completedUnits={topic.completed_units}
-                  inProgressUnits={topic.in_progress_units}
-                  completionPercentage={topic.completion_percentage}
-                  onClick={() => handleTopicClick(topic.topic)}
-                />
+          {dashboardData.courses.length > 0 ? (
+            <div className="space-y-8">
+              {dashboardData.courses.map((course) => (
+                <div key={course.course_slug}>
+                  {/* Course Header */}
+                  <div className="mb-4">
+                    <h3 className={`text-2xl font-bold ${isDarkMode ? 'text-dark-text-primary' : 'text-gray-900'}`}>
+                      {course.course_name}
+                    </h3>
+                    {course.course_description && (
+                      <p className={`text-sm mt-1 ${isDarkMode ? 'text-dark-text-secondary' : 'text-gray-600'}`}>
+                        {course.course_description}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Topics Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {course.topics.map((topic) => (
+                      <TopicCard
+                        key={topic.topic}
+                        topic={topic.topic}
+                        totalUnits={topic.total_units}
+                        completedUnits={topic.completed_units}
+                        inProgressUnits={topic.in_progress_units}
+                        completionPercentage={topic.completion_percentage}
+                        onClick={() => handleTopicClick(topic.topic)}
+                      />
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           ) : (

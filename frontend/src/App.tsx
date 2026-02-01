@@ -5,6 +5,10 @@ import Dashboard from './pages/Dashboard';
 import LearningUnit from './pages/LearningUnit';
 import AuthPage from './pages/AuthPage';
 import LogoutPage from './pages/LogoutPage';
+import ProfilePage from './pages/ProfilePage';
+import CoursesPage from './pages/CoursesPage';
+import CourseChaptersPage from './pages/CourseChaptersPage';
+import TopicUnitsPage from './pages/TopicUnitsPage';
 import ProtectedRoute from './components/shared/ProtectedRoute';
 
 export default function App() {
@@ -27,10 +31,50 @@ export default function App() {
               }
             />
             <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/unit/:slug"
               element={
                 <ProtectedRoute>
                   <LearningUnit />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/courses"
+              element={
+                <ProtectedRoute>
+                  <CoursesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/courses/:courseSlug"
+              element={
+                <ProtectedRoute>
+                  <CourseChaptersPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/courses/:courseSlug/topics/:topicId"
+              element={
+                <ProtectedRoute>
+                  <TopicUnitsPage />
                 </ProtectedRoute>
               }
             />

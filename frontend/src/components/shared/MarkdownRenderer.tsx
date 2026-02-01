@@ -7,7 +7,7 @@ export const parseInline = (text: string): React.ReactNode[] => {
       return (
         <code
           key={i}
-          className="bg-[#44475a] px-2 py-1 rounded text-[#ffb86c] font-mono text-base border border-[#6272a4]"
+          className="bg-[#3c3c3c] px-2 py-1 rounded text-[#ce9178] font-mono text-base border border-[#454545]"
         >
           {part.replace(/`/g, '')}
         </code>
@@ -15,7 +15,7 @@ export const parseInline = (text: string): React.ReactNode[] => {
     }
     if (part.startsWith('**')) {
       return (
-        <strong key={i} className="font-bold text-[#bd93f9]">
+        <strong key={i} className="font-bold text-[#4fc1ff]">
           {part.replace(/\*\*/g, '')}
         </strong>
       );
@@ -32,7 +32,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
   const parts = content.split(/```(\w*)\n([\s\S]*?)```/g);
 
   return (
-    <div className="space-y-4 text-lg text-[#f8f8f2] leading-relaxed">
+    <div className="space-y-4 text-lg text-[#cccccc] leading-relaxed">
       {parts.map((part, index) => {
         if (index % 3 === 1) return null;
 
@@ -41,13 +41,13 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
           return (
             <div
               key={index}
-              className="rounded-md overflow-hidden bg-[#44475a] border border-[#6272a4] my-6 shadow-lg"
+              className="rounded-md overflow-hidden bg-[#1e1e1e] border border-[#3e3e42] my-6 shadow-lg"
             >
-              <div className="px-4 py-2 bg-[#282a36] border-b border-[#6272a4] text-sm text-[#8be9fd] font-mono flex items-center justify-between">
+              <div className="px-4 py-2 bg-[#2d2d30] border-b border-[#3e3e42] text-sm text-[#569cd6] font-mono flex items-center justify-between">
                 <span>{lang}</span>
-                <span className="cursor-pointer hover:text-[#bd93f9]">Copy</span>
+                <span className="cursor-pointer hover:text-[#4ec9b0]">Copy</span>
               </div>
-              <pre className="p-4 overflow-x-auto text-[#f8f8f2] font-mono text-base leading-relaxed"
+              <pre className="p-4 overflow-x-auto text-[#d4d4d4] font-mono text-base leading-relaxed"
                    style={{ fontSize: '15px', lineHeight: '1.6' }}>
                 {part.trim()}
               </pre>
@@ -65,7 +65,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
                 return (
                   <h3
                     key={lineIdx}
-                    className="text-2xl font-bold text-[#50fa7b] mt-8 mb-4"
+                    className="text-2xl font-bold text-[#4ec9b0] mt-8 mb-4"
                   >
                     {trimmed.replace('### ', '')}
                   </h3>
@@ -76,7 +76,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
                 return (
                   <h2
                     key={lineIdx}
-                    className="text-3xl font-bold text-[#ff79c6] mt-10 mb-5"
+                    className="text-3xl font-bold text-[#569cd6] mt-10 mb-5"
                   >
                     {trimmed.replace('## ', '')}
                   </h2>
@@ -87,7 +87,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
                 return (
                   <li
                     key={lineIdx}
-                    className="ml-6 mb-2 list-decimal list-outside marker:text-[#bd93f9] text-lg leading-relaxed"
+                    className="ml-6 mb-2 list-decimal list-outside marker:text-[#c586c0] text-lg leading-relaxed"
                   >
                     {parseInline(trimmed.replace(/^\d+\.\s/, ''))}
                   </li>
@@ -98,7 +98,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
                 return (
                   <li
                     key={lineIdx}
-                    className="ml-6 mb-2 list-disc list-outside marker:text-[#bd93f9] text-lg leading-relaxed"
+                    className="ml-6 mb-2 list-disc list-outside marker:text-[#c586c0] text-lg leading-relaxed"
                   >
                     {parseInline(trimmed.replace(/^-\s/, ''))}
                   </li>
