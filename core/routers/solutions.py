@@ -32,7 +32,7 @@ current_user_dependency = Annotated[User, Depends(get_current_user)]
 @router.post("/autosave")
 @limiter.limit("60/minute")  # Allow frequent autosaves but prevent abuse
 async def autosave_solution(
-    _request: Request,
+    request: Request,
     autosave_req: AutosaveRequest,
     current_user: current_user_dependency,
 ) -> AutosaveResponse:

@@ -62,7 +62,7 @@ async def auth_health():
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
 @limiter.limit("5/hour")  # Prevent spam registrations
-async def register(_request: Request, user: UserCreate, db: db_dependency):
+async def register(request: Request, user: UserCreate, db: db_dependency):
     """Register a new user."""
     # Check if email already exists
     existing_user = db.query(User).filter(User.email == user.email).first()
@@ -118,7 +118,7 @@ async def register(_request: Request, user: UserCreate, db: db_dependency):
 
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("10/minute")  # Prevent brute force password attacks
-async def login(_request: Request, login_req: LoginRequest, db: db_dependency):
+async def login(request: Request, login_req: LoginRequest, db: db_dependency):
     """Authenticate user and return JWT token."""
     user = db.query(User).filter(User.email == login_req.email).first()
 
@@ -255,7 +255,7 @@ async def update_user_profile(
 @router.post("/change-password")
 @limiter.limit("5/hour")  # Prevent password change abuse
 async def change_password(
-    _request: Request,
+    request: Request,
     password_change: PasswordChangeRequest,
     current_user: current_user_dependency,
     db: db_dependency,

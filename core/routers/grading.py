@@ -34,7 +34,7 @@ current_user_dependency = Annotated[User, Depends(get_current_user)]
 @router.post("/quiz/submit")
 @limiter.limit("30/minute")  # Prevent quiz spam for points farming
 async def submit_quiz(
-    _request: Request,
+    request: Request,
     submission: QuizSubmissionRequest,
     current_user: current_user_dependency,
     db: db_dependency,
