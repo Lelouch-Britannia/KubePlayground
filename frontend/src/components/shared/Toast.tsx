@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
-import { XCircle, Trophy } from 'lucide-react';
+import { XCircle, Trophy, CheckCircle } from 'lucide-react';
 
 interface ToastProps {
-  type: 'success' | 'error';
+  type: 'success' | 'error' | 'info';
   message: string;
   score?: number;
   total?: number;
@@ -24,13 +24,16 @@ export const Toast: React.FC<ToastProps> = ({
   }, [onClose, duration]);
 
   const isPassing = score && total ? (score / total) * 100 >= 70 : type === 'success';
+  const isInfo = type === 'info';
   const percentage = score && total ? Math.round((score / total) * 100) : null;
 
   return (
     <div className="fixed top-8 right-8 z-50 animate-slide-in-right">
       <div
         className={`rounded-lg shadow-2xl border-2 p-6 min-w-[400px] ${
-          isPassing
+          isInfo
+            ? 'bg-gradient-to-br from-[#44475a] to-[#6272a4]/20 border-[#6272a4]'
+            : isPassing
             ? 'bg-gradient-to-br from-[#44475a] to-[#50fa7b]/20 border-[#50fa7b]'
             : 'bg-gradient-to-br from-[#44475a] to-[#ff5555]/20 border-[#ff5555]'
         } backdrop-blur-sm`}
@@ -39,10 +42,16 @@ export const Toast: React.FC<ToastProps> = ({
           {/* Icon with animation */}
           <div
             className={`flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center ${
-              isPassing ? 'bg-[#50fa7b]/30 animate-bounce-once' : 'bg-[#ff5555]/30 animate-shake'
+              isInfo
+                ? 'bg-[#6272a4]/30'
+                : isPassing
+                ? 'bg-[#50fa7b]/30 animate-bounce-once'
+                : 'bg-[#ff5555]/30 animate-shake'
             }`}
           >
-            {isPassing ? (
+            {isInfo ? (
+              <CheckCircle className="w-10 h-10 text-[#6272a4]" strokeWidth={2.5} />
+            ) : isPassing ? (
               <Trophy className="w-10 h-10 text-[#50fa7b]" strokeWidth={2.5} />
             ) : (
               <XCircle className="w-10 h-10 text-[#ff5555]" strokeWidth={2.5} />
@@ -51,14 +60,16 @@ export const Toast: React.FC<ToastProps> = ({
 
           {/* Content */}
           <div className="flex-1">
-            <h3
-              className={`text-2xl font-bold mb-2 ${
-                isPassing ? 'text-[#50fa7b]' : 'text-[#ff5555]'
-              }`}
-            >
-              {isPassing ? '🎉 Great Job!' : '😞 Keep Trying!'}
-            </h3>
-            <p className="text-[#f8f8f2] text-lg mb-3 leading-relaxed">{message}</p>
+            {!isInfo && (
+              <h3
+                className={`text-2xl font-bold mb-2 ${
+                  isPassing ? 'text-[#50fa7b]' : 'text-[#ff5555]'
+                }`}
+              >
+                {isPassing ? '🎉 Great Job!' : '😞 Keep Trying!'}
+              </h3>
+            )}
+            <p className={`text-[#f8f8f2] mb-3 leading-relaxed ${isInfo ? 'text-base' : 'text-lg'}`}>{message}</p>
 
             {/* Score Display */}
             {percentage !== null && (

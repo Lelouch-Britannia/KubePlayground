@@ -28,7 +28,7 @@ export default function LearningUnit() {
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [toast, setToast] = useState<{
     show: boolean;
-    type: 'success' | 'error';
+    type: 'success' | 'error' | 'info';
     message: string;
     score?: number;
     total?: number;
@@ -354,7 +354,7 @@ export default function LearningUnit() {
               if (data) { setRunData(data); setRunNamespace(data.namespace || null); }
               if (msg.status === 'success') {
                 setRunComplete(true);
-                setToast({ show: true, type: 'success', message: 'Resources deployed! Click "Validate" to run tests.' });
+                setToast({ show: true, type: 'info', message: 'Resources deployed! Click "Validate" to run tests.' });
               } else {
                 setToast({ show: true, type: 'error', message: msg.message || 'Manifest deployment failed.' });
               }
