@@ -25,6 +25,7 @@ export default function LearningUnit() {
   const [code, setCode] = useState('');
   // const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({}); // quiz/grading feature commented out
   const [leftWidth, setLeftWidth] = useState(50);
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [toast, setToast] = useState<{
     show: boolean;
     type: 'success' | 'error';
@@ -133,6 +134,8 @@ export default function LearningUnit() {
 
       const data = await apiClient.getUnitDetail(unitSlug) as UnitDetail;
       setUnit(data);
+      // Open right panel for coding units (editor); conceptual defaults to full-width
+      setRightPanelOpen(data.type === 'coding' && !!data.editor_config);
 
       // Load previous solution for coding exercises
       if (data.editor_config) {
@@ -591,11 +594,12 @@ export default function LearningUnit() {
       </header>
 
       {/* Secondary Navigation Banner */}
-      <div className="h-14 bg-dark-surface border-b border-dark-border flex items-center px-6 shrink-0">
-        {/* Left: Difficulty Badge */}
-        <div className="flex items-center min-w-[120px]">
+      <div className="h-12 bg-dark-surface border-b border-dark-border flex items-center justify-between px-5 shrink-0">
+        {/* Left: Topic + Unit dropdowns + Difficulty badge inline */}
+        <div className="flex items-center gap-3">
+          <UnitNavigation currentUnitSlug={unit.slug} currentTopic={unit.topic} />
           {unit.difficulty && (
-            <span className={`px-3 py-1.5 text-xs font-bold uppercase rounded border ${
+            <span className={`px-2.5 py-1 text-xs font-bold uppercase tracking-wide rounded border ${
               unit.difficulty === 'beginner'
                 ? 'border-dark-accent-green/40 text-dark-accent-green bg-dark-accent-green/10'
                 : unit.difficulty === 'intermediate'
@@ -607,27 +611,24 @@ export default function LearningUnit() {
           )}
         </div>
 
-        {/* Center: Unit Navigation Dropdowns */}
-        <div className="flex-1 flex items-center justify-center">
-          <UnitNavigation currentUnitSlug={unit.slug} currentTopic={unit.topic} />
-        </div>
-
-        {/* Right: Navigation Arrows */}
-        <div className="flex items-center gap-3 min-w-[120px] justify-end">
-          {/* Navigation Arrows */}
+        {/* Right: Prev / progress counter / Next — consistent style */}
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => navigateToUnit('prev')}
             disabled={!hasPrev || isNavigating}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-dark-elevated text-dark-text-primary hover:bg-dark-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded bg-dark-elevated text-dark-text-secondary hover:bg-dark-hover hover:text-dark-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
-            <ChevronLeft size={20} />
+            <ChevronLeft size={16} />
           </button>
+          <span className="text-xs text-dark-text-muted font-medium tabular-nums min-w-[44px] text-center select-none">
+            {currentIndex + 1} / {allUnits.length}
+          </span>
           <button
             onClick={() => navigateToUnit('next')}
             disabled={!hasNext || isNavigating}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-dark-accent-yellow text-dark-bg hover:bg-dark-accent-yellow/80 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded bg-dark-elevated text-dark-text-secondary hover:bg-dark-hover hover:text-dark-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
-            <ChevronRight size={20} />
+            <ChevronRight size={16} />
           </button>
         </div>
       </div>
@@ -636,8 +637,8 @@ export default function LearningUnit() {
       <div className="flex-1 flex overflow-hidden relative p-4 gap-2">
         {/* Left Panel - Description/Content with Tabs */}
         <div
-          style={{ width: `${leftWidth}%` }}
-          className={`flex flex-col bg-dark-surface border border-dark-border rounded-lg min-w-[350px] overflow-hidden transition-opacity duration-200 ${isNavigating ? 'opacity-50' : 'opacity-100'}`}
+          style={rightPanelOpen ? { width: `${leftWidth}%` } : undefined}
+          className={`${rightPanelOpen ? 'min-w-[350px]' : 'flex-1'} flex flex-col bg-dark-surface border border-dark-border rounded-lg overflow-hidden transition-opacity duration-200 ${isNavigating ? 'opacity-50' : 'opacity-100'}`}
         >
           {/* Tabs */}
           <div className="h-12 bg-dark-surface border-b border-dark-border flex items-center px-4 shrink-0">
@@ -776,17 +777,52 @@ export default function LearningUnit() {
           </div>
         </div>
 
-        {/* Resizer */}
-        <div
-          className="w-1.5 bg-transparent hover:bg-dark-accent-purple cursor-col-resize z-10 transition-colors"
-          onDrag={handleDrag}
-          draggable
-          onDragEnd={handleDrag}
-        />
+        {/* Resizer - only shown for coding units when right panel is open */}
+        {rightPanelOpen && unit.type === 'coding' && (
+          <div
+            className="w-1.5 bg-transparent hover:bg-dark-accent-purple cursor-col-resize z-10 transition-colors shrink-0"
+            onDrag={handleDrag}
+            draggable
+            onDragEnd={handleDrag}
+          />
+        )}
 
-        {/* Right Panel - Editor/Quiz */}
-        <div className={`flex-1 flex flex-col min-w-[400px] bg-dark-surface border border-dark-border rounded-lg overflow-hidden transition-opacity duration-200 ${isNavigating ? 'opacity-50' : 'opacity-100'}`}>
-          {unit.type === 'coding' && unit.editor_config && (
+        {/* Pull-arrow strip - shown for conceptual units when right panel is closed */}
+        {unit.type === 'conceptual' && !rightPanelOpen && (
+          <button
+            onClick={() => setRightPanelOpen(true)}
+            className="w-6 shrink-0 flex items-center justify-center bg-dark-elevated border border-dark-border rounded-lg text-dark-text-muted hover:text-dark-accent-purple hover:bg-dark-hover transition-colors"
+            title="Open quiz panel"
+          >
+            <ChevronRight size={13} />
+          </button>
+        )}
+
+        {/* Right Panel - Editor (coding) / Future Quiz (conceptual) */}
+        {rightPanelOpen && (
+          <div className={`flex-1 flex flex-col min-w-[400px] bg-dark-surface border border-dark-border rounded-lg overflow-hidden transition-opacity duration-200 ${isNavigating ? 'opacity-50' : 'opacity-100'}`}>
+            {/* Conceptual: placeholder with close arrow (future quiz panel) */}
+            {unit.type === 'conceptual' && (
+              <>
+                <div className="h-12 bg-dark-elevated border-b border-dark-border flex items-center justify-between px-4 shrink-0">
+                  <span className="text-sm font-medium text-dark-text-secondary">Quiz Panel</span>
+                  <button
+                    onClick={() => setRightPanelOpen(false)}
+                    className="w-7 h-7 flex items-center justify-center rounded hover:bg-dark-hover text-dark-text-muted hover:text-dark-text-primary transition-colors"
+                    title="Close panel"
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+                <div className="flex-1 flex flex-col items-center justify-center gap-3 text-dark-text-muted p-8">
+                  <div className="text-4xl opacity-20 select-none">📋</div>
+                  <p className="text-sm font-medium">Quiz coming soon</p>
+                  <p className="text-xs text-center opacity-60 max-w-[180px]">Assessments will appear here once enabled</p>
+                </div>
+              </>
+            )}
+
+            {unit.type === 'coding' && unit.editor_config && (
             <>
               {/* Editor Header */}
               <div className="h-12 bg-dark-elevated border-b border-dark-border flex items-center justify-between px-4">
@@ -965,7 +1001,8 @@ export default function LearningUnit() {
               </div>
             </>
           )} */}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Custom Scrollbar Styles */}
