@@ -37,7 +37,9 @@ export default function LearningUnit() {
   const [activeTab, setActiveTab] = useState<'question'>('question'); // quiz/grading feature commented out (was: 'question' | 'solution' | 'submissions')
   const [hintsExpanded, setHintsExpanded] = useState(false);
   const [consoleExpanded, setConsoleExpanded] = useState(false);
-  const [consoleHeight, _setConsoleHeight] = useState(250);
+  const [consoleHeight, setConsoleHeight] = useState(250);
+  const consoleResizing = useRef(false);
+  const rightPanelRef = useRef<HTMLDivElement>(null);
   // const [solutionHistory, setSolutionHistory] = useState<any[]>([]); // quiz/grading feature commented out
   // const [loadingSolution, setLoadingSolution] = useState(false); // quiz/grading feature commented out
   // const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle'); // quiz/grading feature commented out
@@ -219,37 +221,38 @@ export default function LearningUnit() {
     if (newWidth > 25 && newWidth < 75) setLeftWidth(newWidth);
   };
 
+  // Console vertical resize: drag the handle to adjust console height
+  const startConsoleResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    consoleResizing.current = true;
+    const startY = e.clientY;
+    const startHeight = consoleHeight;
+
+    const onMove = (ev: MouseEvent) => {
+      if (!consoleResizing.current) return;
+      // Dragging upward increases console height
+      const delta = startY - ev.clientY;
+      const panelRect = rightPanelRef.current?.getBoundingClientRect();
+      const maxHeight = panelRect ? panelRect.height - 120 : 600;
+      const newHeight = Math.max(100, Math.min(maxHeight, startHeight + delta));
+      setConsoleHeight(newHeight);
+    };
+
+    const onUp = () => {
+      consoleResizing.current = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  };
+
   // quiz/grading feature commented out
-  // // Console vertical resize: drag the handle to adjust console height
-  // const startConsoleResize = (e: React.MouseEvent) => {
-  //   e.preventDefault();
-  //   consoleResizing.current = true;
-  //   const startY = e.clientY;
-  //   const startHeight = consoleHeight;
-  //
-  //   const onMove = (ev: MouseEvent) => {
-  //     if (!consoleResizing.current) return;
-  //     // Dragging upward increases console height (startY - ev.clientY is positive)
-  //     const delta = startY - ev.clientY;
-  //     const panelRect = rightPanelRef.current?.getBoundingClientRect();
-  //     const maxHeight = panelRect ? panelRect.height - 120 : 600; // leave room for header + submit
-  //     const newHeight = Math.max(100, Math.min(maxHeight, startHeight + delta));
-  //     setConsoleHeight(newHeight);
-  //   };
-  //
-  //   const onUp = () => {
-  //     consoleResizing.current = false;
-  //     document.removeEventListener('mousemove', onMove);
-  //     document.removeEventListener('mouseup', onUp);
-  //     document.body.style.cursor = '';
-  //     document.body.style.userSelect = '';
-  //   };
-  //
-  //   document.addEventListener('mousemove', onMove);
-  //   document.addEventListener('mouseup', onUp);
-  //   document.body.style.cursor = 'row-resize';
-  //   document.body.style.userSelect = 'none';
-  // };
 
   const navigateToUnit = (direction: 'prev' | 'next') => {
     if (currentIndex === -1) return;
@@ -737,7 +740,7 @@ export default function LearningUnit() {
 
         {/* Right Panel - Editor (coding) / Future Quiz (conceptual) */}
         {rightPanelOpen && (
-          <div className={`flex-1 flex flex-col min-w-[400px] bg-dark-surface border border-dark-border rounded-lg overflow-hidden transition-opacity duration-200 ${isNavigating ? 'opacity-50' : 'opacity-100'}`}>
+          <div ref={rightPanelRef} className={`flex-1 flex flex-col min-w-[400px] bg-dark-surface border border-dark-border rounded-lg overflow-hidden transition-opacity duration-200 ${isNavigating ? 'opacity-50' : 'opacity-100'}`}>
             {/* Conceptual: placeholder with close arrow (future quiz panel) */}
             {unit.type === 'conceptual' && (
               <>
@@ -792,7 +795,10 @@ export default function LearningUnit() {
 
               {/* Console Resize Handle */}
               {consoleExpanded && (
-                <div className="h-1 min-h-[4px] bg-transparent hover:bg-dark-accent-purple cursor-row-resize transition-colors flex-shrink-0" />
+                <div
+                  onMouseDown={startConsoleResize}
+                  className="h-1 min-h-[4px] bg-transparent hover:bg-dark-accent-purple cursor-row-resize transition-colors flex-shrink-0"
+                />
               )}
 
               {/* Console + Submit Bar */}
