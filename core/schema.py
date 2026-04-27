@@ -90,130 +90,130 @@ class UnitDetailResponse(BaseModel):
 #     results: list[QuizResultItem]
 #     passed: bool  # True if score >= 70%
 #
-# class CodeVerificationRequest(BaseModel):
-#     unit_slug: str
-#     code: str
-#     language: str = "yaml"
-#
-# class CodeVerificationResponse(BaseModel):
-#     is_valid: bool
-#     message: str
-#     errors: list[str] | None = None
+# Quiz grading schemas — commented out (quiz/grading feature disabled)
+# class CodeVerificationRequest(BaseModel): — moved to Grading section below
+# class QuizSubmissionRequest, QuizSubmissionResponse — see git history
 
 
 # ============================================================================
-# Validation Service API Schemas — commented out (quiz/grading feature disabled)
+# Grading / CodeVerification Schemas
 # ============================================================================
 
-# class ValidationTestResult(BaseModel):
-#     name: str
-#     passed: bool
-#     output: str
-#     error_output: str | None = None
-#     duration_ms: float
-#
-# class ValidationResourceInfo(BaseModel):
-#     kind: str
-#     name: str
-#     namespace: str
-#     status: str
-#     ready: bool
-#     message: str | None = None
-#     age: str | None = None
-#
-# class PodLogEntry(BaseModel):
-#     pod_name: str
-#     container_name: str
-#     logs: str
-#     phase: str
-#     ready: bool = False
-#
-# class KubeEvent(BaseModel):
-#     type: str
-#     reason: str
-#     message: str
-#     object: str
-#     age: str
-#     count: int = 0
-#
-# class ExecutionPhase(BaseModel):
-#     name: str
-#     status: str  # success, failed, skipped
-#     duration_ms: float
-#     output: str | None = None
-#     error: str | None = None
-#
-# class ValidationErrorDetail(BaseModel):
-#     type: str | None = None
-#     code: str | None = None
-#     message: str
-#     details: dict[str, Any] | None = None
-#
-# class ValidationRequest(BaseModel):
-#     request_id: str
-#     unit_slug: str
-#     user_id: int
-#     user_yaml: str
-#     validation_script: str
-#     language: str = "yaml"
-#     metadata: dict[str, Any] | None = None
-#
-# class ValidationResponse(BaseModel):
-#     request_id: str
-#     is_valid: bool = False
-#     passed: bool = False
-#     message: str = ""
-#     apply_output: str | None = None
-#     resource_status: list[ValidationResourceInfo] | None = None
-#     pod_logs: list[PodLogEntry] | None = None
-#     events: list[KubeEvent] | None = None
-#     test_results: list[ValidationTestResult] | None = None
-#     validation_error: ValidationErrorDetail | None = None
-#     duration_ms: float = 0
-#     namespace: str | None = None
-#     phases: list[ExecutionPhase] | None = None
-#
-# class RunRequest(BaseModel):
-#     request_id: str
-#     unit_slug: str
-#     user_id: int
-#     user_yaml: str
-#     language: str = "yaml"
-#
-# class WSMessage(BaseModel):
-#     type: str  # phase_start, phase_complete, phase_progress, run_complete, error
-#     phase: str | None = None
-#     status: str | None = None
-#     message: str | None = None
-#     data: dict[str, Any] | None = None
-#
-# class RunCompleteData(BaseModel):
-#     namespace: str = ""
-#     apply_output: str | None = None
-#     resource_status: list[ValidationResourceInfo] | None = None
-#     pod_logs: list[PodLogEntry] | None = None
-#     events: list[KubeEvent] | None = None
-#     phases: list[ExecutionPhase] | None = None
-#     duration_ms: float = 0
-#
-# class ValidateOnlyRequest(BaseModel):
-#     unit_slug: str
-#     namespace: str
-#
-# class ValidateOnlyResponse(BaseModel):
-#     request_id: str
-#     namespace: str
-#     passed: bool = False
-#     message: str = ""
-#     test_results: list[ValidationTestResult] | None = None
-#     duration_ms: float = 0
-#
-# class CleanupRequest(BaseModel):
-#     namespace: str
-#
-# class CleanupResponse(BaseModel):
-#     status: str
-#     namespace: str
+
+class CodeVerificationRequest(BaseModel):
+    unit_slug: str
+    code: str
+    language: str = "yaml"
+
+
+class CodeVerificationResponse(BaseModel):
+    is_valid: bool
+    message: str
+    errors: list[str] | None = None
+
+
+# ============================================================================
+# Validation Service API Schemas
+# ============================================================================
+
+
+class ValidationTestResult(BaseModel):
+    name: str
+    passed: bool
+    output: str
+    error_output: str | None = None
+    duration_ms: float
+
+
+class ValidationResourceInfo(BaseModel):
+    kind: str
+    name: str
+    namespace: str
+    status: str
+    ready: bool
+    message: str | None = None
+    age: str | None = None
+
+
+class PodLogEntry(BaseModel):
+    pod_name: str
+    container_name: str
+    logs: str
+    phase: str
+    ready: bool = False
+
+
+class KubeEvent(BaseModel):
+    type: str
+    reason: str
+    message: str
+    object: str
+    age: str
+    count: int = 0
+
+
+class ExecutionPhase(BaseModel):
+    name: str
+    status: str  # success, failed, skipped
+    duration_ms: float
+    output: str | None = None
+    error: str | None = None
+
+
+class ValidationErrorDetail(BaseModel):
+    type: str | None = None
+    code: str | None = None
+    message: str
+    details: dict[str, Any] | None = None
+
+
+class ValidationRequest(BaseModel):
+    request_id: str
+    unit_slug: str
+    user_id: int
+    user_yaml: str
+    validation_script: str
+    language: str = "yaml"
+    metadata: dict[str, Any] | None = None
+
+
+class ValidationResponse(BaseModel):
+    request_id: str
+    is_valid: bool = False
+    passed: bool = False
+    message: str = ""
+    apply_output: str | None = None
+    resource_status: list[ValidationResourceInfo] | None = None
+    pod_logs: list[PodLogEntry] | None = None
+    events: list[KubeEvent] | None = None
+    test_results: list[ValidationTestResult] | None = None
+    validation_error: ValidationErrorDetail | None = None
+    duration_ms: float = 0
+    namespace: str | None = None
+    phases: list[ExecutionPhase] | None = None
+
+
+class ValidateOnlyRequest(BaseModel):
+    unit_slug: str
+    namespace: str
+
+
+class ValidateOnlyResponse(BaseModel):
+    request_id: str
+    namespace: str
+    passed: bool = False
+    message: str = ""
+    test_results: list[ValidationTestResult] | None = None
+    duration_ms: float = 0
+
+
+class CleanupRequest(BaseModel):
+    namespace: str
+
+
+class CleanupResponse(BaseModel):
+    status: str
+    namespace: str
 
 
 # ============================================================================
