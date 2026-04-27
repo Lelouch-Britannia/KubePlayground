@@ -61,8 +61,8 @@ class UserActivity(Base):
     user_id = Column(Integer, nullable=False, index=True)
     activity_date = Column(DateTime, nullable=False)
     total_points = Column(Integer, default=0, nullable=False)
-    quiz_attempts = Column(Integer, default=0, nullable=False)
-    quiz_passes = Column(Integer, default=0, nullable=False)
+    # quiz_attempts = Column(Integer, default=0, nullable=False)  # quiz/grading feature commented out
+    # quiz_passes = Column(Integer, default=0, nullable=False)  # quiz/grading feature commented out
     exercises_started = Column(Integer, default=0, nullable=False)
     exercises_completed = Column(Integer, default=0, nullable=False)
     time_spent_seconds = Column(Integer, default=0, nullable=False)

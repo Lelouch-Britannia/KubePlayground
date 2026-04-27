@@ -62,7 +62,7 @@ async def auth_health():
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
 @limiter.limit("5/hour")  # Prevent spam registrations
-async def register(request: Request, user: UserCreate, db: db_dependency):
+async def register(request: Request, user: UserCreate, db: db_dependency):  # noqa: ARG001
     """Register a new user."""
     # Check if email already exists
     existing_user = db.query(User).filter(User.email == user.email).first()
@@ -118,7 +118,7 @@ async def register(request: Request, user: UserCreate, db: db_dependency):
 
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("10/minute")  # Prevent brute force password attacks
-async def login(request: Request, login_req: LoginRequest, db: db_dependency):
+async def login(request: Request, login_req: LoginRequest, db: db_dependency):  # noqa: ARG001
     """Authenticate user and return JWT token."""
     user = db.query(User).filter(User.email == login_req.email).first()
 
@@ -255,7 +255,7 @@ async def update_user_profile(
 @router.post("/change-password")
 @limiter.limit("5/hour")  # Prevent password change abuse
 async def change_password(
-    request: Request,
+    request: Request,  # noqa: ARG001
     password_change: PasswordChangeRequest,
     current_user: current_user_dependency,
     db: db_dependency,
@@ -462,8 +462,8 @@ async def get_user_activity(
         UserActivityResponse(
             activity_date=activity.activity_date.strftime("%Y-%m-%d"),
             total_points=activity.total_points,
-            quiz_attempts=activity.quiz_attempts,
-            quiz_passes=activity.quiz_passes,
+            # quiz_attempts=activity.quiz_attempts,  # quiz/grading feature commented out
+            # quiz_passes=activity.quiz_passes,  # quiz/grading feature commented out
             exercises_started=activity.exercises_started,
             exercises_completed=activity.exercises_completed,
             time_spent_seconds=activity.time_spent_seconds,
@@ -630,7 +630,7 @@ async def get_user_stats(
     aggregates = (
         db.query(
             func.sum(UserActivity.total_points).label("total_points"),
-            func.sum(UserActivity.quiz_passes).label("quizzes_completed"),
+            # func.sum(UserActivity.quiz_passes).label("quizzes_completed"),  # quiz/grading feature commented out
             func.sum(UserActivity.exercises_completed).label("exercises_completed"),
             func.sum(UserActivity.time_spent_seconds).label("total_time_spent_seconds"),
             func.count(UserActivity.activity_date).label("days_active"),
@@ -639,24 +639,23 @@ async def get_user_stats(
         .first()
     )
 
-    # Calculate average quiz score from activity logs
-    avg_score_query = (
-        db.query(func.avg(ActivityLog.score_percentage).label("avg_score"))
-        .filter(
-            ActivityLog.user_id == current_user.id,
-            ActivityLog.activity_type == "quiz_submission",
-            ActivityLog.score_percentage.isnot(None),
-        )
-        .first()
-    )
-
-    avg_quiz_score = round(avg_score_query.avg_score, 2) if avg_score_query.avg_score else None
+    # Average quiz score — commented out (quiz/grading feature disabled)
+    # avg_score_query = (
+    #     db.query(func.avg(ActivityLog.score_percentage).label("avg_score"))
+    #     .filter(
+    #         ActivityLog.user_id == current_user.id,
+    #         ActivityLog.activity_type == "quiz_submission",
+    #         ActivityLog.score_percentage.isnot(None),
+    #     )
+    #     .first()
+    # )
+    # avg_quiz_score = round(avg_score_query.avg_score, 2) if avg_score_query.avg_score else None
 
     return UserStatsResponse(
         total_points=aggregates.total_points or 0,
-        quizzes_completed=aggregates.quizzes_completed or 0,
+        # quizzes_completed=aggregates.quizzes_completed or 0,  # quiz/grading feature commented out
         exercises_completed=aggregates.exercises_completed or 0,
-        avg_quiz_score=avg_quiz_score,
+        # avg_quiz_score=avg_quiz_score,  # quiz/grading feature commented out
         total_time_spent_hours=round((aggregates.total_time_spent_seconds or 0) / 3600, 2),
         days_active=aggregates.days_active or 0,
     )
@@ -684,7 +683,7 @@ async def get_profile_summary(
     aggregates = (
         db.query(
             func.sum(UserActivity.total_points).label("total_points"),
-            func.sum(UserActivity.quiz_passes).label("quizzes_completed"),
+            # func.sum(UserActivity.quiz_passes).label("quizzes_completed"),  # quiz/grading feature commented out
             func.sum(UserActivity.exercises_completed).label("exercises_completed"),
             func.sum(UserActivity.time_spent_seconds).label("total_time_spent_seconds"),
             func.count(UserActivity.activity_date).label("days_active"),
@@ -693,23 +692,23 @@ async def get_profile_summary(
         .first()
     )
 
-    avg_score_query = (
-        db.query(func.avg(ActivityLog.score_percentage).label("avg_score"))
-        .filter(
-            ActivityLog.user_id == current_user.id,
-            ActivityLog.activity_type == "quiz_submission",
-            ActivityLog.score_percentage.isnot(None),
-        )
-        .first()
-    )
-
-    avg_quiz_score = round(avg_score_query.avg_score, 2) if avg_score_query.avg_score else None
+    # Average quiz score — commented out (quiz/grading feature disabled)
+    # avg_score_query = (
+    #     db.query(func.avg(ActivityLog.score_percentage).label("avg_score"))
+    #     .filter(
+    #         ActivityLog.user_id == current_user.id,
+    #         ActivityLog.activity_type == "quiz_submission",
+    #         ActivityLog.score_percentage.isnot(None),
+    #     )
+    #     .first()
+    # )
+    # avg_quiz_score = round(avg_score_query.avg_score, 2) if avg_score_query.avg_score else None
 
     stats_data = UserStatsResponse(
         total_points=aggregates.total_points or 0,
-        quizzes_completed=aggregates.quizzes_completed or 0,
+        # quizzes_completed=aggregates.quizzes_completed or 0,  # quiz/grading feature commented out
         exercises_completed=aggregates.exercises_completed or 0,
-        avg_quiz_score=avg_quiz_score,
+        # avg_quiz_score=avg_quiz_score,  # quiz/grading feature commented out
         total_time_spent_hours=round((aggregates.total_time_spent_seconds or 0) / 3600, 2),
         days_active=aggregates.days_active or 0,
     )

@@ -151,8 +151,8 @@ class ActivityLogCreate(BaseModel):
     def validate_activity_type(cls, v: str) -> str:
         """Validate activity type."""
         valid_types = {
-            "quiz_attempt",
-            "quiz_pass",
+            # "quiz_attempt",  # quiz/grading feature commented out
+            # "quiz_pass",  # quiz/grading feature commented out
             "exercise_start",
             "exercise_complete",
             "login",
@@ -168,8 +168,8 @@ class UserActivityResponse(BaseModel):
 
     activity_date: str = Field(..., description="Activity date (YYYY-MM-DD)")
     total_points: int = Field(..., description="Total points for the day")
-    quiz_attempts: int = Field(..., description="Number of quiz attempts")
-    quiz_passes: int = Field(..., description="Number of quizzes passed")
+    # quiz_attempts: int = Field(..., description="Number of quiz attempts")  # quiz/grading feature commented out
+    # quiz_passes: int = Field(..., description="Number of quizzes passed")  # quiz/grading feature commented out
     exercises_started: int = Field(..., description="Exercises started")
     exercises_completed: int = Field(..., description="Exercises completed")
     time_spent_seconds: int = Field(..., description="Total time spent in seconds")
@@ -192,9 +192,9 @@ class UserStatsResponse(BaseModel):
     """Schema for user statistics response."""
 
     total_points: int = Field(..., description="Total lifetime points")
-    quizzes_completed: int = Field(..., description="Total quizzes completed")
+    # quizzes_completed: int = Field(..., description="Total quizzes completed")  # quiz/grading feature commented out
     exercises_completed: int = Field(..., description="Total exercises completed")
-    avg_quiz_score: float | None = Field(None, description="Average quiz score percentage")
+    # avg_quiz_score: float | None = Field(None, description="Average quiz score percentage")  # quiz/grading feature commented out
     total_time_spent_hours: float = Field(..., description="Total time spent in hours")
     days_active: int = Field(..., description="Total number of active days")
 
