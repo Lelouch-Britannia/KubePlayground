@@ -1,0 +1,101 @@
+# Validation Service Configuration
+server:
+  port: 8080
+  host: "0.0.0.0"
+  read_timeout: 15s
+  write_timeout: 15s
+  idle_timeout: 60s
+
+kubernetes:
+  # Path to kubeconfig (supports ~ expansion and $KUBECONFIG env var)
+  kubeconfig_path: "~/.kube/config"
+
+  # Kubernetes context to use (empty = current-context)
+  context: ""
+
+  # Path to kubectl binary (empty = auto-detect)
+  kubectl_path: ""
+
+  # Operation timeout
+  timeout: 60s
+
+  # Perform client-side dry-run before applying
+  dry_run_first: true
+
+  # Auto-detect environment based on context name
+  auto_detect_env: true
+
+  # Environment-specific configurations
+  environments:
+    local:
+      # Context name patterns for local environments
+      contexts:
+        - "microk8s"
+        - "minikube"
+        - "kind"
+        - "k3s"
+        - "docker-desktop"
+        - "colima"
+
+      # Resource quotas per validation namespace
+      namespace_quotas:
+        pods: 20
+        cpu: "4"
+        memory: "8Gi"
+
+      # Cleanup policy: immediate or delayed
+      cleanup_policy: "immediate"
+
+      # Validation timeout
+      timeout: 60s
+
+      # Enable network policies
+      network_policies: false
+
+      # Pod security standards: privileged, baseline, restricted
+      pod_security_standards: "baseline"
+
+    dev:
+      contexts:
+        - "dev-cluster"
+        - "staging"
+      namespace_quotas:
+        pods: 10
+        cpu: "2"
+        memory: "4Gi"
+      cleanup_policy: "immediate"
+      timeout: 90s
+      network_policies: false
+      pod_security_standards: "baseline"
+
+    production:
+      contexts:
+        - "eks-prod"
+        - "aks-prod"
+        - "gke-prod"
+        - "production"
+      namespace_quotas:
+        pods: 5
+        cpu: "1"
+        memory: "2Gi"
+      cleanup_policy: "delayed"  # 5min delay for debugging
+      timeout: 120s
+      network_policies: true
+      pod_security_standards: "restricted"
+
+# MongoDB configuration (optional - for direct script fetching)
+mongodb:
+  uri: "mongodb://root:password@mongodb:27017"
+  database: "development"
+  enabled: false  # Use core service API instead
+
+# Authentication
+auth:
+  jwt_secret: "${JWT_SECRET}"
+  token_expiry: 1h
+  service_tokens: []  # Pre-shared tokens from core service
+
+# Logging
+logging:
+  level: "info"  # debug, info, warn, error
+  format: "json"  # json, text
