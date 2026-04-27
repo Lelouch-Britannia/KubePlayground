@@ -97,10 +97,7 @@ ipython_config.py
 __pypackages__/
 
 # Environments
-.env.*
-.env.local
-.env.development
-.env.production
+*.env.*
 .venv
 env/
 venv/
@@ -174,3 +171,38 @@ packages/react-devtools-fusebox/dist
 packages/react-devtools-inline/dist
 packages/react-devtools-shell/dist
 packages/react-devtools-timeline/dist
+
+# Golang
+# Binaries
+validation-service/validation-service
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# IDE
+.vscode/
+.idea/
+
+# Config files with secrets
+config/local.yaml
+config/production.yaml
+*.local.yaml
+
+# Logs
+*.log
+logs/
+
+# Temp files
+tmp/
+temp/
