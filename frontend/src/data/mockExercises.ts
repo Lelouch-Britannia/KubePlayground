@@ -76,67 +76,24 @@ spec:
       }
     ]
   },
-  {
-    id: "ex2",
-    type: "quiz",
-    title: "2. Pod Lifecycle Knowledge",
-    difficulty: "Intermediate",
-    topic: "Pods",
-    timeEstimate: "5 min",
-    tags: ["Pods", "Architecture"],
-    description: `
-### Concept Review
-
-Before taking this quiz, ensure you understand the different states of a Pod lifecycle:
-- **Pending**: Accepted by the Kubernetes system.
-- **Running**: Bound to a node, all containers created.
-- **Succeeded**: Terminated with exit code 0.
-- **Failed**: Terminated with non-zero exit code.
-
-Complete the quiz on the right to test your knowledge.
-`,
-    quizData: {
-      questions: [
-        {
-          id: 1,
-          text: "Which phase indicates that a Pod has been accepted by the Kubernetes system but one or more containers have not been created yet?",
-          options: [
-            { id: "a", text: "Running" },
-            { id: "b", text: "Pending" },
-            { id: "c", text: "Unknown" },
-            { id: "d", text: "CrashLoopBackOff" }
-          ],
-          correct: "b",
-          explanation: "Pending includes the time a Pod spends waiting to be scheduled as well as the time spent downloading container images over the network."
-        },
-        {
-          id: 2,
-          text: "What happens to a Pod scheduled to a node that fails?",
-          options: [
-            { id: "a", text: "It is automatically rescheduled to a healthy node" },
-            { id: "b", text: "It is deleted after a timeout" },
-            { id: "c", text: "It remains in Unknown state until the node comes back" },
-            { id: "d", text: "The Controller Manager evicts it after a timeout" }
-          ],
-          correct: "d",
-          explanation: "The Node Lifecycle Controller evicts pods from unhealthy nodes after a specific timeout (default 5 minutes)."
-        }
-      ]
-    },
-    steps: [
-      {
-        phase: "Preparation",
-        tasks: [
-          { id: "q1", text: "Review Pod Lifecycle documentation" },
-          { id: "q2", text: "Understand Container States vs Pod Conditions" }
-        ]
-      }
-    ]
-  }
+  // quiz/grading feature commented out — ex2 quiz exercise disabled
+  // {
+  //   id: "ex2",
+  //   type: "quiz",
+  //   title: "2. Pod Lifecycle Knowledge",
+  //   difficulty: "Intermediate",
+  //   topic: "Pods",
+  //   timeEstimate: "5 min",
+  //   tags: ["Pods", "Architecture"],
+  //   description: `...`,
+  //   quizData: { questions: [ ... ] },
+  //   steps: [ ... ]
+  // }
 ];
 
-export const MOCK_VALIDATION_RESULTS = [
-  { step: "Check Deployment Exists", status: "passed", message: "Deployment 'nginx-deployment' found." },
-  { step: "Check Replicas", status: "failed", message: "Expected 3 replicas, found 1." },
-  { step: "Check Image", status: "failed", message: "Image is 'nginxx:1.14.2', expected 'nginx:1.14.2'." },
-];
+// MOCK_VALIDATION_RESULTS — commented out (quiz/grading feature disabled)
+// export const MOCK_VALIDATION_RESULTS = [
+//   { step: "Check Deployment Exists", status: "passed", message: "Deployment 'nginx-deployment' found." },
+//   { step: "Check Replicas", status: "failed", message: "Expected 3 replicas, found 1." },
+//   { step: "Check Image", status: "failed", message: "Image is 'nginxx:1.14.2', expected 'nginx:1.14.2'." },
+// ];

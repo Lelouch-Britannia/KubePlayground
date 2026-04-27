@@ -11,13 +11,13 @@ import {
 } from 'lucide-react';
 
 // Import data
-import { EXERCISES, MOCK_VALIDATION_RESULTS } from './data/mockExercises';
+import { EXERCISES /*, MOCK_VALIDATION_RESULTS*/ } from './data/mockExercises'; // quiz/grading feature commented out
 
 // Import components
 import DescriptionPanel from './components/LeftPanel/DescriptionPanel';
 import CodeEditor from './components/RightPanel/CodeEditor';
 import Console from './components/RightPanel/Console';
-import QuizPanel from './components/RightPanel/QuizPanel';
+// import QuizPanel from './components/RightPanel/QuizPanel'; // quiz/grading feature commented out
 
 // --- Main App ---
 
@@ -29,14 +29,14 @@ export default function App() {
   const [activeRightTab, setActiveRightTab] = useState<'code' | 'solution'>('code');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [validating, setValidating] = useState(false);
-  const [validationResults, setValidationResults] = useState<any>(null);
+  const [validationResponse, setValidationResponse] = useState<any>(null);
 
   const currentExercise = EXERCISES[currentExerciseIdx];
 
   useEffect(() => {
     // Reset state when exercise changes
     setCode(currentExercise.template || '');
-    setValidationResults(null);
+    setValidationResponse(null);
     setActiveRightTab('code');
   }, [currentExerciseIdx, currentExercise]);
 
@@ -61,10 +61,24 @@ export default function App() {
   const runValidation = () => {
     setValidating(true);
     setConsoleOpen(true);
-    setValidationResults(null);
+    setValidationResponse(null);
     setTimeout(() => {
       setValidating(false);
-      setValidationResults(MOCK_VALIDATION_RESULTS);
+      // quiz/grading feature commented out — MOCK_VALIDATION_RESULTS removed
+      // setValidationResponse({
+      //   request_id: 'mock-001',
+      //   is_valid: true,
+      //   passed: false,
+      //   message: 'Some tests failed',
+      //   test_results: MOCK_VALIDATION_RESULTS.map(r => ({
+      //     name: r.step,
+      //     passed: r.status === 'passed',
+      //     output: r.message,
+      //     duration_ms: 100
+      //   })),
+      //   duration_ms: 1500
+      // });
+      setValidationResponse(null);
     }, 1500);
   };
 
@@ -220,7 +234,10 @@ export default function App() {
                       isOpen={consoleOpen}
                       onToggle={setConsoleOpen}
                       validating={validating}
-                      validationResults={validationResults}
+                      running={false}
+                      runComplete={false}
+                      wsMessages={[]}
+                      validationResponse={validationResponse}
                     />
                   </>
                 ) : (
@@ -232,9 +249,11 @@ export default function App() {
             </>
           )}
 
+          {/* quiz/grading feature commented out
           {currentExercise.type === 'quiz' && currentExercise.quizData && (
             <QuizPanel quizData={currentExercise.quizData} />
           )}
+          */}
         </div>
       </div>
 
