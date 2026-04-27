@@ -110,20 +110,19 @@ export default function LearningUnit() {
       // setQuizResults({}); // quiz/grading feature commented out
       // setSelectedAnswers({}); // Reset selected answers when navigating to new unit // quiz/grading feature commented out
 
-      // quiz/grading feature commented out
-      // // Reset console state for new unit
-      // if (wsRef.current) {
-      //   wsRef.current.close();
-      //   wsRef.current = null;
-      // }
-      // setWsMessages([]);
-      // setValidationResponse(null);
-      // setRunning(false);
-      // setRunComplete(false);
-      // setRunNamespace(null);
-      // setRunData(null);
-      // setConsoleExpanded(false);
-      // setValidating(false);
+      // Reset console/run state for new unit
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      setWsMessages([]);
+      setValidationResponse(null);
+      setRunning(false);
+      setRunComplete(false);
+      setRunNamespace(null);
+      setRunData(null);
+      setConsoleExpanded(false);
+      setValidating(false);
 
       // Only show full loading on initial load, use subtle indicator for navigation
       if (!unit) {
