@@ -5,7 +5,10 @@ from typing import Any, Optional
 from auth.dependencies import db_dependency
 from auth.models import Course, Topic
 from fastapi import APIRouter, Depends, HTTPException
-from models import EditorConfig, LearningUnit, Quiz, QuizOption, UnitSolution
+from models import (  # Quiz, QuizOption, UnitSolution removed (quiz/grading feature commented out)
+    EditorConfig,
+    LearningUnit,
+)
 from sqlalchemy.orm import Session
 from starlette import status
 from utils.file_operator import FileReadEntry, YamlFileOperator
@@ -201,19 +204,19 @@ async def populate_database(topic_dir: str, *, skip_existing: bool = True, db: d
                 continue
 
         # Validate data integrity based on unit type
-        solution_data = data.get("_solution", {})
+        # solution_data = data.get("_solution", {})  # quiz/grading feature commented out
 
-        if unit_type == "conceptual":
-            quizzes_data = data.get("quizzes", [])
-            quiz_answers = solution_data.get("quiz_answers", {})
-            validation_errors = _validate_quiz_integrity(quizzes_data, quiz_answers)
-            if validation_errors:
-                stats["errors"].append(f"{yaml_file.name}: {'; '.join(validation_errors)}")
-                continue
-        elif unit_type == "coding":
-            if not data.get("editor_config") or not metadata.get("steps"):
-                stats["errors"].append(f"{yaml_file.name}: Missing editor_config or steps")
-                continue
+        # Quiz integrity validation — commented out (quiz/grading feature disabled)
+        # if unit_type == "conceptual":
+        #     quizzes_data = data.get("quizzes", [])
+        #     quiz_answers = solution_data.get("quiz_answers", {})
+        #     validation_errors = _validate_quiz_integrity(quizzes_data, quiz_answers)
+        #     if validation_errors:
+        #         stats["errors"].append(f"{yaml_file.name}: {'; '.join(validation_errors)}")
+        #         continue
+        if unit_type == "coding" and (not data.get("editor_config") or not metadata.get("steps")):
+            stats["errors"].append(f"{yaml_file.name}: Missing editor_config or steps")
+            continue
             # if not solution_data.get('code_solution') or not solution_data.get('validation_script'):
             #     stats['errors'].append(f"{yaml_file.name}: Missing code_solution or validation_script")
             #     continue
@@ -230,30 +233,30 @@ async def populate_database(topic_dir: str, *, skip_existing: bool = True, db: d
                 description=metadata["description"],
                 steps=metadata.get("steps"),
                 hints=metadata.get("hints"),
-                quizzes=_parse_quizzes(data.get("quizzes")) if unit_type == "conceptual" else None,
+                # quizzes=_parse_quizzes(data.get("quizzes")) if unit_type == "conceptual" else None,  # quiz/grading feature commented out
                 editor_config=_parse_editor_config(data.get("editor_config")) if unit_type == "coding" else None,
                 # Course/Topic hierarchy
                 course_id=course_id,
                 topic_id=topic_id,
             )
 
-            # Insert LearningUnit and capture ID for foreign key
+            # Insert LearningUnit (unit_id captured for FK — commented out with UnitSolution insert)
             await learning_unit.insert()
-            unit_id = learning_unit.id
+            # unit_id = learning_unit.id  # quiz/grading feature commented out
 
             # Update topic units_count in SQLite (cached count)
             if topic_id:
                 _increment_topic_units_count(db, topic_id)
 
-            # Build and insert UnitSolution (private data)
-            unit_solution = UnitSolution(
-                unit_id=unit_id,  # type: ignore
-                quiz_answers=solution_data.get("quiz_answers"),
-                quiz_explanations=solution_data.get("quiz_explanations"),
-                code_solution=solution_data.get("code_solution"),
-                validation_script=solution_data.get("validation_script"),
-            )
-            await unit_solution.insert()
+            # UnitSolution insert — commented out (quiz/grading feature disabled)
+            # unit_solution = UnitSolution(
+            #     unit_id=unit_id,  # type: ignore
+            #     quiz_answers=solution_data.get("quiz_answers"),
+            #     quiz_explanations=solution_data.get("quiz_explanations"),
+            #     code_solution=solution_data.get("code_solution"),
+            #     validation_script=solution_data.get("validation_script"),
+            # )
+            # await unit_solution.insert()
 
             # Update stats
             stats["created"] += 1
@@ -272,23 +275,24 @@ async def populate_database(topic_dir: str, *, skip_existing: bool = True, db: d
     }
 
 
-def _parse_quizzes(quizzes_data: list[dict[str, Any]] | None) -> list[Quiz] | None:
-    """Convert YAML quiz data to Quiz BaseModel objects."""
-    if not quizzes_data:
-        return None
-
-    quiz_list = []
-    for quiz_dict in quizzes_data:
-        quiz_id = quiz_dict.get("id", "")
-        question = quiz_dict.get("question", "")
-        options_data = quiz_dict.get("options", [])
-
-        # Parse options into QuizOption objects
-        quiz_options = [QuizOption(id=opt.get("id", ""), text=opt.get("text", "")) for opt in options_data]
-
-        quiz_list.append(Quiz(id=quiz_id, question=question, options=quiz_options))
-
-    return quiz_list
+# _parse_quizzes — commented out (quiz/grading feature disabled)
+# def _parse_quizzes(quizzes_data: list[dict[str, Any]] | None) -> list[Quiz] | None:
+#     """Convert YAML quiz data to Quiz BaseModel objects."""
+#     if not quizzes_data:
+#         return None
+#
+#     quiz_list = []
+#     for quiz_dict in quizzes_data:
+#         quiz_id = quiz_dict.get("id", "")
+#         question = quiz_dict.get("question", "")
+#         options_data = quiz_dict.get("options", [])
+#
+#         # Parse options into QuizOption objects
+#         quiz_options = [QuizOption(id=opt.get("id", ""), text=opt.get("text", "")) for opt in options_data]
+#
+#         quiz_list.append(Quiz(id=quiz_id, question=question, options=quiz_options))
+#
+#     return quiz_list
 
 
 def _parse_editor_config(config_data: dict[str, Any] | None) -> EditorConfig | None:
@@ -299,39 +303,23 @@ def _parse_editor_config(config_data: dict[str, Any] | None) -> EditorConfig | N
     return EditorConfig(initial_code=config_data.get("initial_code", ""), language=config_data.get("language", "yaml"))
 
 
-def _validate_quiz_integrity(quizzes_data: list[dict[str, Any]], quiz_answers: dict[str, str]) -> list[str]:
-    """Validate quiz answer keys match quiz/option IDs.
-
-    Args:
-        quizzes_data: List of quiz dictionaries from YAML
-        quiz_answers: Answer key mapping quiz_id -> option_id
-
-    Returns:
-        List of error messages (empty if valid)
-    """
-    errors = []
-
-    # Build mapping of quiz_id -> set of option_ids
-    quiz_map: dict[str, set] = {}
-    for quiz_dict in quizzes_data:
-        quiz_id = quiz_dict.get("id")
-        if not quiz_id:
-            errors.append("Quiz missing 'id' field")
-            continue
-
-        options = quiz_dict.get("options", [])
-        option_ids = {opt.get("id") for opt in options if opt.get("id")}
-        quiz_map[quiz_id] = option_ids
-
-    # Validate each answer
-    for quiz_id, answer_option_id in quiz_answers.items():
-        # Check if quiz ID exists
-        if quiz_id not in quiz_map:
-            errors.append(f"Answer key references non-existent quiz '{quiz_id}'")
-            continue
-
-        # Check if answer option ID exists in that quiz
-        if answer_option_id not in quiz_map[quiz_id]:
-            errors.append(f"Quiz '{quiz_id}' has invalid answer option '{answer_option_id}'")
-
-    return errors
+# _validate_quiz_integrity — commented out (quiz/grading feature disabled)
+# def _validate_quiz_integrity(quizzes_data: list[dict[str, Any]], quiz_answers: dict[str, str]) -> list[str]:
+#     """Validate quiz answer keys match quiz/option IDs."""
+#     errors = []
+#     quiz_map: dict[str, set] = {}
+#     for quiz_dict in quizzes_data:
+#         quiz_id = quiz_dict.get("id")
+#         if not quiz_id:
+#             errors.append("Quiz missing 'id' field")
+#             continue
+#         options = quiz_dict.get("options", [])
+#         option_ids = {opt.get("id") for opt in options if opt.get("id")}
+#         quiz_map[quiz_id] = option_ids
+#     for quiz_id, answer_option_id in quiz_answers.items():
+#         if quiz_id not in quiz_map:
+#             errors.append(f"Answer key references non-existent quiz '{quiz_id}'")
+#             continue
+#         if answer_option_id not in quiz_map[quiz_id]:
+#             errors.append(f"Quiz '{quiz_id}' has invalid answer option '{answer_option_id}'")
+#     return errors

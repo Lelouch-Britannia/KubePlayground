@@ -263,7 +263,7 @@ async def get_user_progress(
                 unit_slug=unit.slug,
                 status=prog.status,  # type: ignore
                 last_accessed=prog.completed_at,
-                quiz_score=float(prog.score) if prog.score else None,
+                # quiz_score=float(prog.score) if prog.score else None,  # quiz/grading feature commented out
                 attempts=1,
                 time_spent_seconds=0,
             )

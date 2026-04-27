@@ -4,8 +4,8 @@ from fastapi import APIRouter, HTTPException
 from models import LearningUnit
 from schema import (
     EditorConfigResponse,
-    QuizOptionResponse,
-    QuizResponse,
+    # QuizOptionResponse,  # quiz/grading feature commented out
+    # QuizResponse,  # quiz/grading feature commented out
     SyllabusItemResponse,
     SyllabusResponse,
     UnitDetailResponse,
