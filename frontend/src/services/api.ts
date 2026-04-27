@@ -259,63 +259,107 @@ class ApiClient {
     return this.request('/api/v1/progress/me');
   }
 
-  // ==================== Solutions API ====================
+  // ==================== Solutions API — commented out (quiz/grading feature disabled) ====================
 
-  async autosaveSolution(data: {
-    unit_slug: string;
-    code: string;
-    language?: string;
-  }) {
-    return this.request('/api/v1/solutions/autosave', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
+  // async autosaveSolution(data: {
+  //   unit_slug: string;
+  //   code: string;
+  //   language?: string;
+  // }) {
+  //   return this.request('/api/v1/solutions/autosave', {
+  //     method: 'POST',
+  //     body: JSON.stringify(data),
+  //   });
+  // }
+  //
+  // async getSolutionHistory(unitSlug: string) {
+  //   return this.request(`/api/v1/solutions/${unitSlug}/history`);
+  // }
+  //
+  // async getLatestSolution(unitSlug: string) {
+  //   return this.request(`/api/v1/solutions/${unitSlug}/latest`);
+  // }
+  //
+  // async restoreSolution(unitSlug: string, data: {
+  //   unit_slug: string;
+  //   version: number;
+  // }) {
+  //   return this.request(`/api/v1/solutions/${unitSlug}/restore`, {
+  //     method: 'POST',
+  //     body: JSON.stringify(data),
+  //   });
+  // }
 
-  async getSolutionHistory(unitSlug: string) {
-    return this.request(`/api/v1/solutions/${unitSlug}/history`);
-  }
+  // ==================== Grading API — commented out (quiz/grading feature disabled) ====================
 
-  async getLatestSolution(unitSlug: string) {
-    return this.request(`/api/v1/solutions/${unitSlug}/latest`);
-  }
-
-  async restoreSolution(unitSlug: string, data: {
-    unit_slug: string;
-    version: number;
-  }) {
-    return this.request(`/api/v1/solutions/${unitSlug}/restore`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  // ==================== Grading API ====================
-
-  async submitQuiz(data: {
-    unit_slug: string;
-    answers: Record<string, string>;
-  }) {
-    return this.request('/api/v1/grading/quiz/submit', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async getLastQuizSubmission(unitSlug: string) {
-    return this.request(`/api/v1/grading/quiz/${unitSlug}/last-submission`);
-  }
-
-  async verifyCode(data: {
-    unit_slug: string;
-    code: string;
-    language?: string;
-  }) {
-    return this.request('/api/v1/grading/code/verify', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
+  // async submitQuiz(data: {
+  //   unit_slug: string;
+  //   answers: Record<string, string>;
+  // }) {
+  //   return this.request('/api/v1/grading/quiz/submit', {
+  //     method: 'POST',
+  //     body: JSON.stringify(data),
+  //   });
+  // }
+  //
+  // async getLastQuizSubmission(unitSlug: string) {
+  //   return this.request(`/api/v1/grading/quiz/${unitSlug}/last-submission`);
+  // }
+  //
+  // async verifyCode(data: {
+  //   unit_slug: string;
+  //   code: string;
+  //   language?: string;
+  // }) {
+  //   return this.request('/api/v1/grading/code/verify', {
+  //     method: 'POST',
+  //     body: JSON.stringify(data),
+  //   });
+  // }
+  //
+  // async validateYAML(data: {
+  //   unit_slug: string;
+  //   code: string;
+  //   language?: string;
+  // }) {
+  //   return this.request('/api/v1/grading/code/validate', {
+  //     method: 'POST',
+  //     body: JSON.stringify(data),
+  //   });
+  // }
+  //
+  // /**
+  //  * Open a WebSocket to stream manifest execution.
+  //  */
+  // runManifestWS(
+  //   data: { unit_slug: string; code: string; language?: string },
+  //   callbacks: {
+  //     onMessage: (msg: import('../types/api').WSMessage) => void;
+  //     onClose?: () => void;
+  //     onError?: (err: Event) => void;
+  //   }
+  // ): { close: () => void } {
+  //   const token = getAccessToken();
+  //   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  //   const host = this.baseUrl
+  //     ? new URL(this.baseUrl).host
+  //     : window.location.host;
+  //   const wsUrl = `${protocol}//${host}/ws/grading/run?token=${encodeURIComponent(token || '')}`;
+  //   const ws = new WebSocket(wsUrl);
+  //   ws.onopen = () => { ws.send(JSON.stringify({ unit_slug: data.unit_slug, code: data.code, language: data.language || 'yaml' })); };
+  //   ws.onmessage = (event) => { try { const msg = JSON.parse(event.data); callbacks.onMessage(msg); } catch { console.error('Failed to parse WS message:', event.data); } };
+  //   ws.onclose = () => { callbacks.onClose?.(); };
+  //   ws.onerror = (err) => { callbacks.onError?.(err); };
+  //   return { close: () => ws.close() };
+  // }
+  //
+  // async validateOnly(data: { unit_slug: string; namespace: string; }) {
+  //   return this.request('/api/v1/grading/code/validate-only', { method: 'POST', body: JSON.stringify(data) });
+  // }
+  //
+  // async cleanupNamespace(namespace: string) {
+  //   return this.request('/api/v1/grading/code/cleanup', { method: 'POST', body: JSON.stringify({ namespace }) });
+  // }
 
   // ==================== Courses API ====================
 

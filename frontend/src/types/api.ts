@@ -1,15 +1,16 @@
 // Schema types matching backend Pydantic models
 
-export interface QuizOption {
-  id: string;
-  text: string;
-}
-
-export interface Quiz {
-  id: string;
-  question: string;
-  options: QuizOption[];
-}
+// quiz/grading feature commented out
+// export interface QuizOption {
+//   id: string;
+//   text: string;
+// }
+//
+// export interface Quiz {
+//   id: string;
+//   question: string;
+//   options: QuizOption[];
+// }
 
 export interface EditorConfig {
   initial_code: string;
@@ -24,6 +25,7 @@ export interface SyllabusItem {
   order_index: number;
   type: 'conceptual' | 'coding';
   difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  status?: 'not_started' | 'in_progress' | 'completed';
 }
 
 export interface SyllabusResponse {
@@ -41,7 +43,7 @@ export interface UnitDetail {
   description: string;
   steps?: string[];
   hints?: string[];
-  quizzes?: Quiz[];
+  // quizzes?: Quiz[];  // quiz/grading feature commented out
   editor_config?: EditorConfig;
 }
 
@@ -135,7 +137,7 @@ export interface UnitProgressItem {
   unit_slug: string;
   status: 'started' | 'completed';  // Matches backend UserProgress model
   last_accessed?: string;
-  quiz_score?: number;
+  // quiz_score?: number;  // quiz/grading feature commented out
   attempts: number;
   time_spent_seconds: number;
 }
@@ -148,62 +150,164 @@ export interface UserProgressResponse {
   overall_completion_percentage: number;
 }
 
-// Solutions API Types
-export interface AutosaveRequest {
-  unit_slug: string;
-  code: string;
-  language?: string;
-}
+// Solutions API Types — commented out (quiz/grading feature disabled)
+// export interface AutosaveRequest {
+//   unit_slug: string;
+//   code: string;
+//   language?: string;
+// }
+//
+// export interface AutosaveResponse {
+//   saved_at: string;
+//   version: number;
+//   message: string;
+// }
+//
+// export interface SolutionHistoryItem {
+//   version: number;
+//   saved_at: string;
+//   code_preview: string;
+//   content: string;
+// }
+//
+// export interface SolutionHistoryResponse {
+//   unit_slug: string;
+//   saves: SolutionHistoryItem[];
+//   total_saves: number;
+// }
+//
+// export interface RestoreSolutionResponse {
+//   code: string;
+//   language: string;
+//   saved_at: string;
+//   version: number;
+// }
 
-export interface AutosaveResponse {
-  saved_at: string;
-  version: number;
-  message: string;
-}
+// Grading API Types — commented out (quiz/grading feature disabled)
+// export interface QuizSubmissionRequest {
+//   unit_slug: string;
+//   answers: Record<string, string>;
+// }
+//
+// export interface QuizResultItem {
+//   quiz_id: string;
+//   is_correct: boolean;
+//   selected_answer: string;
+//   correct_answer: string;
+//   explanation?: string;
+// }
+//
+// export interface QuizSubmissionResponse {
+//   total_questions: number;
+//   correct_answers: number;
+//   score_percentage: number;
+//   results: QuizResultItem[];
+//   passed: boolean;
+// }
+//
+// export interface CodeVerificationResponse {
+//   is_valid: boolean;
+//   message: string;
+//   errors?: string[];
+// }
 
-export interface SolutionHistoryItem {
-  version: number;
-  saved_at: string;
-  code_preview: string;
-}
-
-export interface SolutionHistoryResponse {
-  unit_slug: string;
-  saves: SolutionHistoryItem[];
-  total_saves: number;
-}
-
-export interface RestoreSolutionResponse {
-  code: string;
-  language: string;
-  saved_at: string;
-  version: number;
-}
-
-// Grading API Types
-export interface QuizSubmissionRequest {
-  unit_slug: string;
-  answers: Record<string, string>;
-}
-
-export interface QuizResultItem {
-  quiz_id: string;
-  is_correct: boolean;
-  selected_answer: string;
-  correct_answer: string;
-  explanation?: string;
-}
-
-export interface QuizSubmissionResponse {
-  total_questions: number;
-  correct_answers: number;
-  score_percentage: number;
-  results: QuizResultItem[];
+// Validation Service Types — kept for Console.tsx component typing (API methods are commented out)
+export interface ValidationTestResult {
+  name: string;
   passed: boolean;
+  output: string;
+  error_output?: string;
+  duration_ms: number;
 }
 
-export interface CodeVerificationResponse {
-  is_valid: boolean;
+export interface ValidationResourceInfo {
+  kind: string;
+  name: string;
+  namespace: string;
+  status: string;
+  ready: boolean;
+  message?: string;
+  age?: string;
+}
+
+export interface PodLogEntry {
+  pod_name: string;
+  container_name: string;
+  logs: string;
+  phase: string;
+  ready: boolean;
+}
+
+export interface KubeEvent {
+  type: string;
+  reason: string;
   message: string;
-  errors?: string[];
+  object: string;
+  age: string;
+  count: number;
+}
+
+export interface ExecutionPhase {
+  name: string;
+  status: string;
+  duration_ms: number;
+  output?: string;
+  error?: string;
+}
+
+export interface ValidationError {
+  type?: string;
+  code?: string;
+  message: string;
+  details?: string;
+}
+
+export interface ValidationResponse {
+  request_id: string;
+  is_valid: boolean;
+  passed: boolean;
+  message: string;
+  apply_output?: string;
+  resource_status?: ValidationResourceInfo[];
+  pod_logs?: PodLogEntry[];
+  events?: KubeEvent[];
+  test_results?: ValidationTestResult[];
+  validation_error?: ValidationError;
+  duration_ms: number;
+  namespace?: string;
+  phases?: ExecutionPhase[];
+}
+
+// --- WebSocket / Split API types ---
+
+export interface WSMessage {
+  type: 'phase_start' | 'phase_complete' | 'phase_progress' | 'run_complete' | 'error';
+  phase?: string;
+  status?: string;
+  message?: string;
+  data?: Record<string, unknown>;
+}
+
+export interface RunCompleteData {
+  namespace: string;
+  apply_output?: string;
+  resource_status?: ValidationResourceInfo[];
+  pod_logs?: PodLogEntry[];
+  events?: KubeEvent[];
+  phases?: ExecutionPhase[];
+  duration_ms: number;
+}
+
+export interface ValidateOnlyRequest {
+  unit_slug: string;
+  namespace: string;
+}
+
+export interface ValidateOnlyResponse {
+  request_id: string;
+  namespace: string;
+  passed: boolean;
+  message: string;
+  test_results?: ValidationTestResult[];
+  duration_ms: number;
 }
