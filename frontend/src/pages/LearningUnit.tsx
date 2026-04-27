@@ -594,25 +594,17 @@ export default function LearningUnit() {
       </header>
 
       {/* Secondary Navigation Banner */}
-      <div className="h-12 bg-dark-surface border-b border-dark-border flex items-center justify-between px-5 shrink-0">
-        {/* Left: Topic + Unit dropdowns + Difficulty badge inline */}
-        <div className="flex items-center gap-3">
+      <div className="h-12 bg-dark-surface border-b border-dark-border flex items-center px-5 shrink-0">
+        {/* Left spacer - balances the right nav arrows */}
+        <div className="min-w-[120px]" />
+
+        {/* Center: Topic + Unit dropdowns */}
+        <div className="flex-1 flex items-center justify-center">
           <UnitNavigation currentUnitSlug={unit.slug} currentTopic={unit.topic} />
-          {unit.difficulty && (
-            <span className={`px-2.5 py-1 text-xs font-bold uppercase tracking-wide rounded border ${
-              unit.difficulty === 'beginner'
-                ? 'border-dark-accent-green/40 text-dark-accent-green bg-dark-accent-green/10'
-                : unit.difficulty === 'intermediate'
-                ? 'border-dark-accent-yellow/40 text-dark-accent-yellow bg-dark-accent-yellow/10'
-                : 'border-red-400/40 text-red-400 bg-red-400/10'
-            }`}>
-              {unit.difficulty}
-            </span>
-          )}
         </div>
 
         {/* Right: Prev / progress counter / Next — consistent style */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 min-w-[120px] justify-end">
           <button
             onClick={() => navigateToUnit('prev')}
             disabled={!hasPrev || isNavigating}
@@ -641,19 +633,33 @@ export default function LearningUnit() {
           className={`${rightPanelOpen ? 'min-w-[350px]' : 'flex-1'} flex flex-col bg-dark-surface border border-dark-border rounded-lg overflow-hidden transition-opacity duration-200 ${isNavigating ? 'opacity-50' : 'opacity-100'}`}
         >
           {/* Tabs */}
-          <div className="h-12 bg-dark-surface border-b border-dark-border flex items-center px-4 shrink-0">
-            <button
-              onClick={() => setActiveTab('question')}
-              className={`px-4 py-2 text-sm font-medium transition-colors ${
-                activeTab === 'question'
-                  ? 'text-dark-text-primary border-b-2 border-dark-accent-purple'
-                  : 'text-dark-text-secondary hover:text-dark-text-primary'
-              }`}
-            >
-              <BookOpen className="inline-block w-4 h-4 mr-1.5" />
-              Question
-            </button>
-            {/* Solution and Submissions tabs removed — quiz/grading feature commented out */}
+          <div className="h-12 bg-dark-surface border-b border-dark-border flex items-center justify-between px-4 shrink-0">
+            <div className="flex items-center">
+              <button
+                onClick={() => setActiveTab('question')}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                  activeTab === 'question'
+                    ? 'text-dark-text-primary border-b-2 border-dark-accent-purple'
+                    : 'text-dark-text-secondary hover:text-dark-text-primary'
+                }`}
+              >
+                <BookOpen className="inline-block w-4 h-4 mr-1.5" />
+                Concept
+              </button>
+              {/* Solution and Submissions tabs removed — quiz/grading feature commented out */}
+            </div>
+            {/* Difficulty badge — inline with the tab bar */}
+            {unit.difficulty && (
+              <span className={`px-2.5 py-1 text-xs font-bold uppercase tracking-wide rounded border ${
+                unit.difficulty === 'beginner'
+                  ? 'border-dark-accent-green/40 text-dark-accent-green bg-dark-accent-green/10'
+                  : unit.difficulty === 'intermediate'
+                  ? 'border-dark-accent-yellow/40 text-dark-accent-yellow bg-dark-accent-yellow/10'
+                  : 'border-red-400/40 text-red-400 bg-red-400/10'
+              }`}>
+                {unit.difficulty}
+              </span>
+            )}
           </div>
 
           {/* Tab Content */}
