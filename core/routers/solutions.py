@@ -32,7 +32,7 @@ current_user_dependency = Annotated[User, Depends(get_current_user)]
 @router.post("/autosave")
 @limiter.limit("60/minute")  # Allow frequent autosaves but prevent abuse
 async def autosave_solution(
-    request: Request,
+    request: Request,  # noqa: ARG001
     autosave_req: AutosaveRequest,
     current_user: current_user_dependency,
 ) -> AutosaveResponse:
@@ -123,7 +123,10 @@ async def get_solution_history(
     # Build history items with previews (return empty list if no saves)
     history_items = [
         SolutionHistoryItem(
-            version=save.version, saved_at=save.auto_saved_at, code_preview=save.content[:100] if save.content else ""
+            version=save.version,
+            saved_at=save.auto_saved_at,
+            code_preview=save.content[:100] if save.content else "",
+            content=save.content or "",
         )
         for save in saves
     ]
