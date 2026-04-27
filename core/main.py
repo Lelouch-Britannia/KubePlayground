@@ -13,6 +13,7 @@ from routers import (
     grading,
     progress,
     seed,
+    submissions,
 )  # solutions removed (quiz/grading feature commented out)
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -162,6 +163,7 @@ app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(content.router, prefix="/api/v1")
 # app.include_router(solutions.router, prefix="/api/v1")  # quiz/grading feature commented out
 app.include_router(grading.router, prefix="/api/v1")
+app.include_router(submissions.router, prefix="/api/v1")
 app.include_router(progress.router, prefix="/api/v1")
 
 # WebSocket route for manifest execution (used by Run button in coding exercises)

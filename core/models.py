@@ -85,24 +85,24 @@ class UnitSolution(Document):
         ]
 
 
-#
-#
-# class UserSolution(Document):
-#     """User submissions with versioning and auto-save support."""
-#
-#     user_id: int  # Foreign key to SQLite User.id (integer auto-increment)
-#     unit_id: PydanticObjectId  # Foreign key to LearningUnit
-#     content: str  # User's code OR quiz selections (JSON string)
-#     version: int = Field(default=1)  # Auto-increment for version history
-#     auto_saved_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
-#
-#     class Settings:
-#         """Beanie collection settings."""
-#
-#         name = "user_solutions"
-#         indexes = [
-#             IndexModel([("user_id", ASCENDING), ("unit_id", ASCENDING), ("version", ASCENDING)]),
-#         ]
+class UserSubmission(Document):
+    """Record of each code validation attempt by a user."""
+
+    user_id: int  # FK to SQLite User.id
+    unit_id: PydanticObjectId  # FK to LearningUnit
+    unit_slug: str  # Denormalised for fast lookup without join
+    code: str
+    language: str = "yaml"
+    status: Literal["passed", "failed", "error"]
+    submitted_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
+
+    class Settings:
+        """Beanie collection settings."""
+
+        name = "user_submissions"
+        indexes = [
+            IndexModel([("user_id", ASCENDING), ("unit_slug", ASCENDING), ("submitted_at", ASCENDING)]),
+        ]
 
 
 class UserProgress(Document):

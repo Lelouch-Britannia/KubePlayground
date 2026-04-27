@@ -196,6 +196,8 @@ class ValidationResponse(BaseModel):
 class ValidateOnlyRequest(BaseModel):
     unit_slug: str
     namespace: str
+    code: str = ""  # Submitted code — stored in submission history
+    language: str = "yaml"
 
 
 class ValidateOnlyResponse(BaseModel):
@@ -389,3 +391,27 @@ class TopicUnitsResponse(BaseModel):
     topic_name: str
     topic_slug: str
     units: list[LearningUnitSummary]
+
+
+# ============================================================================
+# Submissions API Schemas
+# ============================================================================
+
+
+class SubmissionResponse(BaseModel):
+    """A single code submission record."""
+
+    id: str
+    unit_slug: str
+    language: str
+    status: Literal["passed", "failed", "error"]
+    submitted_at: datetime
+    code_preview: str  # First 120 chars of submitted code
+
+
+class SubmissionListResponse(BaseModel):
+    """Paginated list of submissions for a unit."""
+
+    unit_slug: str
+    submissions: list[SubmissionResponse]
+    total: int

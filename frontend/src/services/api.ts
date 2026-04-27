@@ -289,12 +289,18 @@ class ApiClient {
     return { close: () => ws.close() };
   }
 
-  async validateOnly(data: { unit_slug: string; namespace: string; }) {
+  async validateOnly(data: { unit_slug: string; namespace: string; code?: string; language?: string }) {
     return this.request('/api/v1/grading/code/validate-only', { method: 'POST', body: JSON.stringify(data) });
   }
 
   async cleanupNamespace(namespace: string) {
     return this.request('/api/v1/grading/code/cleanup', { method: 'POST', body: JSON.stringify({ namespace }) });
+  }
+
+  // ==================== Submissions API ====================
+
+  async getSubmissions(unitSlug: string) {
+    return this.request(`/api/v1/submissions/${unitSlug}`);
   }
 
   // ==================== Courses API ====================

@@ -301,6 +301,8 @@ export interface RunCompleteData {
 export interface ValidateOnlyRequest {
   unit_slug: string;
   namespace: string;
+  code?: string;
+  language?: string;
 }
 
 export interface ValidateOnlyResponse {
@@ -310,4 +312,20 @@ export interface ValidateOnlyResponse {
   message: string;
   test_results?: ValidationTestResult[];
   duration_ms: number;
+}
+
+// Submissions API Types
+export interface UserSubmission {
+  id: string;
+  unit_slug: string;
+  language: string;
+  status: 'passed' | 'failed' | 'error';
+  submitted_at: string;
+  code_preview: string;
+}
+
+export interface SubmissionListResponse {
+  unit_slug: string;
+  submissions: UserSubmission[];
+  total: number;
 }

@@ -11,7 +11,7 @@ from auth.dependencies import get_current_user  # db_dependency removed (quiz/gr
 from auth.models import User  # ActivityLog, UserActivity removed (quiz/grading feature commented out)
 from auth.security import decode_token
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
-from models import LearningUnit, UnitSolution, UserProgress
+from models import LearningUnit, UnitSolution, UserProgress, UserSubmission
 from schema import (
     CleanupRequest,
     CodeVerificationRequest,
@@ -377,6 +377,15 @@ async def validate_only(
             if result.get("passed"):
                 await _update_progress_on_pass(request.unit_slug, current_user)
 
+            # Record submission regardless of pass/fail
+            await _record_submission(
+                unit=unit,
+                user_id=current_user.id,
+                code=request.code,
+                language=request.language,
+                passed=result.get("passed", False),
+            )
+
             return ValidateOnlyResponse(**result)
 
     except httpx.TimeoutException:
@@ -451,3 +460,20 @@ async def _update_progress_on_pass(unit_slug: str, current_user):
         logger.info("Progress updated for user %s, unit %s", current_user.id, unit_slug)
     except Exception:
         logger.exception("Failed to update progress")
+
+
+async def _record_submission(*, unit, user_id: int, code: str, language: str, passed: bool) -> None:
+    """Persist a UserSubmission record after each validation attempt."""
+    try:
+        sub = UserSubmission(
+            user_id=user_id,
+            unit_id=unit.id,
+            unit_slug=unit.slug,
+            code=code,
+            language=language,
+            status="passed" if passed else "failed",
+        )
+        await sub.insert()
+        logger.info("Submission recorded - user_id: %s, unit: %s, status: %s", user_id, unit.slug, sub.status)
+    except Exception:
+        logger.exception("Failed to record submission")

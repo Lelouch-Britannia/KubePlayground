@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, RotateCcw, ChevronDown, BookOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCcw, ChevronDown, BookOpen, History } from 'lucide-react';
 import { apiClient } from '../services/api';
-import type { UnitDetail, SyllabusItem, ValidationResponse, WSMessage, RunCompleteData, ValidateOnlyResponse } from '../types/api';
+import type { UnitDetail, SyllabusItem, ValidationResponse, WSMessage, RunCompleteData, ValidateOnlyResponse, UserSubmission } from '../types/api';
 import MarkdownRenderer from '../components/shared/MarkdownRenderer';
 import Toast from '../components/shared/Toast';
 import Confetti from '../components/shared/Confetti';
@@ -34,7 +34,9 @@ export default function LearningUnit() {
     total?: number;
   } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [activeTab, setActiveTab] = useState<'question'>('question'); // quiz/grading feature commented out (was: 'question' | 'solution' | 'submissions')
+  const [activeTab, setActiveTab] = useState<'question' | 'submissions'>('question');
+  const [submissions, setSubmissions] = useState<UserSubmission[]>([]);
+  const [submissionsLoading, setSubmissionsLoading] = useState(false);
   const [hintsExpanded, setHintsExpanded] = useState(false);
   const [consoleExpanded, setConsoleExpanded] = useState(false);
   const [consoleHeight, setConsoleHeight] = useState(250);
@@ -123,6 +125,8 @@ export default function LearningUnit() {
       setRunData(null);
       setConsoleExpanded(false);
       setValidating(false);
+      setActiveTab('question');
+      setSubmissions([]);
 
       // Only show full loading on initial load, use subtle indicator for navigation
       if (!unit) {
@@ -252,6 +256,19 @@ export default function LearningUnit() {
   };
 
   // quiz/grading feature commented out
+
+  const fetchSubmissions = async () => {
+    if (!unit) return;
+    try {
+      setSubmissionsLoading(true);
+      const data = await apiClient.getSubmissions(unit.slug) as { submissions: UserSubmission[] };
+      setSubmissions(data.submissions || []);
+    } catch (err) {
+      console.error('Failed to fetch submissions:', err);
+    } finally {
+      setSubmissionsLoading(false);
+    }
+  };
 
   const navigateToUnit = (direction: 'prev' | 'next') => {
     if (currentIndex === -1) return;
@@ -386,7 +403,7 @@ export default function LearningUnit() {
       setValidating(true);
       setConsoleExpanded(true);
 
-      const result = await apiClient.validateOnly({ unit_slug: unit.slug, namespace: runNamespace }) as ValidateOnlyResponse;
+      const result = await apiClient.validateOnly({ unit_slug: unit.slug, namespace: runNamespace, code, language: unit.editor_config?.language || 'yaml' }) as ValidateOnlyResponse;
 
       const fullResponse: ValidationResponse = {
         request_id: result.request_id,
@@ -579,7 +596,19 @@ export default function LearningUnit() {
                 <BookOpen className="inline-block w-4 h-4 mr-1.5" />
                 Concept
               </button>
-              {/* Solution and Submissions tabs removed — quiz/grading feature commented out */}
+              {unit.type === 'coding' && (
+                <button
+                  onClick={() => { setActiveTab('submissions'); fetchSubmissions(); }}
+                  className={`px-4 py-2 text-sm font-medium transition-colors ${
+                    activeTab === 'submissions'
+                      ? 'text-dark-text-primary border-b-2 border-dark-accent-purple'
+                      : 'text-dark-text-secondary hover:text-dark-text-primary'
+                  }`}
+                >
+                  <History className="inline-block w-4 h-4 mr-1.5" />
+                  Submissions
+                </button>
+              )}
             </div>
             {/* Difficulty badge — inline with the tab bar */}
             {unit.difficulty && (
@@ -653,66 +682,64 @@ export default function LearningUnit() {
             )}
 
             {/* quiz/grading feature commented out */}
-            {/* {activeTab === 'solution' && (
-              <div className="text-center py-12">
-                <p className="text-[#9d9d9d] text-base">Solutions will be available after completing the exercise.</p>
-              </div>
-            )} */}
+            {/* {activeTab === 'solution' && (...)} */}
 
-            {/* quiz/grading feature commented out */}
-            {/* {activeTab === 'submissions' && (
+            {activeTab === 'submissions' && (
               <div>
-                {loadingSolution ? (
-                  <div className="text-center py-12">
-                    <p className="text-[#9d9d9d] text-base">Loading submissions...</p>
+                {submissionsLoading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <div className="w-6 h-6 border-2 border-dark-accent-purple border-t-transparent rounded-full animate-spin" />
+                    <span className="ml-3 text-dark-text-secondary text-sm">Loading submissions…</span>
                   </div>
-                ) : solutionHistory.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-dark-text-secondary text-base">No submissions yet. Submit your solution to see it here.</p>
+                ) : submissions.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 gap-3 text-dark-text-secondary">
+                    <History size={32} className="opacity-30" />
+                    <p className="text-sm font-medium">No submissions yet</p>
+                    <p className="text-xs opacity-60 text-center max-w-[220px]">Run and validate your manifest to record a submission</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-dark-accent-purple">Your Submissions</h3>
-                      <span className="text-sm text-dark-text-muted">{solutionHistory.length} version{solutionHistory.length !== 1 ? 's' : ''}</span>
+                      <h3 className="text-sm font-semibold text-dark-text-secondary uppercase tracking-wide">
+                        Your Submissions
+                      </h3>
+                      <span className="text-xs text-dark-text-muted">{submissions.length} total</span>
                     </div>
-                    {solutionHistory.map((version, idx) => (
-                      <div key={version.version} className="bg-dark-elevated border border-dark-border rounded-lg overflow-hidden">
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-dark-border">
-                          <div className="flex items-center gap-3">
-                            <span className="text-dark-accent-blue font-semibold text-sm">Version {version.version}</span>
+                    {submissions.map((sub, idx) => (
+                      <div key={sub.id} className="bg-dark-elevated border border-dark-border rounded-lg overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                              sub.status === 'passed' ? 'bg-dark-accent-green' : sub.status === 'failed' ? 'bg-red-400' : 'bg-yellow-400'
+                            }`} />
+                            <span className={`text-xs font-semibold uppercase tracking-wide ${
+                              sub.status === 'passed' ? 'text-dark-accent-green' : sub.status === 'failed' ? 'text-red-400' : 'text-yellow-400'
+                            }`}>
+                              {sub.status}
+                            </span>
                             {idx === 0 && (
-                              <span className="px-2 py-0.5 bg-dark-accent-green text-dark-bg text-xs font-medium rounded">
+                              <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-dark-accent-purple/20 text-dark-accent-purple border border-dark-accent-purple/30">
                                 Latest
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-dark-text-muted text-xs">
-                              {new Date(version.saved_at).toLocaleString()}
-                            </span>
-                            <button
-                              onClick={() => {
-                                setCode(version.content || version.code_preview);
-                                setActiveTab('question');
-                              }}
-                              className="px-3 py-1 text-xs font-medium rounded border border-dark-accent-blue/40 text-dark-accent-blue hover:bg-dark-accent-blue/10 transition-colors"
-                            >
-                              Load in Editor
-                            </button>
+                          <span className="text-xs text-dark-text-muted">
+                            {new Date(sub.submitted_at).toLocaleString()}
+                          </span>
+                        </div>
+                        {sub.code_preview && (
+                          <div className="border-t border-dark-border bg-dark-bg px-4 py-3">
+                            <pre className="text-xs font-mono text-dark-text-secondary leading-relaxed whitespace-pre-wrap line-clamp-3 overflow-hidden">
+                              {sub.code_preview}{sub.code_preview.length >= 120 ? '…' : ''}
+                            </pre>
                           </div>
-                        </div>
-                        <div className="bg-dark-bg p-4 overflow-x-auto max-h-[300px] overflow-y-auto vscode-scrollbar">
-                          <pre className="text-dark-text-primary font-mono text-sm leading-relaxed whitespace-pre">
-{version.content || version.code_preview || 'No code available'}
-                          </pre>
-                        </div>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-            )} */}
+            )}
           </div>
         </div>
 
