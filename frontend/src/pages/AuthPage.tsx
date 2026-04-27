@@ -133,9 +133,11 @@ export default function AuthPage() {
 
               {/* Feature Pills */}
               <div className="flex flex-wrap gap-2">
+                {/* quiz/grading feature commented out
                 <span className="px-3 py-1 bg-white/20 backdrop-blur rounded-full text-white text-sm">
                   🎯 Interactive Quizzes
                 </span>
+                */}
                 <span className="px-3 py-1 bg-white/20 backdrop-blur rounded-full text-white text-sm">
                   💻 Live Code Editor
                 </span>

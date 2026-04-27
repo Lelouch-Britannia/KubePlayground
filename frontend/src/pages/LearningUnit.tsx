@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, RotateCcw, ChevronDown, BookOpen, FileText, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCcw, ChevronDown, BookOpen /*, FileText, Clock*/ } from 'lucide-react'; // quiz/grading feature commented out
 import { apiClient } from '../services/api';
-import type { UnitDetail, SyllabusItem } from '../types/api';
+import type { UnitDetail, SyllabusItem /*, ValidationResponse, WSMessage, RunCompleteData, ValidateOnlyResponse*/ } from '../types/api'; // quiz/grading feature commented out
 import MarkdownRenderer from '../components/shared/MarkdownRenderer';
 import Toast from '../components/shared/Toast';
 import Confetti from '../components/shared/Confetti';
 import CodeEditor from '../components/RightPanel/CodeEditor';
+// import Console from '../components/RightPanel/Console'; // quiz/grading feature commented out
 import UserMenu from '../components/shared/UserMenu';
 import UnitNavigation from '../components/shared/UnitNavigation';
 import { useAuth } from '../contexts/AuthContext';
@@ -22,7 +23,7 @@ export default function LearningUnit() {
   const [isNavigating, setIsNavigating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [code, setCode] = useState('');
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
+  // const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({}); // quiz/grading feature commented out
   const [leftWidth, setLeftWidth] = useState(50);
   const [toast, setToast] = useState<{
     show: boolean;
@@ -31,17 +32,28 @@ export default function LearningUnit() {
     score?: number;
     total?: number;
   } | null>(null);
-  const [showConfetti, setShowConfetti] = useState(false);
-  const [activeTab, setActiveTab] = useState<'question' | 'solution' | 'submissions'>('question');
+  const [showConfetti, _setShowConfetti] = useState(false); // quiz/grading feature commented out (_setShowConfetti unused since grading handlers removed)
+  const [activeTab, setActiveTab] = useState<'question'>('question'); // quiz/grading feature commented out (was: 'question' | 'solution' | 'submissions')
   const [hintsExpanded, setHintsExpanded] = useState(false);
-  const [consoleExpanded, setConsoleExpanded] = useState(false);
-  const [solutionHistory, setSolutionHistory] = useState<any[]>([]);
-  const [loadingSolution, setLoadingSolution] = useState(false);
-  const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-  const [lastSavedCode, setLastSavedCode] = useState('');
+  // const [consoleExpanded, setConsoleExpanded] = useState(false); // quiz/grading feature commented out
+  // const [consoleHeight, setConsoleHeight] = useState(250); // quiz/grading feature commented out
+  // const consoleResizing = useRef(false); // quiz/grading feature commented out
+  // const rightPanelRef = useRef<HTMLDivElement>(null); // quiz/grading feature commented out
+  // const [solutionHistory, setSolutionHistory] = useState<any[]>([]); // quiz/grading feature commented out
+  // const [loadingSolution, setLoadingSolution] = useState(false); // quiz/grading feature commented out
+  // const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle'); // quiz/grading feature commented out
+  // const [lastSavedCode, setLastSavedCode] = useState(''); // quiz/grading feature commented out
   const [isCompleted, setIsCompleted] = useState(false);
-  const [completedScore, setCompletedScore] = useState<number | null>(null);
-  const [quizResults, setQuizResults] = useState<Record<string, { is_correct: boolean }>>({});
+  const [_completedScore, setCompletedScore] = useState<number | null>(null); // quiz/grading feature commented out (_completedScore unused since quiz panel removed)
+  // const [quizResults, setQuizResults] = useState<Record<string, { is_correct: boolean }>>( {}); // quiz/grading feature commented out
+  // const [validating, setValidating] = useState(false); // quiz/grading feature commented out
+  // const [validationResponse, setValidationResponse] = useState<ValidationResponse | null>(null); // quiz/grading feature commented out
+  // const [running, setRunning] = useState(false); // quiz/grading feature commented out
+  // const [runNamespace, setRunNamespace] = useState<string | null>(null); // quiz/grading feature commented out
+  // const [runComplete, setRunComplete] = useState(false); // quiz/grading feature commented out
+  // const [wsMessages, setWsMessages] = useState<WSMessage[]>([]); // quiz/grading feature commented out
+  // const [runData, setRunData] = useState<RunCompleteData | null>(null); // quiz/grading feature commented out
+  // const wsRef = useRef<{ close: () => void } | null>(null); // quiz/grading feature commented out
 
   useEffect(() => {
     fetchSyllabus();
@@ -55,29 +67,30 @@ export default function LearningUnit() {
     }
   }, [slug, allUnits]);
 
-  // Autosave code changes (debounced)
-  useEffect(() => {
-    if (!unit || unit.type !== 'coding' || !code || code === lastSavedCode) return;
-
-    const timer = setTimeout(async () => {
-      try {
-        setAutosaveStatus('saving');
-        await apiClient.autosaveSolution({
-          unit_slug: unit.slug,
-          code,
-          language: unit.editor_config?.language || 'yaml',
-        });
-        setLastSavedCode(code);
-        setAutosaveStatus('saved');
-        setTimeout(() => setAutosaveStatus('idle'), 2000);
-      } catch (err) {
-        console.error('Autosave failed:', err);
-        setAutosaveStatus('idle');
-      }
-    }, 2000); // 2 second debounce
-
-    return () => clearTimeout(timer);
-  }, [code, unit, lastSavedCode]);
+  // quiz/grading feature commented out
+  // // Autosave code changes (debounced)
+  // useEffect(() => {
+  //   if (!unit || unit.type !== 'coding' || !code || code === lastSavedCode) return;
+  //
+  //   const timer = setTimeout(async () => {
+  //     try {
+  //       setAutosaveStatus('saving');
+  //       await apiClient.autosaveSolution({
+  //         unit_slug: unit.slug,
+  //         code,
+  //         language: unit.editor_config?.language || 'yaml',
+  //       });
+  //       setLastSavedCode(code);
+  //       setAutosaveStatus('saved');
+  //       setTimeout(() => setAutosaveStatus('idle'), 2000);
+  //     } catch (err) {
+  //       console.error('Autosave failed:', err);
+  //       setAutosaveStatus('idle');
+  //     }
+  //   }, 2000); // 2 second debounce
+  //
+  //   return () => clearTimeout(timer);
+  // }, [code, unit, lastSavedCode]);
 
   const fetchSyllabus = async () => {
     try {
@@ -93,8 +106,23 @@ export default function LearningUnit() {
       // Reset completion state for new unit
       setIsCompleted(false);
       setCompletedScore(null);
-      setQuizResults({});
-      setSelectedAnswers({}); // Reset selected answers when navigating to new unit
+      // setQuizResults({}); // quiz/grading feature commented out
+      // setSelectedAnswers({}); // Reset selected answers when navigating to new unit // quiz/grading feature commented out
+
+      // quiz/grading feature commented out
+      // // Reset console state for new unit
+      // if (wsRef.current) {
+      //   wsRef.current.close();
+      //   wsRef.current = null;
+      // }
+      // setWsMessages([]);
+      // setValidationResponse(null);
+      // setRunning(false);
+      // setRunComplete(false);
+      // setRunNamespace(null);
+      // setRunData(null);
+      // setConsoleExpanded(false);
+      // setValidating(false);
 
       // Only show full loading on initial load, use subtle indicator for navigation
       if (!unit) {
@@ -108,20 +136,19 @@ export default function LearningUnit() {
 
       // Load previous solution for coding exercises
       if (data.editor_config) {
-        try {
-          const solution = await apiClient.getLatestSolution(unitSlug) as any;
-          if (solution?.content) {
-            setCode(solution.content);
-            setLastSavedCode(solution.content);
-          } else {
-            setCode(data.editor_config.initial_code);
-            setLastSavedCode('');
-          }
-        } catch {
-          // No previous solution, use template
-          setCode(data.editor_config.initial_code);
-          setLastSavedCode('');
-        }
+        // Load previous solution — commented out (solutions feature disabled)
+        // try {
+        //   const solution = await apiClient.getLatestSolution(unitSlug) as any;
+        //   if (solution?.content) {
+        //     setCode(solution.content);
+        //   } else {
+        //     setCode(data.editor_config.initial_code);
+        //   }
+        // } catch {
+        //   // No previous solution, use template
+        //   setCode(data.editor_config.initial_code);
+        // }
+        setCode(data.editor_config.initial_code);
       }
 
       // Check if unit was already completed
@@ -132,31 +159,32 @@ export default function LearningUnit() {
         if (unitProgress?.status === 'completed') {
           alreadyCompleted = true;
           setIsCompleted(true);
-          setCompletedScore(unitProgress.quiz_score || null);
+          setCompletedScore(null); // quiz/grading feature commented out (was: unitProgress.quiz_score || null)
 
-          // For conceptual/quiz units, load previous answers and results
-          if (data.type === 'conceptual' && data.quizzes) {
-            try {
-              const lastSubmission = await apiClient.getLastQuizSubmission(unitSlug) as any;
-              console.log('Last quiz submission loaded:', lastSubmission);
-              if (lastSubmission?.answers && lastSubmission?.results) {
-                console.log('User answers:', lastSubmission.answers);
-                console.log('Quiz results:', lastSubmission.results);
-                setSelectedAnswers(lastSubmission.answers);
-
-                // Build results map for highlighting (only correctness, no correct answer)
-                const resultsMap: Record<string, { is_correct: boolean }> = {};
-                lastSubmission.results.forEach((r: any) => {
-                  resultsMap[r.quiz_id] = {
-                    is_correct: r.is_correct,
-                  };
-                });
-                setQuizResults(resultsMap);
-              }
-            } catch (err) {
-              console.error('Failed to load quiz results:', err);
-            }
-          }
+          // quiz/grading feature commented out
+          // // For conceptual/quiz units, load previous answers and results
+          // if (data.type === 'conceptual' && data.quizzes) {
+          //   try {
+          //     const lastSubmission = await apiClient.getLastQuizSubmission(unitSlug) as any;
+          //     console.log('Last quiz submission loaded:', lastSubmission);
+          //     if (lastSubmission?.answers && lastSubmission?.results) {
+          //       console.log('User answers:', lastSubmission.answers);
+          //       console.log('Quiz results:', lastSubmission.results);
+          //       setSelectedAnswers(lastSubmission.answers);
+          //
+          //       // Build results map for highlighting (only correctness, no correct answer)
+          //       const resultsMap: Record<string, { is_correct: boolean }> = {};
+          //       lastSubmission.results.forEach((r: any) => {
+          //         resultsMap[r.quiz_id] = {
+          //           is_correct: r.is_correct,
+          //         };
+          //       });
+          //       setQuizResults(resultsMap);
+          //     }
+          //   } catch (err) {
+          //     console.error('Failed to load quiz results:', err);
+          //   }
+          // }
         }
       } catch (err) {
         console.error('Failed to load progress:', err);
@@ -190,6 +218,38 @@ export default function LearningUnit() {
     if (newWidth > 25 && newWidth < 75) setLeftWidth(newWidth);
   };
 
+  // quiz/grading feature commented out
+  // // Console vertical resize: drag the handle to adjust console height
+  // const startConsoleResize = (e: React.MouseEvent) => {
+  //   e.preventDefault();
+  //   consoleResizing.current = true;
+  //   const startY = e.clientY;
+  //   const startHeight = consoleHeight;
+  //
+  //   const onMove = (ev: MouseEvent) => {
+  //     if (!consoleResizing.current) return;
+  //     // Dragging upward increases console height (startY - ev.clientY is positive)
+  //     const delta = startY - ev.clientY;
+  //     const panelRect = rightPanelRef.current?.getBoundingClientRect();
+  //     const maxHeight = panelRect ? panelRect.height - 120 : 600; // leave room for header + submit
+  //     const newHeight = Math.max(100, Math.min(maxHeight, startHeight + delta));
+  //     setConsoleHeight(newHeight);
+  //   };
+  //
+  //   const onUp = () => {
+  //     consoleResizing.current = false;
+  //     document.removeEventListener('mousemove', onMove);
+  //     document.removeEventListener('mouseup', onUp);
+  //     document.body.style.cursor = '';
+  //     document.body.style.userSelect = '';
+  //   };
+  //
+  //   document.addEventListener('mousemove', onMove);
+  //   document.addEventListener('mouseup', onUp);
+  //   document.body.style.cursor = 'row-resize';
+  //   document.body.style.userSelect = 'none';
+  // };
+
   const navigateToUnit = (direction: 'prev' | 'next') => {
     if (currentIndex === -1) return;
 
@@ -199,142 +259,265 @@ export default function LearningUnit() {
     }
   };
 
-  const handleQuizSubmit = async () => {
-    if (!unit || !unit.quizzes) return;
+  // quiz/grading feature commented out
+  // const handleQuizSubmit = async () => {
+  //   if (!unit || !unit.quizzes) return;
+  //
+  //   try {
+  //     const result = await apiClient.submitQuiz({
+  //       unit_slug: unit.slug,
+  //       answers: selectedAnswers,
+  //     }) as { score_percentage: number; passed: boolean; results: any[] };
+  //
+  //     // Store results for answer highlighting
+  //     const resultsMap: Record<string, { is_correct: boolean; correct_answer: string }> = {};
+  //     result.results.forEach((r: any) => {
+  //       resultsMap[r.quiz_id] = {
+  //         is_correct: r.is_correct,
+  //         correct_answer: r.correct_answer,
+  //       };
+  //     });
+  //     setQuizResults(resultsMap);
+  //
+  //     // Show animated toast
+  //     const correctCount = Math.round((result.score_percentage / 100) * unit.quizzes.length);
+  //     setToast({
+  //       show: true,
+  //       type: result.passed ? 'success' : 'error',
+  //       message: result.passed
+  //         ? 'Excellent work! You passed the quiz!'
+  //         : `You need 70% to pass. Review and try again!`,
+  //       score: correctCount,
+  //       total: unit.quizzes.length,
+  //     });
+  //
+  //     // Show confetti on success!
+  //     if (result.passed) {
+  //       setShowConfetti(true);
+  //       setTimeout(() => setShowConfetti(false), 3000);
+  //     }
+  //
+  //     // Update progress if passed
+  //     if (result.passed) {
+  //       try {
+  //         await apiClient.updateProgress({
+  //           unit_slug: unit.slug,
+  //           status: 'completed',
+  //           score: result.score_percentage,
+  //         });
+  //         setIsCompleted(true);
+  //         setCompletedScore(result.score_percentage);
+  //       } catch (progressErr) {
+  //         console.error('Failed to update progress:', progressErr);
+  //         // Don't show error to user - quiz was still graded successfully
+  //       }
+  //     }
+  //   } catch (err) {
+  //     console.error('Quiz submission error:', err);
+  //     setToast({
+  //       show: true,
+  //       type: 'error',
+  //       message: 'Failed to submit quiz. Please try again.',
+  //     });
+  //   }
+  // };
 
-    try {
-      const result = await apiClient.submitQuiz({
-        unit_slug: unit.slug,
-        answers: selectedAnswers,
-      }) as { score_percentage: number; passed: boolean; results: any[] };
+  // quiz/grading feature commented out
+  // const handleRetryQuiz = () => {
+  //   // Clear previous results and answers to allow retaking
+  //   setQuizResults({});
+  //   setSelectedAnswers({});
+  // };
 
-      // Store results for answer highlighting
-      const resultsMap: Record<string, { is_correct: boolean; correct_answer: string }> = {};
-      result.results.forEach((r: any) => {
-        resultsMap[r.quiz_id] = {
-          is_correct: r.is_correct,
-          correct_answer: r.correct_answer,
-        };
-      });
-      setQuizResults(resultsMap);
+  // quiz/grading feature commented out
+  // const handleCodeSubmit = async () => {
+  //   // "Run" button: deploy manifest via WebSocket, stream phase updates
+  //   if (!unit) return;
+  //
+  //   try {
+  //     setRunning(true);
+  //     setRunComplete(false);
+  //     setRunNamespace(null);
+  //     setRunData(null);
+  //     setValidationResponse(null);
+  //     setValidating(false);
+  //     setWsMessages([]);
+  //     setConsoleExpanded(true);
+  //
+  //     // Save solution first
+  //     await apiClient.autosaveSolution({
+  //       unit_slug: unit.slug,
+  //       code,
+  //       language: unit.editor_config?.language || 'yaml',
+  //     });
+  //
+  //     // Open WebSocket to stream manifest execution
+  //     const handle = apiClient.runManifestWS(
+  //       {
+  //         unit_slug: unit.slug,
+  //         code,
+  //         language: unit.editor_config?.language || 'yaml',
+  //       },
+  //       {
+  //         onMessage: (msg: WSMessage) => {
+  //           setWsMessages(prev => [...prev, msg]);
+  //
+  //           if (msg.type === 'run_complete') {
+  //             const data = msg.data as unknown as RunCompleteData | undefined;
+  //             if (data) {
+  //               setRunData(data);
+  //               setRunNamespace(data.namespace || null);
+  //             }
+  //             if (msg.status === 'success') {
+  //               setRunComplete(true);
+  //               setToast({
+  //                 show: true,
+  //                 type: 'success',
+  //                 message: 'Resources deployed! Click "Validate" to run tests.',
+  //               });
+  //             } else {
+  //               setToast({
+  //                 show: true,
+  //                 type: 'error',
+  //                 message: msg.message || 'Manifest deployment failed.',
+  //               });
+  //             }
+  //             setRunning(false);
+  //           }
+  //
+  //           if (msg.type === 'error') {
+  //             setToast({
+  //               show: true,
+  //               type: 'error',
+  //               message: msg.message || 'An error occurred.',
+  //             });
+  //             setRunning(false);
+  //           }
+  //         },
+  //         onClose: () => {
+  //           setRunning(false);
+  //         },
+  //         onError: () => {
+  //           setRunning(false);
+  //           setToast({
+  //             show: true,
+  //             type: 'error',
+  //             message: 'WebSocket connection failed.',
+  //           });
+  //         },
+  //       }
+  //     );
+  //     wsRef.current = handle;
+  //
+  //   } catch (err) {
+  //     console.error('Run error:', err);
+  //     setRunning(false);
+  //     setToast({
+  //       show: true,
+  //       type: 'error',
+  //       message: 'Failed to start deployment. Please try again.',
+  //     });
+  //   }
+  // };
 
-      // Show animated toast
-      const correctCount = Math.round((result.score_percentage / 100) * unit.quizzes.length);
-      setToast({
-        show: true,
-        type: result.passed ? 'success' : 'error',
-        message: result.passed
-          ? 'Excellent work! You passed the quiz!'
-          : `You need 70% to pass. Review and try again!`,
-        score: correctCount,
-        total: unit.quizzes.length,
-      });
+  // quiz/grading feature commented out
+  // const handleValidate = async () => {
+  //   // "Validate" button: run tests on existing namespace via REST
+  //   if (!unit || !runNamespace) return;
+  //
+  //   try {
+  //     setValidating(true);
+  //     setConsoleExpanded(true);
+  //
+  //     const result = await apiClient.validateOnly({
+  //       unit_slug: unit.slug,
+  //       namespace: runNamespace,
+  //     }) as ValidateOnlyResponse;
+  //
+  //     // Build a full ValidationResponse from run data + validate result
+  //     const fullResponse: ValidationResponse = {
+  //       request_id: result.request_id,
+  //       is_valid: result.passed,
+  //       passed: result.passed,
+  //       message: result.message,
+  //       apply_output: runData?.apply_output,
+  //       resource_status: runData?.resource_status,
+  //       pod_logs: runData?.pod_logs,
+  //       events: runData?.events,
+  //       test_results: result.test_results,
+  //       duration_ms: (runData?.duration_ms || 0) + result.duration_ms,
+  //       namespace: runNamespace,
+  //       phases: [
+  //         ...(runData?.phases || []),
+  //         {
+  //           name: 'validation',
+  //           status: result.passed ? 'success' : 'failed',
+  //           duration_ms: result.duration_ms,
+  //           output: result.message,
+  //         },
+  //       ],
+  //     };
+  //     setValidationResponse(fullResponse);
+  //
+  //     setToast({
+  //       show: true,
+  //       type: result.passed ? 'success' : 'error',
+  //       message: result.passed
+  //         ? 'All tests passed! Great job!'
+  //         : 'Some tests failed. Check the console for details.',
+  //     });
+  //
+  //     if (result.passed) {
+  //       setShowConfetti(true);
+  //       setTimeout(() => setShowConfetti(false), 3000);
+  //       setIsCompleted(true);
+  //       setCompletedScore(100);
+  //     }
+  //
+  //     // Clean up namespace after validation
+  //     try {
+  //       await apiClient.cleanupNamespace(runNamespace);
+  //     } catch {
+  //       // Non-critical
+  //     }
+  //     setRunNamespace(null);
+  //     setRunComplete(false);
+  //
+  //   } catch (err) {
+  //     console.error('Validation error:', err);
+  //     setToast({
+  //       show: true,
+  //       type: 'error',
+  //       message: 'Validation failed. Please try again.',
+  //     });
+  //   } finally {
+  //     setValidating(false);
+  //   }
+  // };
 
-      // Show confetti on success!
-      if (result.passed) {
-        setShowConfetti(true);
-        setTimeout(() => setShowConfetti(false), 3000);
-      }
+  // quiz/grading feature commented out
+  // const fetchSolutionHistory = async () => {
+  //   if (!unit) return;
+  //
+  //   setLoadingSolution(true);
+  //   try {
+  //     const data = await apiClient.getSolutionHistory(unit.slug) as { saves: any[], total_saves: number };
+  //     setSolutionHistory(data.saves || []);
+  //   } catch (err) {
+  //     console.error('Failed to fetch solution history:', err);
+  //     setSolutionHistory([]);
+  //   } finally {
+  //     setLoadingSolution(false);
+  //   }
+  // };
 
-      // Update progress if passed
-      if (result.passed) {
-        try {
-          await apiClient.updateProgress({
-            unit_slug: unit.slug,
-            status: 'completed',
-            score: result.score_percentage,
-          });
-          setIsCompleted(true);
-          setCompletedScore(result.score_percentage);
-        } catch (progressErr) {
-          console.error('Failed to update progress:', progressErr);
-          // Don't show error to user - quiz was still graded successfully
-        }
-      }
-    } catch (err) {
-      console.error('Quiz submission error:', err);
-      setToast({
-        show: true,
-        type: 'error',
-        message: 'Failed to submit quiz. Please try again.',
-      });
-    }
-  };
-
-  const handleRetryQuiz = () => {
-    // Clear previous results and answers to allow retaking
-    setQuizResults({});
-    setSelectedAnswers({});
-  };
-
-  const handleCodeSubmit = async () => {
-    if (!unit) return;
-
-    try {
-      // Save solution first
-      await apiClient.autosaveSolution({
-        unit_slug: unit.slug,
-        code,
-        language: unit.editor_config?.language || 'yaml',
-      });
-
-      // Verify code (stub for now)
-      const result = await apiClient.verifyCode({
-        unit_slug: unit.slug,
-        code,
-        language: unit.editor_config?.language || 'yaml',
-      }) as { success: boolean; message: string };
-
-      // Show animated toast instead of alert
-      setToast({
-        show: true,
-        type: result.success ? 'success' : 'error',
-        message: result.message,
-      });
-
-      // Show confetti on success!
-      if (result.success) {
-        setShowConfetti(true);
-        setTimeout(() => setShowConfetti(false), 3000);
-      }
-
-      // Mark as completed if verification succeeds
-      await apiClient.updateProgress({
-        unit_slug: unit.slug,
-        status: result.success ? 'completed' : 'started',
-        score: result.success ? 100 : undefined,
-      });
-    } catch (err) {
-      console.error('Code submission error:', err);
-      setToast({
-        show: true,
-        type: 'error',
-        message: 'Failed to submit code. Please try again.',
-      });
-    }
-  };
-
-  const fetchSolutionHistory = async () => {
-    if (!unit) return;
-
-    setLoadingSolution(true);
-    try {
-      const data = await apiClient.getSolutionHistory(unit.slug) as { versions: any[] };
-      setSolutionHistory(data.versions || []);
-    } catch (err) {
-      console.error('Failed to fetch solution history:', err);
-      setSolutionHistory([]);
-    } finally {
-      setLoadingSolution(false);
-    }
-  };
-
-  // Fetch solution history when Solution tab is clicked
-  useEffect(() => {
-    if (activeTab === 'submissions' && unit) {
-      fetchSolutionHistory();
-    }
-  }, [activeTab, unit]);
+  // quiz/grading feature commented out
+  // // Fetch solution history when Solution tab is clicked
+  // useEffect(() => {
+  //   if (activeTab === 'submissions' && unit) {
+  //     fetchSolutionHistory();
+  //   }
+  // }, [activeTab, unit]);
 
   if (loading) {
     return (
@@ -408,13 +591,29 @@ export default function LearningUnit() {
       </header>
 
       {/* Secondary Navigation Banner */}
-      <div className="h-14 bg-dark-surface border-b border-dark-border flex items-center justify-between px-6 shrink-0">
-        <div className="flex items-center gap-4">
-          {/* Unit Navigation Dropdowns */}
+      <div className="h-14 bg-dark-surface border-b border-dark-border flex items-center px-6 shrink-0">
+        {/* Left: Difficulty Badge */}
+        <div className="flex items-center min-w-[120px]">
+          {unit.difficulty && (
+            <span className={`px-3 py-1.5 text-xs font-bold uppercase rounded border ${
+              unit.difficulty === 'beginner'
+                ? 'border-dark-accent-green/40 text-dark-accent-green bg-dark-accent-green/10'
+                : unit.difficulty === 'intermediate'
+                ? 'border-dark-accent-yellow/40 text-dark-accent-yellow bg-dark-accent-yellow/10'
+                : 'border-red-400/40 text-red-400 bg-red-400/10'
+            }`}>
+              {unit.difficulty}
+            </span>
+          )}
+        </div>
+
+        {/* Center: Unit Navigation Dropdowns */}
+        <div className="flex-1 flex items-center justify-center">
           <UnitNavigation currentUnitSlug={unit.slug} currentTopic={unit.topic} />
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* Right: Navigation Arrows */}
+        <div className="flex items-center gap-3 min-w-[120px] justify-end">
           {/* Navigation Arrows */}
           <button
             onClick={() => navigateToUnit('prev')}
@@ -453,32 +652,7 @@ export default function LearningUnit() {
               <BookOpen className="inline-block w-4 h-4 mr-1.5" />
               Question
             </button>
-            {!unit.quizzes && (
-              <>
-                <button
-                  onClick={() => setActiveTab('solution')}
-                  className={`px-4 py-2 text-sm font-medium transition-colors ${
-                    activeTab === 'solution'
-                      ? 'text-dark-text-primary border-b-2 border-dark-accent-purple'
-                      : 'text-dark-text-secondary hover:text-dark-text-primary'
-                  }`}
-                >
-                  <FileText className="inline-block w-4 h-4 mr-1.5" />
-                  Solution
-                </button>
-                <button
-                  onClick={() => setActiveTab('submissions')}
-                  className={`px-4 py-2 text-sm font-medium transition-colors ${
-                    activeTab === 'submissions'
-                      ? 'text-dark-text-primary border-b-2 border-dark-accent-purple'
-                      : 'text-dark-text-secondary hover:text-dark-text-primary'
-                  }`}
-                >
-                  <Clock className="inline-block w-4 h-4 mr-1.5" />
-                  Submissions
-                </button>
-              </>
-            )}
+            {/* Solution and Submissions tabs removed — quiz/grading feature commented out */}
           </div>
 
           {/* Tab Content */}
@@ -505,7 +679,6 @@ export default function LearningUnit() {
                   </div>
                 )}
 
-                {/* Collapsible Hints */}
                 {/* Collapsible Hints */}
                 {unit.hints && unit.hints.length > 0 && (
                   <div className="mb-6">
@@ -539,13 +712,15 @@ export default function LearningUnit() {
               </>
             )}
 
-            {activeTab === 'solution' && (
+            {/* quiz/grading feature commented out */}
+            {/* {activeTab === 'solution' && (
               <div className="text-center py-12">
                 <p className="text-[#9d9d9d] text-base">Solutions will be available after completing the exercise.</p>
               </div>
-            )}
+            )} */}
 
-            {activeTab === 'submissions' && (
+            {/* quiz/grading feature commented out */}
+            {/* {activeTab === 'submissions' && (
               <div>
                 {loadingSolution ? (
                   <div className="text-center py-12">
@@ -557,25 +732,39 @@ export default function LearningUnit() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-dark-accent-purple mb-4">Your Submissions</h3>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-dark-accent-purple">Your Submissions</h3>
+                      <span className="text-sm text-dark-text-muted">{solutionHistory.length} version{solutionHistory.length !== 1 ? 's' : ''}</span>
+                    </div>
                     {solutionHistory.map((version, idx) => (
-                      <div key={version.version} className="bg-dark-elevated border border-dark-border rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
+                      <div key={version.version} className="bg-dark-elevated border border-dark-border rounded-lg overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-dark-border">
                           <div className="flex items-center gap-3">
-                            <span className="text-dark-accent-blue font-semibold">Version {version.version}</span>
+                            <span className="text-dark-accent-blue font-semibold text-sm">Version {version.version}</span>
                             {idx === 0 && (
-                              <span className="px-2 py-1 bg-dark-accent-green text-dark-bg text-xs font-medium rounded">
+                              <span className="px-2 py-0.5 bg-dark-accent-green text-dark-bg text-xs font-medium rounded">
                                 Latest
                               </span>
                             )}
                           </div>
-                          <span className="text-dark-text-secondary text-sm">
-                            {new Date(version.auto_saved_at).toLocaleString()}
-                          </span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-dark-text-muted text-xs">
+                              {new Date(version.saved_at).toLocaleString()}
+                            </span>
+                            <button
+                              onClick={() => {
+                                setCode(version.content || version.code_preview);
+                                setActiveTab('question');
+                              }}
+                              className="px-3 py-1 text-xs font-medium rounded border border-dark-accent-blue/40 text-dark-accent-blue hover:bg-dark-accent-blue/10 transition-colors"
+                            >
+                              Load in Editor
+                            </button>
+                          </div>
                         </div>
-                        <div className="bg-dark-bg rounded p-3 overflow-x-auto">
-                          <pre className="text-dark-text-primary font-mono text-sm">
-                            {version.code_preview || 'No preview available'}
+                        <div className="bg-dark-bg p-4 overflow-x-auto max-h-[300px] overflow-y-auto vscode-scrollbar">
+                          <pre className="text-dark-text-primary font-mono text-sm leading-relaxed whitespace-pre">
+{version.content || version.code_preview || 'No code available'}
                           </pre>
                         </div>
                       </div>
@@ -583,7 +772,7 @@ export default function LearningUnit() {
                   </div>
                 )}
               </div>
-            )}
+            )} */}
           </div>
         </div>
 
@@ -605,12 +794,13 @@ export default function LearningUnit() {
                   <select className="bg-dark-bg text-dark-text-primary text-sm px-3 py-1.5 rounded border border-dark-border focus:outline-none focus:border-dark-accent-purple">
                     <option>Python</option>
                   </select>
-                  {autosaveStatus === 'saving' && (
+                  {/* quiz/grading feature commented out */}
+                  {/* {autosaveStatus === 'saving' && (
                     <span className="text-xs text-dark-text-secondary">Saving...</span>
                   )}
                   {autosaveStatus === 'saved' && (
                     <span className="text-xs text-green-500">✓ Saved</span>
-                  )}
+                  )} */}
                   {isCompleted && (
                     <div className="flex items-center gap-2 px-2 py-1 bg-green-500/10 border border-green-500/30 rounded">
                       <span className="text-xs font-medium text-green-400">✓ Completed</span>
@@ -634,41 +824,53 @@ export default function LearningUnit() {
                 />
               </div>
 
-              {/* Console/Submit Section */}
-              <div className="border-t border-dark-border bg-dark-surface">
-                {/* Console Header */}
-                <button
-                  onClick={() => setConsoleExpanded(!consoleExpanded)}
-                  className="w-full h-10 bg-dark-elevated border-b border-dark-border flex items-center justify-between px-4 hover:bg-dark-active transition-colors cursor-pointer"
-                >
-                  <span className="text-sm font-medium text-dark-text-primary">Console</span>
-                  <ChevronDown
-                    size={16}
-                    className={`text-dark-text-primary transition-transform duration-200 ${consoleExpanded ? 'rotate-180' : ''}`}
-                  />
-                </button>
-                {/* Console Content */}
-                {consoleExpanded && (
-                  <div className="h-32 bg-dark-bg p-3 overflow-y-auto vscode-scrollbar">
-                    <p className="text-xs font-mono text-dark-text-secondary">// Output will appear here...</p>
-                  </div>
-                )}
-                {/* Submit Bar */}
-                <div className="h-14 bg-dark-surface border-t border-dark-border flex items-center justify-end px-4 gap-3">
+              {/* quiz/grading feature commented out */}
+              {/* Console Resize Handle */}
+              {/* {consoleExpanded && (
+                <div
+                  onMouseDown={startConsoleResize}
+                  className="h-1 min-h-[4px] bg-transparent hover:bg-dark-accent-purple cursor-row-resize transition-colors flex-shrink-0"
+                />
+              )} */}
+
+              {/* quiz/grading feature commented out */}
+              {/* Console + Submit Section */}
+              {/* <div className="flex flex-col flex-shrink-0" style={consoleExpanded ? { height: `${consoleHeight}px` } : undefined}>
+                <Console
+                  isOpen={consoleExpanded}
+                  onToggle={setConsoleExpanded}
+                  validating={validating}
+                  running={running}
+                  runComplete={runComplete}
+                  wsMessages={wsMessages}
+                  validationResponse={validationResponse}
+                  height={consoleExpanded ? consoleHeight - 56 : undefined}
+                />
+                Submit Bar:
+                <div className="h-14 bg-dark-surface border-t border-dark-border flex items-center justify-end px-4 gap-3 shrink-0">
                   <button
                     onClick={handleCodeSubmit}
-                    className="px-6 py-2 bg-dark-accent-green hover:bg-dark-accent-green/80 text-dark-bg rounded text-sm font-semibold transition-colors"
+                    disabled={running || validating}
+                    className="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-dark-elevated disabled:cursor-not-allowed text-white rounded text-sm font-semibold transition-colors"
                   >
-                    Submit
+                    {running ? 'Deploying...' : 'Run'}
+                  </button>
+                  <button
+                    onClick={handleValidate}
+                    disabled={!runComplete || validating || running}
+                    className="px-6 py-2 bg-dark-accent-green hover:bg-dark-accent-green/80 disabled:bg-dark-elevated disabled:cursor-not-allowed text-dark-bg rounded text-sm font-semibold transition-colors"
+                  >
+                    {validating ? 'Validating...' : 'Validate'}
                   </button>
                 </div>
-              </div>
+              </div> */}
             </>
           )}
 
+          {/* quiz/grading feature commented out
           {unit.type === 'conceptual' && unit.quizzes && unit.quizzes.length > 0 && (
             <>
-              {/* Quiz Header */}
+              Quiz Header:
               <div className="h-12 bg-dark-elevated border-b border-dark-border flex items-center justify-between px-4">
                 <div className="text-sm font-medium text-dark-text-primary">Quiz Assessment</div>
                 {isCompleted && completedScore !== null && (
@@ -679,7 +881,7 @@ export default function LearningUnit() {
                 )}
               </div>
 
-              {/* Quiz Content */}
+              Quiz Content:
               <div className="flex-1 overflow-y-auto p-6 vscode-scrollbar">
                 <div className="space-y-6 max-w-3xl">
                   {unit.quizzes.map((quiz, qIndex) => (
@@ -742,7 +944,7 @@ export default function LearningUnit() {
                 </div>
               </div>
 
-              {/* Submit Bar */}
+              Submit Bar:
               <div className="h-14 bg-dark-surface border-t border-dark-border flex items-center justify-end px-4 gap-3 shrink-0">
                 {Object.keys(quizResults).length > 0 ? (
                   <button
@@ -762,7 +964,7 @@ export default function LearningUnit() {
                 )}
               </div>
             </>
-          )}
+          )} */}
         </div>
       </div>
 

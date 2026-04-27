@@ -12,9 +12,9 @@ interface HeatmapDay {
 
 interface UserStats {
   total_points: number;
-  quizzes_completed: number;
+  // quizzes_completed: number;  // quiz/grading feature commented out
   exercises_completed: number;
-  avg_quiz_score: number | null;
+  // avg_quiz_score: number | null;  // quiz/grading feature commented out
   total_time_spent_hours: number;
   days_active: number;
 }
@@ -395,6 +395,7 @@ export default function ProfilePage() {
                   <p className="text-2xl font-bold text-dark-text-primary">{profileSummary.stats.total_points}</p>
                 </div>
 
+                {/* Quizzes Passed card — commented out (quiz/grading feature disabled)
                 <div className="bg-dark-surface rounded-lg shadow-sm border border-dark-border p-4">
                   <div className="flex items-center gap-3 mb-2">
                     <Target size={20} className="text-dark-accent-blue" />
@@ -402,6 +403,7 @@ export default function ProfilePage() {
                   </div>
                   <p className="text-2xl font-bold text-dark-text-primary">{profileSummary.stats.quizzes_completed}</p>
                 </div>
+                */}
 
                 <div className="bg-dark-surface rounded-lg shadow-sm border border-dark-border p-4">
                   <div className="flex items-center gap-3 mb-2">
@@ -429,6 +431,7 @@ export default function ProfilePage() {
                   <p className="text-2xl font-bold text-dark-text-primary">{profileSummary.stats.days_active}</p>
                 </div>
 
+                {/* Avg Quiz Score card — commented out (quiz/grading feature disabled)
                 {profileSummary.stats.avg_quiz_score !== null && (
                   <div className="bg-dark-surface rounded-lg shadow-sm border border-dark-border p-4">
                     <div className="flex items-center gap-3 mb-2">
@@ -438,6 +441,7 @@ export default function ProfilePage() {
                     <p className="text-2xl font-bold text-dark-text-primary">{profileSummary.stats.avg_quiz_score.toFixed(0)}%</p>
                   </div>
                 )}
+                */}
               </div>
             )}
 
@@ -458,9 +462,11 @@ export default function ProfilePage() {
                   {recentActivity.map((activity: any, idx: number) => (
                     <div key={idx} className="flex items-start gap-3 pb-3 border-b border-dark-border last:border-0">
                       <div className="flex-shrink-0 mt-1">
+                        {/* quiz_submission icon — commented out (quiz/grading feature disabled)
                         {activity.activity_type === 'quiz_submission' && (
                           <Target size={16} className="text-dark-accent-blue" />
                         )}
+                        */}
                         {activity.activity_type === 'exercise_completed' && (
                           <Award size={16} className="text-dark-accent-green" />
                         )}
@@ -470,7 +476,9 @@ export default function ProfilePage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-dark-text-primary font-medium">
+                          {/* quiz_submission label — commented out (quiz/grading feature disabled)
                           {activity.activity_type === 'quiz_submission' && 'Completed quiz'}
+                          */}
                           {activity.activity_type === 'exercise_completed' && 'Completed exercise'}
                           {activity.activity_type === 'exercise_started' && 'Started exercise'}
                         </p>
