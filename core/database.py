@@ -1,6 +1,6 @@
 from collections.abc import Generator
 
-from models import LearningUnit, UnitSolution, UserProgress, UserSolution
+from models import LearningUnit, UserProgress  # UnitSolution, UserSolution removed (quiz/grading feature commented out)
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from utils.mongo_helper import MongoHelper
 from utils.sqlite_helper import SqliteHelper
@@ -26,7 +26,9 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 async def init_db():
     """Initialize the MongoDB connection (async only)."""
     # Create MongoHelper with document models
-    _db_state.mongo_helper = MongoHelper(document_models=[LearningUnit, UnitSolution, UserSolution, UserProgress])
+    _db_state.mongo_helper = MongoHelper(
+        document_models=[LearningUnit, UserProgress]
+    )  # UnitSolution, UserSolution removed
 
     # Initialize MongoDB connection + bind to Beanie
     await _db_state.mongo_helper.init()
@@ -121,9 +123,9 @@ async def cascade_delete_user_data(user_id: int) -> dict[str, int]:
         This is a permanent operation - ensure user confirmation before calling.
     """
     progress_result = await UserProgress.find(UserProgress.user_id == user_id).delete()
-    solutions_result = await UserSolution.find(UserSolution.user_id == user_id).delete()
+    # solutions_result = await UserSolution.find(UserSolution.user_id == user_id).delete()  # quiz/grading feature commented out
 
     return {
         "user_progress": progress_result.deleted_count if progress_result else 0,
-        "user_solutions": solutions_result.deleted_count if solutions_result else 0,
+        # "user_solutions": solutions_result.deleted_count if solutions_result else 0,  # quiz/grading feature commented out
     }

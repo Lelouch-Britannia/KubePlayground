@@ -6,19 +6,19 @@ from pydantic import BaseModel, Field
 from pymongo import ASCENDING, IndexModel
 
 
-class QuizOption(BaseModel):
-    """Quiz option with stable ID for answer matching. Frontend can shuffle order."""
-
-    id: str  # Stable identifier: "a", "b", "c", "d"
-    text: str
-
-
-class Quiz(BaseModel):
-    """Quiz question (public - no answers). Options can be displayed in random order."""
-
-    id: str  # Unique within unit: "q1", "q2", etc.
-    question: str
-    options: list[QuizOption]  # Frontend randomizes display order
+# class QuizOption(BaseModel):
+#     """Quiz option with stable ID for answer matching. Frontend can shuffle order."""
+#
+#     id: str  # Stable identifier: "a", "b", "c", "d"
+#     text: str
+#
+#
+# class Quiz(BaseModel):
+#     """Quiz question (public - no answers). Options can be displayed in random order."""
+#
+#     id: str  # Unique within unit: "q1", "q2", etc.
+#     question: str
+#     options: list[QuizOption]  # Frontend randomizes display order
 
 
 class EditorConfig(BaseModel):
@@ -45,7 +45,7 @@ class LearningUnit(Document):
     description: str = Field(max_length=5000)
     steps: list[str] | None = None  # For coding exercises
     hints: list[str] | None = None  # Hints for coding exercises
-    quizzes: list[Quiz] | None = None  # For conceptual modules
+    # quizzes: list[Quiz] | None = None  # For conceptual modules (quiz/grading feature commented out)
     editor_config: EditorConfig | None = None  # For coding exercises
 
     # Course/Topic Hierarchy (cross-database FKs)
@@ -64,46 +64,43 @@ class LearningUnit(Document):
         ]
 
 
-class UnitSolution(Document):
-    """Private answer keys and validation scripts - NEVER exposed to frontend."""
-
-    unit_id: PydanticObjectId  # Foreign key to LearningUnit
-    quiz_answers: dict[str, str] | None = None  # {"q1": "a", "q2": "c"} - quiz_id -> correct_option_id
-    quiz_explanations: dict[str, str] | None = None  # {"q1": "Because...", "q2": "The reason..."} - shown after grading
-    code_solution: str | None = None  # Model answer for coding exercises
-    validation_script: str | None = None  # Hidden test script for code validation
-
-    class Settings:
-        """Beanie collection settings."""
-
-        name = "unit_solutions"
-        indexes = [
-            IndexModel([("unit_id", ASCENDING)], unique=True),  # One solution per unit
-        ]
-
-
-class UserSolution(Document):
-    """User submissions with versioning and auto-save support.
-
-    Cross-Database Foreign Key:
-        user_id references SQLite users.id (integer auto-increment PK)
-        No built-in FK constraint - validation must be done at application layer
-        See database.validate_user_exists() for reference integrity checks
-    """
-
-    user_id: int  # Foreign key to SQLite User.id (integer auto-increment)
-    unit_id: PydanticObjectId  # Foreign key to LearningUnit
-    content: str  # User's code OR quiz selections (JSON string)
-    version: int = Field(default=1)  # Auto-increment for version history
-    auto_saved_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
-
-    class Settings:
-        """Beanie collection settings."""
-
-        name = "user_solutions"
-        indexes = [
-            IndexModel([("user_id", ASCENDING), ("unit_id", ASCENDING), ("version", ASCENDING)]),
-        ]
+# ============================================================================
+# UnitSolution and UserSolution commented out — quiz/grading feature disabled
+# ============================================================================
+# class UnitSolution(Document):
+#     """Private answer keys and validation scripts - NEVER exposed to frontend."""
+#
+#     unit_id: PydanticObjectId  # Foreign key to LearningUnit
+#     quiz_answers: dict[str, str] | None = None  # {"q1": "a", "q2": "c"} - quiz_id -> correct_option_id
+#     quiz_explanations: dict[str, str] | None = None  # {"q1": "Because...", "q2": "The reason..."} - shown after grading
+#     code_solution: str | None = None  # Model answer for coding exercises
+#     validation_script: str | None = None  # Hidden test script for code validation
+#
+#     class Settings:
+#         """Beanie collection settings."""
+#
+#         name = "unit_solutions"
+#         indexes = [
+#             IndexModel([("unit_id", ASCENDING)], unique=True),  # One solution per unit
+#         ]
+#
+#
+# class UserSolution(Document):
+#     """User submissions with versioning and auto-save support."""
+#
+#     user_id: int  # Foreign key to SQLite User.id (integer auto-increment)
+#     unit_id: PydanticObjectId  # Foreign key to LearningUnit
+#     content: str  # User's code OR quiz selections (JSON string)
+#     version: int = Field(default=1)  # Auto-increment for version history
+#     auto_saved_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
+#
+#     class Settings:
+#         """Beanie collection settings."""
+#
+#         name = "user_solutions"
+#         indexes = [
+#             IndexModel([("user_id", ASCENDING), ("unit_id", ASCENDING), ("version", ASCENDING)]),
+#         ]
 
 
 class UserProgress(Document):

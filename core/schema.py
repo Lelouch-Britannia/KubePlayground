@@ -9,19 +9,22 @@ from pydantic import BaseModel, Field
 # ============================================================================
 
 
-class QuizOptionResponse(BaseModel):
-    """Quiz option for frontend display."""
-
-    id: str
-    text: str
-
-
-class QuizResponse(BaseModel):
-    """Quiz question without answers (public)."""
-
-    id: str
-    question: str
-    options: list[QuizOptionResponse]
+# ============================================================================
+# Quiz schemas commented out — quiz/grading feature disabled
+# ============================================================================
+# class QuizOptionResponse(BaseModel):
+#     """Quiz option for frontend display."""
+#
+#     id: str
+#     text: str
+#
+#
+# class QuizResponse(BaseModel):
+#     """Quiz question without answers (public)."""
+#
+#     id: str
+#     question: str
+#     options: list[QuizOptionResponse]
 
 
 class EditorConfigResponse(BaseModel):
@@ -61,109 +64,192 @@ class UnitDetailResponse(BaseModel):
     description: str
     steps: list[str] | None = None
     hints: list[str] | None = None
-    quizzes: list[QuizResponse] | None = None
+    # quizzes: list[QuizResponse] | None = None  # quiz/grading feature commented out
     editor_config: EditorConfigResponse | None = None
 
 
 # ============================================================================
-# Grading API Schemas (Quiz and code validation)
+# Grading API Schemas — commented out (quiz/grading feature disabled)
 # ============================================================================
 
-
-class QuizSubmissionRequest(BaseModel):
-    """Submit quiz answers for grading."""
-
-    unit_slug: str
-    answers: dict[str, str]  # {quiz_id: selected_option_id}
-
-
-class QuizResultItem(BaseModel):
-    """Individual quiz result."""
-
-    quiz_id: str
-    is_correct: bool
-    selected_answer: str
-    correct_answer: str
-    explanation: str | None = None
-
-
-class QuizSubmissionResponse(BaseModel):
-    """Quiz grading results."""
-
-    total_questions: int
-    correct_answers: int
-    score_percentage: float
-    results: list[QuizResultItem]
-    passed: bool  # True if score >= 70%
-
-
-class CodeVerificationRequest(BaseModel):
-    """Submit YAML code for validation (Phase 6 - stub for now)."""
-
-    unit_slug: str
-    code: str
-    language: str = "yaml"
-
-
-class CodeVerificationResponse(BaseModel):
-    """Code validation results (stubbed for Phase 2)."""
-
-    is_valid: bool
-    message: str
-    errors: list[str] | None = None
+# class QuizSubmissionRequest(BaseModel):
+#     unit_slug: str
+#     answers: dict[str, str]  # {quiz_id: selected_option_id}
+#
+# class QuizResultItem(BaseModel):
+#     quiz_id: str
+#     is_correct: bool
+#     selected_answer: str
+#     correct_answer: str
+#     explanation: str | None = None
+#
+# class QuizSubmissionResponse(BaseModel):
+#     total_questions: int
+#     correct_answers: int
+#     score_percentage: float
+#     results: list[QuizResultItem]
+#     passed: bool  # True if score >= 70%
+#
+# class CodeVerificationRequest(BaseModel):
+#     unit_slug: str
+#     code: str
+#     language: str = "yaml"
+#
+# class CodeVerificationResponse(BaseModel):
+#     is_valid: bool
+#     message: str
+#     errors: list[str] | None = None
 
 
 # ============================================================================
-# Solutions API Schemas (Auto-save and history)
+# Validation Service API Schemas — commented out (quiz/grading feature disabled)
 # ============================================================================
 
+# class ValidationTestResult(BaseModel):
+#     name: str
+#     passed: bool
+#     output: str
+#     error_output: str | None = None
+#     duration_ms: float
+#
+# class ValidationResourceInfo(BaseModel):
+#     kind: str
+#     name: str
+#     namespace: str
+#     status: str
+#     ready: bool
+#     message: str | None = None
+#     age: str | None = None
+#
+# class PodLogEntry(BaseModel):
+#     pod_name: str
+#     container_name: str
+#     logs: str
+#     phase: str
+#     ready: bool = False
+#
+# class KubeEvent(BaseModel):
+#     type: str
+#     reason: str
+#     message: str
+#     object: str
+#     age: str
+#     count: int = 0
+#
+# class ExecutionPhase(BaseModel):
+#     name: str
+#     status: str  # success, failed, skipped
+#     duration_ms: float
+#     output: str | None = None
+#     error: str | None = None
+#
+# class ValidationErrorDetail(BaseModel):
+#     type: str | None = None
+#     code: str | None = None
+#     message: str
+#     details: dict[str, Any] | None = None
+#
+# class ValidationRequest(BaseModel):
+#     request_id: str
+#     unit_slug: str
+#     user_id: int
+#     user_yaml: str
+#     validation_script: str
+#     language: str = "yaml"
+#     metadata: dict[str, Any] | None = None
+#
+# class ValidationResponse(BaseModel):
+#     request_id: str
+#     is_valid: bool = False
+#     passed: bool = False
+#     message: str = ""
+#     apply_output: str | None = None
+#     resource_status: list[ValidationResourceInfo] | None = None
+#     pod_logs: list[PodLogEntry] | None = None
+#     events: list[KubeEvent] | None = None
+#     test_results: list[ValidationTestResult] | None = None
+#     validation_error: ValidationErrorDetail | None = None
+#     duration_ms: float = 0
+#     namespace: str | None = None
+#     phases: list[ExecutionPhase] | None = None
+#
+# class RunRequest(BaseModel):
+#     request_id: str
+#     unit_slug: str
+#     user_id: int
+#     user_yaml: str
+#     language: str = "yaml"
+#
+# class WSMessage(BaseModel):
+#     type: str  # phase_start, phase_complete, phase_progress, run_complete, error
+#     phase: str | None = None
+#     status: str | None = None
+#     message: str | None = None
+#     data: dict[str, Any] | None = None
+#
+# class RunCompleteData(BaseModel):
+#     namespace: str = ""
+#     apply_output: str | None = None
+#     resource_status: list[ValidationResourceInfo] | None = None
+#     pod_logs: list[PodLogEntry] | None = None
+#     events: list[KubeEvent] | None = None
+#     phases: list[ExecutionPhase] | None = None
+#     duration_ms: float = 0
+#
+# class ValidateOnlyRequest(BaseModel):
+#     unit_slug: str
+#     namespace: str
+#
+# class ValidateOnlyResponse(BaseModel):
+#     request_id: str
+#     namespace: str
+#     passed: bool = False
+#     message: str = ""
+#     test_results: list[ValidationTestResult] | None = None
+#     duration_ms: float = 0
+#
+# class CleanupRequest(BaseModel):
+#     namespace: str
+#
+# class CleanupResponse(BaseModel):
+#     status: str
+#     namespace: str
 
-class AutosaveRequest(BaseModel):
-    """Auto-save user's work in progress."""
 
-    unit_slug: str
-    code: str
-    language: str = "yaml"
+# ============================================================================
+# Solutions API Schemas — commented out (quiz/grading feature disabled)
+# ============================================================================
 
-
-class AutosaveResponse(BaseModel):
-    """Auto-save confirmation."""
-
-    saved_at: datetime
-    version: int  # Incremental version number
-    message: str = "Auto-saved successfully"
-
-
-class SolutionHistoryItem(BaseModel):
-    """Single save point in history."""
-
-    version: int
-    saved_at: datetime
-    code_preview: str  # First 100 chars
-
-
-class SolutionHistoryResponse(BaseModel):
-    """List of all save points for a unit."""
-
-    unit_slug: str
-    saves: list[SolutionHistoryItem]
-    total_saves: int
-
-
-class RestoreSolutionRequest(BaseModel):
-    """Restore code from specific save point."""
-
-    unit_slug: str
-    version: int
-
-
-class RestoreSolutionResponse(BaseModel):
-    """Restored code."""
-
-    code: str
-    language: str
-    saved_at: datetime
-    version: int
+# class AutosaveRequest(BaseModel):
+#     unit_slug: str
+#     code: str
+#     language: str = "yaml"
+#
+# class AutosaveResponse(BaseModel):
+#     saved_at: datetime
+#     version: int
+#     message: str = "Auto-saved successfully"
+#
+# class SolutionHistoryItem(BaseModel):
+#     version: int
+#     saved_at: datetime
+#     code_preview: str
+#     content: str = ""
+#
+# class SolutionHistoryResponse(BaseModel):
+#     unit_slug: str
+#     saves: list[SolutionHistoryItem]
+#     total_saves: int
+#
+# class RestoreSolutionRequest(BaseModel):
+#     unit_slug: str
+#     version: int
+#
+# class RestoreSolutionResponse(BaseModel):
+#     code: str
+#     language: str
+#     saved_at: datetime
+#     version: int
 
 
 # ============================================================================
@@ -193,7 +279,7 @@ class UnitProgressItem(BaseModel):
     unit_slug: str
     status: Literal["started", "completed"]  # Must match UserProgress model
     last_accessed: datetime | None = None
-    quiz_score: float | None = None
+    # quiz_score: float | None = None  # quiz/grading feature commented out
     attempts: int = 0
     time_spent_seconds: int = 0
 
