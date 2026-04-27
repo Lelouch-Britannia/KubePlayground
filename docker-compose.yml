@@ -91,6 +91,38 @@ services:
       - kubeplayground-net
 
   # ===========================================================================
+  # Validation Service - K8s YAML Validation (Golang)
+  # ===========================================================================
+  validation-service:
+    build:
+      context: ./validation-service
+      dockerfile: Dockerfile
+    container_name: kubeplayground-validation
+    restart: unless-stopped
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production-please}
+      LOG_LEVEL: info
+      KUBECONFIG: /root/.kube/config
+    volumes:
+      # Mount host kubeconfig for cluster access
+      - ${HOME}/.kube/config:/root/.kube/config:ro
+      # Mount minikube certificates
+      - ${HOME}/.minikube:${HOME}/.minikube:ro
+      # Mount config directory
+      - ./validation-service/config:/app/config:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - kubeplayground-net
+      - minikube
+    ports:
+      - "8082:8080"  # Expose for debugging
+
+  # ===========================================================================
   # Database Seeder - One-time initialization
   # ===========================================================================
   seed:
@@ -121,6 +153,9 @@ services:
 networks:
   kubeplayground-net:
     driver: bridge
+  minikube:
+    external: true
+    name: minikube
 
 # ===========================================================================
 # Volumes
