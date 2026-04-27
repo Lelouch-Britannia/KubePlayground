@@ -37,6 +37,7 @@ export default function LearningUnit() {
   const [activeTab, setActiveTab] = useState<'question' | 'submissions'>('question');
   const [submissions, setSubmissions] = useState<UserSubmission[]>([]);
   const [submissionsLoading, setSubmissionsLoading] = useState(false);
+  const [expandedSubmissionId, setExpandedSubmissionId] = useState<string | null>(null);
   const [hintsExpanded, setHintsExpanded] = useState(false);
   const [consoleExpanded, setConsoleExpanded] = useState(false);
   const [consoleHeight, setConsoleHeight] = useState(250);
@@ -127,6 +128,7 @@ export default function LearningUnit() {
       setValidating(false);
       setActiveTab('question');
       setSubmissions([]);
+      setExpandedSubmissionId(null);
 
       // Only show full loading on initial load, use subtle indicator for navigation
       if (!unit) {
@@ -707,6 +709,7 @@ export default function LearningUnit() {
                     </div>
                     {submissions.map((sub, idx) => (
                       <div key={sub.id} className="bg-dark-elevated border border-dark-border rounded-lg overflow-hidden">
+                        {/* Card header */}
                         <div className="flex items-center justify-between px-4 py-3">
                           <div className="flex items-center gap-2.5">
                             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
@@ -727,10 +730,35 @@ export default function LearningUnit() {
                             {new Date(sub.submitted_at).toLocaleString()}
                           </span>
                         </div>
-                        {sub.code_preview && (
-                          <div className="border-t border-dark-border bg-dark-bg px-4 py-3">
-                            <pre className="text-xs font-mono text-dark-text-secondary leading-relaxed whitespace-pre-wrap line-clamp-3 overflow-hidden">
-                              {sub.code_preview}{sub.code_preview.length >= 120 ? '…' : ''}
+
+                        {/* Action buttons */}
+                        <div className="flex items-center gap-2 px-4 pb-3 border-b border-dark-border">
+                          <button
+                            onClick={() => {
+                              setCode(sub.code);
+                              setActiveTab('question');
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-dark-accent-blue/40 text-dark-accent-blue hover:bg-dark-accent-blue/10 transition-colors"
+                          >
+                            <RotateCcw size={11} /> Load in Editor
+                          </button>
+                          <button
+                            onClick={() => setExpandedSubmissionId(expandedSubmissionId === sub.id ? null : sub.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-dark-border text-dark-text-secondary hover:text-dark-text-primary hover:border-dark-text-secondary transition-colors"
+                          >
+                            {expandedSubmissionId === sub.id ? (
+                              <><ChevronLeft size={11} /> Collapse</>
+                            ) : (
+                              <><ChevronRight size={11} /> View Full</>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Expanded full code view */}
+                        {expandedSubmissionId === sub.id && (
+                          <div className="bg-dark-bg max-h-[400px] overflow-y-auto vscode-scrollbar">
+                            <pre className="text-xs font-mono text-dark-text-primary leading-relaxed whitespace-pre p-4">
+                              {sub.code}
                             </pre>
                           </div>
                         )}

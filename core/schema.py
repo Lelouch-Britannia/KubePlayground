@@ -406,7 +406,8 @@ class SubmissionResponse(BaseModel):
     language: str
     status: Literal["passed", "failed", "error"]
     submitted_at: datetime
-    code_preview: str  # First 120 chars of submitted code
+    code_preview: str  # First 120 chars — used for list display
+    code: str  # Full submitted code — used for Load in Editor / View Full
 
 
 class SubmissionListResponse(BaseModel):

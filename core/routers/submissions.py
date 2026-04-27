@@ -53,6 +53,7 @@ async def get_submissions(
             status=s.status,
             submitted_at=s.submitted_at,
             code_preview=s.code[:120],
+            code=s.code,
         )
         for s in submissions
     ]

@@ -322,6 +322,7 @@ export interface UserSubmission {
   status: 'passed' | 'failed' | 'error';
   submitted_at: string;
   code_preview: string;
+  code: string;
 }
 
 export interface SubmissionListResponse {
