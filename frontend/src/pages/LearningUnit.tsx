@@ -1,13 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, RotateCcw, ChevronDown, BookOpen /*, FileText, Clock*/ } from 'lucide-react'; // quiz/grading feature commented out
+import { ChevronLeft, ChevronRight, RotateCcw, ChevronDown, BookOpen } from 'lucide-react';
 import { apiClient } from '../services/api';
-import type { UnitDetail, SyllabusItem /*, ValidationResponse, WSMessage, RunCompleteData, ValidateOnlyResponse*/ } from '../types/api'; // quiz/grading feature commented out
+import type { UnitDetail, SyllabusItem, ValidationResponse, WSMessage, RunCompleteData, ValidateOnlyResponse } from '../types/api';
 import MarkdownRenderer from '../components/shared/MarkdownRenderer';
 import Toast from '../components/shared/Toast';
 import Confetti from '../components/shared/Confetti';
 import CodeEditor from '../components/RightPanel/CodeEditor';
-// import Console from '../components/RightPanel/Console'; // quiz/grading feature commented out
+import { Console } from '../components/RightPanel/Console';
 import UserMenu from '../components/shared/UserMenu';
 import UnitNavigation from '../components/shared/UnitNavigation';
 import { useAuth } from '../contexts/AuthContext';
@@ -33,13 +33,11 @@ export default function LearningUnit() {
     score?: number;
     total?: number;
   } | null>(null);
-  const [showConfetti, _setShowConfetti] = useState(false); // quiz/grading feature commented out (_setShowConfetti unused since grading handlers removed)
+  const [showConfetti, setShowConfetti] = useState(false);
   const [activeTab, setActiveTab] = useState<'question'>('question'); // quiz/grading feature commented out (was: 'question' | 'solution' | 'submissions')
   const [hintsExpanded, setHintsExpanded] = useState(false);
-  // const [consoleExpanded, setConsoleExpanded] = useState(false); // quiz/grading feature commented out
-  // const [consoleHeight, setConsoleHeight] = useState(250); // quiz/grading feature commented out
-  // const consoleResizing = useRef(false); // quiz/grading feature commented out
-  // const rightPanelRef = useRef<HTMLDivElement>(null); // quiz/grading feature commented out
+  const [consoleExpanded, setConsoleExpanded] = useState(false);
+  const [consoleHeight, _setConsoleHeight] = useState(250);
   // const [solutionHistory, setSolutionHistory] = useState<any[]>([]); // quiz/grading feature commented out
   // const [loadingSolution, setLoadingSolution] = useState(false); // quiz/grading feature commented out
   // const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle'); // quiz/grading feature commented out
@@ -47,14 +45,14 @@ export default function LearningUnit() {
   const [isCompleted, setIsCompleted] = useState(false);
   const [_completedScore, setCompletedScore] = useState<number | null>(null); // quiz/grading feature commented out (_completedScore unused since quiz panel removed)
   // const [quizResults, setQuizResults] = useState<Record<string, { is_correct: boolean }>>( {}); // quiz/grading feature commented out
-  // const [validating, setValidating] = useState(false); // quiz/grading feature commented out
-  // const [validationResponse, setValidationResponse] = useState<ValidationResponse | null>(null); // quiz/grading feature commented out
-  // const [running, setRunning] = useState(false); // quiz/grading feature commented out
-  // const [runNamespace, setRunNamespace] = useState<string | null>(null); // quiz/grading feature commented out
-  // const [runComplete, setRunComplete] = useState(false); // quiz/grading feature commented out
-  // const [wsMessages, setWsMessages] = useState<WSMessage[]>([]); // quiz/grading feature commented out
-  // const [runData, setRunData] = useState<RunCompleteData | null>(null); // quiz/grading feature commented out
-  // const wsRef = useRef<{ close: () => void } | null>(null); // quiz/grading feature commented out
+  const [validating, setValidating] = useState(false);
+  const [validationResponse, setValidationResponse] = useState<ValidationResponse | null>(null);
+  const [running, setRunning] = useState(false);
+  const [runNamespace, setRunNamespace] = useState<string | null>(null);
+  const [runComplete, setRunComplete] = useState(false);
+  const [wsMessages, setWsMessages] = useState<WSMessage[]>([]);
+  const [runData, setRunData] = useState<RunCompleteData | null>(null);
+  const wsRef = useRef<{ close: () => void } | null>(null);
 
   useEffect(() => {
     fetchSyllabus();
@@ -332,171 +330,104 @@ export default function LearningUnit() {
   //   setSelectedAnswers({});
   // };
 
-  // quiz/grading feature commented out
-  // const handleCodeSubmit = async () => {
-  //   // "Run" button: deploy manifest via WebSocket, stream phase updates
-  //   if (!unit) return;
-  //
-  //   try {
-  //     setRunning(true);
-  //     setRunComplete(false);
-  //     setRunNamespace(null);
-  //     setRunData(null);
-  //     setValidationResponse(null);
-  //     setValidating(false);
-  //     setWsMessages([]);
-  //     setConsoleExpanded(true);
-  //
-  //     // Save solution first
-  //     await apiClient.autosaveSolution({
-  //       unit_slug: unit.slug,
-  //       code,
-  //       language: unit.editor_config?.language || 'yaml',
-  //     });
-  //
-  //     // Open WebSocket to stream manifest execution
-  //     const handle = apiClient.runManifestWS(
-  //       {
-  //         unit_slug: unit.slug,
-  //         code,
-  //         language: unit.editor_config?.language || 'yaml',
-  //       },
-  //       {
-  //         onMessage: (msg: WSMessage) => {
-  //           setWsMessages(prev => [...prev, msg]);
-  //
-  //           if (msg.type === 'run_complete') {
-  //             const data = msg.data as unknown as RunCompleteData | undefined;
-  //             if (data) {
-  //               setRunData(data);
-  //               setRunNamespace(data.namespace || null);
-  //             }
-  //             if (msg.status === 'success') {
-  //               setRunComplete(true);
-  //               setToast({
-  //                 show: true,
-  //                 type: 'success',
-  //                 message: 'Resources deployed! Click "Validate" to run tests.',
-  //               });
-  //             } else {
-  //               setToast({
-  //                 show: true,
-  //                 type: 'error',
-  //                 message: msg.message || 'Manifest deployment failed.',
-  //               });
-  //             }
-  //             setRunning(false);
-  //           }
-  //
-  //           if (msg.type === 'error') {
-  //             setToast({
-  //               show: true,
-  //               type: 'error',
-  //               message: msg.message || 'An error occurred.',
-  //             });
-  //             setRunning(false);
-  //           }
-  //         },
-  //         onClose: () => {
-  //           setRunning(false);
-  //         },
-  //         onError: () => {
-  //           setRunning(false);
-  //           setToast({
-  //             show: true,
-  //             type: 'error',
-  //             message: 'WebSocket connection failed.',
-  //           });
-  //         },
-  //       }
-  //     );
-  //     wsRef.current = handle;
-  //
-  //   } catch (err) {
-  //     console.error('Run error:', err);
-  //     setRunning(false);
-  //     setToast({
-  //       show: true,
-  //       type: 'error',
-  //       message: 'Failed to start deployment. Please try again.',
-  //     });
-  //   }
-  // };
+  const handleCodeSubmit = async () => {
+    if (!unit) return;
+    try {
+      setRunning(true);
+      setRunComplete(false);
+      setRunNamespace(null);
+      setRunData(null);
+      setValidationResponse(null);
+      setValidating(false);
+      setWsMessages([]);
+      setConsoleExpanded(true);
 
-  // quiz/grading feature commented out
-  // const handleValidate = async () => {
-  //   // "Validate" button: run tests on existing namespace via REST
-  //   if (!unit || !runNamespace) return;
-  //
-  //   try {
-  //     setValidating(true);
-  //     setConsoleExpanded(true);
-  //
-  //     const result = await apiClient.validateOnly({
-  //       unit_slug: unit.slug,
-  //       namespace: runNamespace,
-  //     }) as ValidateOnlyResponse;
-  //
-  //     // Build a full ValidationResponse from run data + validate result
-  //     const fullResponse: ValidationResponse = {
-  //       request_id: result.request_id,
-  //       is_valid: result.passed,
-  //       passed: result.passed,
-  //       message: result.message,
-  //       apply_output: runData?.apply_output,
-  //       resource_status: runData?.resource_status,
-  //       pod_logs: runData?.pod_logs,
-  //       events: runData?.events,
-  //       test_results: result.test_results,
-  //       duration_ms: (runData?.duration_ms || 0) + result.duration_ms,
-  //       namespace: runNamespace,
-  //       phases: [
-  //         ...(runData?.phases || []),
-  //         {
-  //           name: 'validation',
-  //           status: result.passed ? 'success' : 'failed',
-  //           duration_ms: result.duration_ms,
-  //           output: result.message,
-  //         },
-  //       ],
-  //     };
-  //     setValidationResponse(fullResponse);
-  //
-  //     setToast({
-  //       show: true,
-  //       type: result.passed ? 'success' : 'error',
-  //       message: result.passed
-  //         ? 'All tests passed! Great job!'
-  //         : 'Some tests failed. Check the console for details.',
-  //     });
-  //
-  //     if (result.passed) {
-  //       setShowConfetti(true);
-  //       setTimeout(() => setShowConfetti(false), 3000);
-  //       setIsCompleted(true);
-  //       setCompletedScore(100);
-  //     }
-  //
-  //     // Clean up namespace after validation
-  //     try {
-  //       await apiClient.cleanupNamespace(runNamespace);
-  //     } catch {
-  //       // Non-critical
-  //     }
-  //     setRunNamespace(null);
-  //     setRunComplete(false);
-  //
-  //   } catch (err) {
-  //     console.error('Validation error:', err);
-  //     setToast({
-  //       show: true,
-  //       type: 'error',
-  //       message: 'Validation failed. Please try again.',
-  //     });
-  //   } finally {
-  //     setValidating(false);
-  //   }
-  // };
+      const handle = apiClient.runManifestWS(
+        { unit_slug: unit.slug, code, language: unit.editor_config?.language || 'yaml' },
+        {
+          onMessage: (msg: WSMessage) => {
+            setWsMessages(prev => [...prev, msg]);
+            if (msg.type === 'run_complete') {
+              const data = msg.data as unknown as RunCompleteData | undefined;
+              if (data) { setRunData(data); setRunNamespace(data.namespace || null); }
+              if (msg.status === 'success') {
+                setRunComplete(true);
+                setToast({ show: true, type: 'success', message: 'Resources deployed! Click "Validate" to run tests.' });
+              } else {
+                setToast({ show: true, type: 'error', message: msg.message || 'Manifest deployment failed.' });
+              }
+              setRunning(false);
+            }
+            if (msg.type === 'error') {
+              setToast({ show: true, type: 'error', message: msg.message || 'An error occurred.' });
+              setRunning(false);
+            }
+          },
+          onClose: () => setRunning(false),
+          onError: () => {
+            setRunning(false);
+            setToast({ show: true, type: 'error', message: 'WebSocket connection failed.' });
+          },
+        }
+      );
+      wsRef.current = handle;
+    } catch (err) {
+      console.error('Run error:', err);
+      setRunning(false);
+      setToast({ show: true, type: 'error', message: 'Failed to start deployment. Please try again.' });
+    }
+  };
+
+  const handleValidate = async () => {
+    if (!unit || !runNamespace) return;
+    try {
+      setValidating(true);
+      setConsoleExpanded(true);
+
+      const result = await apiClient.validateOnly({ unit_slug: unit.slug, namespace: runNamespace }) as ValidateOnlyResponse;
+
+      const fullResponse: ValidationResponse = {
+        request_id: result.request_id,
+        is_valid: result.passed,
+        passed: result.passed,
+        message: result.message,
+        apply_output: runData?.apply_output,
+        resource_status: runData?.resource_status,
+        pod_logs: runData?.pod_logs,
+        events: runData?.events,
+        test_results: result.test_results,
+        duration_ms: (runData?.duration_ms || 0) + result.duration_ms,
+        namespace: runNamespace,
+        phases: [
+          ...(runData?.phases || []),
+          { name: 'validation', status: result.passed ? 'success' : 'failed', duration_ms: result.duration_ms, output: result.message },
+        ],
+      };
+      setValidationResponse(fullResponse);
+
+      setToast({
+        show: true,
+        type: result.passed ? 'success' : 'error',
+        message: result.passed ? 'All tests passed! Great job!' : 'Some tests failed. Check the console for details.',
+      });
+
+      if (result.passed) {
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 3000);
+        setIsCompleted(true);
+        setCompletedScore(100);
+      }
+
+      try { await apiClient.cleanupNamespace(runNamespace); } catch { /* non-critical */ }
+      setRunNamespace(null);
+      setRunComplete(false);
+    } catch (err) {
+      console.error('Validation error:', err);
+      setToast({ show: true, type: 'error', message: 'Validation failed. Please try again.' });
+    } finally {
+      setValidating(false);
+    }
+  };
 
   // quiz/grading feature commented out
   // const fetchSolutionHistory = async () => {
@@ -833,16 +764,9 @@ export default function LearningUnit() {
               {/* Editor Header */}
               <div className="h-12 bg-dark-elevated border-b border-dark-border flex items-center justify-between px-4">
                 <div className="flex items-center gap-3">
-                  <select className="bg-dark-bg text-dark-text-primary text-sm px-3 py-1.5 rounded border border-dark-border focus:outline-none focus:border-dark-accent-purple">
-                    <option>Python</option>
-                  </select>
-                  {/* quiz/grading feature commented out */}
-                  {/* {autosaveStatus === 'saving' && (
-                    <span className="text-xs text-dark-text-secondary">Saving...</span>
-                  )}
-                  {autosaveStatus === 'saved' && (
-                    <span className="text-xs text-green-500">✓ Saved</span>
-                  )} */}
+                  <span className="bg-dark-bg text-dark-text-primary text-sm px-3 py-1.5 rounded border border-dark-border capitalize">
+                    {unit.editor_config.language}
+                  </span>
                   {isCompleted && (
                     <div className="flex items-center gap-2 px-2 py-1 bg-green-500/10 border border-green-500/30 rounded">
                       <span className="text-xs font-medium text-green-400">✓ Completed</span>
@@ -862,22 +786,17 @@ export default function LearningUnit() {
                 <CodeEditor
                   value={code}
                   onChange={setCode}
-                  language="python"
+                  language={unit.editor_config.language}
                 />
               </div>
 
-              {/* quiz/grading feature commented out */}
               {/* Console Resize Handle */}
-              {/* {consoleExpanded && (
-                <div
-                  onMouseDown={startConsoleResize}
-                  className="h-1 min-h-[4px] bg-transparent hover:bg-dark-accent-purple cursor-row-resize transition-colors flex-shrink-0"
-                />
-              )} */}
+              {consoleExpanded && (
+                <div className="h-1 min-h-[4px] bg-transparent hover:bg-dark-accent-purple cursor-row-resize transition-colors flex-shrink-0" />
+              )}
 
-              {/* quiz/grading feature commented out */}
-              {/* Console + Submit Section */}
-              {/* <div className="flex flex-col flex-shrink-0" style={consoleExpanded ? { height: `${consoleHeight}px` } : undefined}>
+              {/* Console + Submit Bar */}
+              <div className="flex flex-col flex-shrink-0" style={consoleExpanded ? { height: `${consoleHeight}px` } : undefined}>
                 <Console
                   isOpen={consoleExpanded}
                   onToggle={setConsoleExpanded}
@@ -888,7 +807,6 @@ export default function LearningUnit() {
                   validationResponse={validationResponse}
                   height={consoleExpanded ? consoleHeight - 56 : undefined}
                 />
-                Submit Bar:
                 <div className="h-14 bg-dark-surface border-t border-dark-border flex items-center justify-end px-4 gap-3 shrink-0">
                   <button
                     onClick={handleCodeSubmit}
@@ -905,7 +823,7 @@ export default function LearningUnit() {
                     {validating ? 'Validating...' : 'Validate'}
                   </button>
                 </div>
-              </div> */}
+              </div>
             </>
           )}
 

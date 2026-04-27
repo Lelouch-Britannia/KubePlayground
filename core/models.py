@@ -65,24 +65,26 @@ class LearningUnit(Document):
 
 
 # ============================================================================
-# UnitSolution and UserSolution commented out — quiz/grading feature disabled
+# UnitSolution — kept active for validation script lookup
 # ============================================================================
-# class UnitSolution(Document):
-#     """Private answer keys and validation scripts - NEVER exposed to frontend."""
-#
-#     unit_id: PydanticObjectId  # Foreign key to LearningUnit
-#     quiz_answers: dict[str, str] | None = None  # {"q1": "a", "q2": "c"} - quiz_id -> correct_option_id
-#     quiz_explanations: dict[str, str] | None = None  # {"q1": "Because...", "q2": "The reason..."} - shown after grading
-#     code_solution: str | None = None  # Model answer for coding exercises
-#     validation_script: str | None = None  # Hidden test script for code validation
-#
-#     class Settings:
-#         """Beanie collection settings."""
-#
-#         name = "unit_solutions"
-#         indexes = [
-#             IndexModel([("unit_id", ASCENDING)], unique=True),  # One solution per unit
-#         ]
+class UnitSolution(Document):
+    """Private answer keys and validation scripts - NEVER exposed to frontend."""
+
+    unit_id: PydanticObjectId  # Foreign key to LearningUnit
+    # quiz_answers: dict[str, str] | None = None  # quiz/grading feature commented out
+    # quiz_explanations: dict[str, str] | None = None  # quiz/grading feature commented out
+    code_solution: str | None = None  # Model answer for coding exercises
+    validation_script: str | None = None  # Hidden test script for code validation
+
+    class Settings:
+        """Beanie collection settings."""
+
+        name = "unit_solutions"
+        indexes = [
+            IndexModel([("unit_id", ASCENDING)], unique=True),  # One solution per unit
+        ]
+
+
 #
 #
 # class UserSolution(Document):

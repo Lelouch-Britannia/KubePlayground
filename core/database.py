@@ -1,6 +1,6 @@
 from collections.abc import Generator
 
-from models import LearningUnit, UserProgress  # UnitSolution, UserSolution removed (quiz/grading feature commented out)
+from models import LearningUnit, UnitSolution, UserProgress  # UserSolution removed (quiz/grading feature commented out)
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from utils.mongo_helper import MongoHelper
 from utils.sqlite_helper import SqliteHelper
@@ -27,8 +27,8 @@ async def init_db():
     """Initialize the MongoDB connection (async only)."""
     # Create MongoHelper with document models
     _db_state.mongo_helper = MongoHelper(
-        document_models=[LearningUnit, UserProgress]
-    )  # UnitSolution, UserSolution removed
+        document_models=[LearningUnit, UnitSolution, UserProgress]
+    )  # UserSolution removed (quiz/grading feature commented out)
 
     # Initialize MongoDB connection + bind to Beanie
     await _db_state.mongo_helper.init()

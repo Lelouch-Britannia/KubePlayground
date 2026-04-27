@@ -6,13 +6,14 @@ from database import Base, SessionLocal, engine, get_mongo_helper, init_db
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from routers import (  # grading, solutions removed (quiz/grading feature commented out)
+from routers import (
     content,
     courses,
     dashboard,
+    grading,
     progress,
     seed,
-)
+)  # solutions removed (quiz/grading feature commented out)
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -160,8 +161,8 @@ app.include_router(courses.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(content.router, prefix="/api/v1")
 # app.include_router(solutions.router, prefix="/api/v1")  # quiz/grading feature commented out
-# app.include_router(grading.router, prefix="/api/v1")  # quiz/grading feature commented out
+app.include_router(grading.router, prefix="/api/v1")
 app.include_router(progress.router, prefix="/api/v1")
 
-# WebSocket route removed — grading/validation feature commented out
-# app.add_api_websocket_route("/ws/grading/run", grading.ws_run_manifest)
+# WebSocket route for manifest execution (used by Run button in coding exercises)
+app.add_api_websocket_route("/ws/grading/run", grading.ws_run_manifest)
