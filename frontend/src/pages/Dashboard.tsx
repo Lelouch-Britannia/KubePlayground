@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import UserBanner from '../components/Dashboard/UserBanner';
 import TopicCard from '../components/Dashboard/TopicCard';
 import NavHeader from '../components/shared/NavHeader';
-import { BookOpen, CheckCircle2, Clock, Target, ChevronLeft, ChevronRight } from 'lucide-react';
+import { BookOpen, CheckCircle2, Target, ChevronLeft, ChevronRight } from 'lucide-react';
 import { apiClient } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -108,8 +108,7 @@ export default function Dashboard() {
                   {[
                     { label: 'Total', value: dashboardData.total_units, icon: BookOpen, color: isDarkMode ? 'text-dark-accent-green' : 'text-emerald-600' },
                     { label: 'Completed', value: dashboardData.completed_count, icon: CheckCircle2, color: isDarkMode ? 'text-dark-accent-yellow' : 'text-amber-600' },
-                    { label: 'In Progress', value: dashboardData.in_progress_count, icon: Clock, color: isDarkMode ? 'text-dark-accent-blue' : 'text-blue-600' },
-                    { label: 'Not Started', value: dashboardData.total_units - dashboardData.completed_count - dashboardData.in_progress_count, icon: Target, color: isDarkMode ? 'text-dark-text-secondary' : 'text-gray-500' },
+                    { label: 'Not Started', value: dashboardData.total_units - dashboardData.completed_count, icon: Target, color: isDarkMode ? 'text-dark-text-secondary' : 'text-gray-500' },
                   ].map(({ label, value, icon: Icon, color }) => (
                     <div key={label} className="flex-1 flex items-center gap-3 px-5 py-4">
                       <Icon className={`w-5 h-5 flex-shrink-0 ${color}`} />
