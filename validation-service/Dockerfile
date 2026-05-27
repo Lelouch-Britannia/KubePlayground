@@ -2,7 +2,8 @@
 FROM golang:1.23-alpine AS builder
 
 # Install dependencies
-RUN apk add --no-cache git=2.49.1-r0 ca-certificates=20260413-r0
+# hadolint ignore=DL3018
+RUN apk add --no-cache git ca-certificates
 
 WORKDIR /build
 
@@ -17,10 +18,11 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o validation-service .
 
 # Runtime stage
-FROM alpine:3.19
+FROM alpine:3.21
 
 # Install kubectl and bash for script execution
-RUN apk add --no-cache ca-certificates=20250911-r0 bash=5.2.21-r0 curl=8.14.1-r2 && \
+# hadolint ignore=DL3018
+RUN apk add --no-cache ca-certificates bash curl && \
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/

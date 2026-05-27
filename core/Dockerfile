@@ -1,6 +1,15 @@
 ARG DEFAULT_REGISTRY=docker.io
 ARG DEFAULT_IMAGE=python
 ARG DEFAULT_TAG=3.10-slim
+FROM ${DEFAULT_REGISTRY}/${DEFAULT_IMAGE}:${DEFAULT_TAG} AS sdk-builder
+
+# ----- Build DAO wheel -----
+# hadolint ignore=DL3013
+RUN pip install --no-cache-dir hatchling
+COPY SDKs/DAO /tmp/daolib
+RUN pip wheel --no-deps --wheel-dir /tmp/dao-wheel /tmp/daolib
+
+
 FROM ${DEFAULT_REGISTRY}/${DEFAULT_IMAGE}:${DEFAULT_TAG}
 
 # ----- Environment Setup -----
@@ -25,9 +34,9 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
 WORKDIR /app
 
-# ----- Copy and build SDK -----
-COPY SDKs/DAO /tmp/daolib
-RUN uv pip install --system /tmp/daolib && rm -rf /tmp/daolib
+# ----- Install DAO wheel from builder stage -----
+COPY --from=sdk-builder /tmp/dao-wheel /tmp/dao-wheel
+RUN uv pip install --system /tmp/dao-wheel/*.whl && rm -rf /tmp/dao-wheel
 
 # ----- Copy and install application dependencies -----
 COPY pyproject.toml /app/

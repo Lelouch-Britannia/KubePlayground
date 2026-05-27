@@ -1,3 +1,6 @@
 [submodule "sample-resources"]
 	path = sample-resources
 	url = https://github.com/Lelouch-Britannia/sample-resources.git
+[submodule "SDKs/DAO"]
+	path = SDKs/DAO
+	url = https://github.com/Lelouch-Britannia/DAO.git
