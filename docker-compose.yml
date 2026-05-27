@@ -36,6 +36,7 @@ services:
   # Backend - FastAPI Application (Scalable)
   # ===========================================================================
   backend:
+    image: ghcr.io/lelouch-britannia/kubeplayground-backend:${TAG:-latest}
     build:
       context: .
       dockerfile: core/Dockerfile
@@ -77,6 +78,7 @@ services:
   #   - Reverse proxy /api/* -> backend:8000
   #   - SSL termination (self-signed for dev)
   frontend:
+    image: ghcr.io/lelouch-britannia/kubeplayground-frontend:${TAG:-latest}
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -94,6 +96,7 @@ services:
   # Validation Service - K8s YAML Validation (Golang)
   # ===========================================================================
   validation-service:
+    image: ghcr.io/lelouch-britannia/kubeplayground-validation-service:${TAG:-latest}
     build:
       context: ./validation-service
       dockerfile: Dockerfile
