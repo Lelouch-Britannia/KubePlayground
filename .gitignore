@@ -206,3 +206,6 @@ logs/
 # Temp files
 tmp/
 temp/
+
+# Claude Code
+.claude/
