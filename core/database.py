@@ -3,7 +3,7 @@ from collections.abc import Generator
 from models import LearningUnit, UnitSolution, UserProgress, UserSubmission
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from utils.mongo_helper import MongoHelper
-from utils.sqlite_helper import SqliteHelper
+from utils.sqlite_helper import get_engine
 
 
 class DatabaseState:
@@ -18,8 +18,7 @@ _db_state = DatabaseState()
 Base = declarative_base()
 
 # SQLite setup (synchronous, initialized at module level)
-sqlite_helper = SqliteHelper()
-engine = sqlite_helper.get_engine()
+engine = get_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
