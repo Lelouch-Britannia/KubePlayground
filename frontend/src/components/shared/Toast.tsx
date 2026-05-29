@@ -4,8 +4,8 @@ import { XCircle, Trophy, CheckCircle } from 'lucide-react';
 interface ToastProps {
   type: 'success' | 'error' | 'info';
   message: string;
-  score?: number;
-  total?: number;
+  // score?: number;  // scoring feature commented out
+  // total?: number;  // scoring feature commented out
   onClose: () => void;
   duration?: number;
 }
@@ -13,8 +13,8 @@ interface ToastProps {
 export const Toast: React.FC<ToastProps> = ({
   type,
   message,
-  score,
-  total,
+  // score,  // scoring feature commented out
+  // total,  // scoring feature commented out
   onClose,
   duration = 5000,
 }) => {
@@ -23,14 +23,14 @@ export const Toast: React.FC<ToastProps> = ({
     return () => clearTimeout(timer);
   }, [onClose, duration]);
 
-  const isPassing = score && total ? (score / total) * 100 >= 70 : type === 'success';
+  const isPassing = type === 'success';
   const isInfo = type === 'info';
-  const percentage = score && total ? Math.round((score / total) * 100) : null;
+  // const percentage = score && total ? Math.round((score / total) * 100) : null;  // scoring feature commented out
 
   return (
     <div className="fixed top-8 right-8 z-50 animate-slide-in-right">
       <div
-        className={`rounded-lg shadow-2xl border-2 p-6 min-w-[400px] ${
+        className={`rounded-lg shadow-2xl border-2 p-3 max-w-sm w-full ${
           isInfo
             ? 'bg-gradient-to-br from-[#44475a] to-[#6272a4]/20 border-[#6272a4]'
             : isPassing
@@ -38,10 +38,10 @@ export const Toast: React.FC<ToastProps> = ({
             : 'bg-gradient-to-br from-[#44475a] to-[#ff5555]/20 border-[#ff5555]'
         } backdrop-blur-sm`}
       >
-        <div className="flex items-start gap-4">
+        <div className="flex items-start gap-3">
           {/* Icon with animation */}
           <div
-            className={`flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center ${
+            className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
               isInfo
                 ? 'bg-[#6272a4]/30'
                 : isPassing
@@ -50,11 +50,11 @@ export const Toast: React.FC<ToastProps> = ({
             }`}
           >
             {isInfo ? (
-              <CheckCircle className="w-10 h-10 text-[#6272a4]" strokeWidth={2.5} />
+              <CheckCircle className="w-6 h-6 text-[#6272a4]" strokeWidth={2.5} />
             ) : isPassing ? (
-              <Trophy className="w-10 h-10 text-[#50fa7b]" strokeWidth={2.5} />
+              <Trophy className="w-6 h-6 text-[#50fa7b]" strokeWidth={2.5} />
             ) : (
-              <XCircle className="w-10 h-10 text-[#ff5555]" strokeWidth={2.5} />
+              <XCircle className="w-6 h-6 text-[#ff5555]" strokeWidth={2.5} />
             )}
           </div>
 
@@ -62,16 +62,16 @@ export const Toast: React.FC<ToastProps> = ({
           <div className="flex-1">
             {!isInfo && (
               <h3
-                className={`text-2xl font-bold mb-2 ${
+                className={`text-sm font-semibold mb-1 ${
                   isPassing ? 'text-[#50fa7b]' : 'text-[#ff5555]'
                 }`}
               >
                 {isPassing ? '🎉 Great Job!' : '😞 Keep Trying!'}
               </h3>
             )}
-            <p className={`text-[#f8f8f2] mb-3 leading-relaxed ${isInfo ? 'text-base' : 'text-lg'}`}>{message}</p>
+            <p className="text-[#f8f8f2] text-xs leading-relaxed">{message}</p>
 
-            {/* Score Display */}
+            {/* Score Display — scoring feature commented out
             {percentage !== null && (
               <div className="mt-4">
                 <div className="flex items-center justify-between mb-2">
@@ -99,7 +99,7 @@ export const Toast: React.FC<ToastProps> = ({
                   <span>{isPassing ? '✓ Passed' : '✗ Need 70% to pass'}</span>
                 </div>
               </div>
-            )}
+            )} */}
           </div>
 
           {/* Close button */}

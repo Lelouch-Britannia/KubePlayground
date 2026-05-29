@@ -3,7 +3,7 @@ from collections import defaultdict
 from typing import Annotated
 
 from auth.dependencies import db_dependency, get_current_user
-from auth.models import Course, Topic, User
+from auth.models import Course, Topic, User, UserStreak
 from fastapi import APIRouter, Depends, HTTPException
 from models import LearningUnit, UserProgress
 from schema import CourseProgressSummary, DashboardResponse, SyllabusItemResponse, TopicProgressSummary
@@ -119,5 +119,11 @@ async def get_dashboard(current_user: current_user_dependency, db: db_dependency
         total_units=len(all_units),
         completed_count=total_completed,
         in_progress_count=total_in_progress,
-        current_streak=0,  # Will be updated when activity tracking is implemented
+        current_streak=(
+            db.query(UserStreak)
+            .filter(UserStreak.user_id == current_user.id)
+            .with_entities(UserStreak.current_streak)
+            .scalar()
+            or 0
+        ),
     )

@@ -718,7 +718,24 @@ func (k *K8sClient) GetEvents(namespace string) []models.KubeEvent {
 	return result
 }
 
-// WaitForResources waits for pods to reach a ready or terminal state
+// terminalWaitingReasons are container waiting reasons that indicate the pod
+// will never recover without user action (bad image, missing config, runtime error).
+var terminalWaitingReasons = map[string]bool{
+	"ImagePullBackOff":             true,
+	"ErrImagePull":                 true,
+	"ErrImageNeverPull":            true,
+	"InvalidImageName":             true,
+	"CrashLoopBackOff":             true,
+	"OOMKilled":                    true,
+	"CreateContainerConfigError":   true,
+	"CreateContainerError":         true,
+	"RunContainerError":            true,
+	"ContainerCannotRun":           true,
+	"PostStartHookError":           true,
+}
+
+// WaitForResources waits for pods to reach a ready or terminal state.
+// Returns an error if any pod enters a terminal failure state or if the timeout is exceeded.
 func (k *K8sClient) WaitForResources(namespace string, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -726,15 +743,15 @@ func (k *K8sClient) WaitForResources(namespace string, timeout time.Duration) er
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
+	var pendingCount int
 	for {
 		select {
 		case <-ctx.Done():
-			// Timeout is not a fatal error — we still want to collect status & logs
 			k.logger.Warn("Timed out waiting for resources to stabilize", map[string]interface{}{
 				"namespace": namespace,
 				"timeout":   timeout.String(),
 			})
-			return nil
+			return fmt.Errorf("pods did not become ready within %s: %d pod(s) still pending", timeout, pendingCount)
 		case <-ticker.C:
 			pods, err := k.clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 			if err != nil {
@@ -742,20 +759,62 @@ func (k *K8sClient) WaitForResources(namespace string, timeout time.Duration) er
 			}
 
 			if len(pods.Items) == 0 {
-				// No pods created yet; keep waiting
 				continue
 			}
 
-			allSettled := true
+			allReady := true
+			pendingCount = 0
 			for _, pod := range pods.Items {
 				phase := pod.Status.Phase
-				if phase == corev1.PodPending {
-					allSettled = false
-					break
+
+				// Terminal phase failures
+				if phase == corev1.PodFailed {
+					return fmt.Errorf("pod %s: pod failed", pod.Name)
+				}
+				if phase == corev1.PodUnknown {
+					return fmt.Errorf("pod %s: pod in unknown state (node may be unreachable)", pod.Name)
+				}
+
+				// Check pod conditions for Unschedulable
+				for _, cond := range pod.Status.Conditions {
+					if cond.Type == corev1.PodScheduled &&
+						cond.Status == corev1.ConditionFalse &&
+						cond.Reason == "Unschedulable" {
+						return fmt.Errorf("pod %s: unschedulable: %s", pod.Name, cond.Message)
+					}
+				}
+
+				// Check container waiting reasons for terminal states
+				for _, cs := range pod.Status.ContainerStatuses {
+					if cs.State.Waiting != nil {
+						if terminalWaitingReasons[cs.State.Waiting.Reason] {
+							msg := cs.State.Waiting.Reason
+							if cs.State.Waiting.Message != "" {
+								msg += ": " + cs.State.Waiting.Message
+							}
+							return fmt.Errorf("pod %s: container %s is in terminal state: %s", pod.Name, cs.Name, msg)
+						}
+					}
+				}
+
+				if phase == corev1.PodPending || phase == corev1.PodRunning {
+					// Check if Running pods have all containers ready
+					if phase == corev1.PodRunning {
+						for _, cs := range pod.Status.ContainerStatuses {
+							if !cs.Ready {
+								allReady = false
+								pendingCount++
+								break
+							}
+						}
+					} else {
+						allReady = false
+						pendingCount++
+					}
 				}
 			}
 
-			if allSettled {
+			if allReady {
 				k.logger.Info("All pods settled", map[string]interface{}{
 					"namespace": namespace,
 					"count":     len(pods.Items),

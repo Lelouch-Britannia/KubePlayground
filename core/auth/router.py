@@ -472,6 +472,34 @@ async def get_user_activity(
     ]
 
 
+@router.get("/me/activity/recent")
+async def get_recent_activity(
+    current_user: current_user_dependency,
+    db: db_dependency,
+    limit: int = 20,
+):
+    """Get user's most recent individual activity log entries for the activity feed."""
+    logs = (
+        db.query(ActivityLog)
+        .filter(
+            ActivityLog.user_id == current_user.id,
+            ActivityLog.activity_type.in_(["exercise_completed", "exercise_attempted"]),
+        )
+        .order_by(ActivityLog.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "activity_type": log.activity_type,
+            "unit_slug": log.unit_slug,
+            "points_earned": log.points_earned,
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+        }
+        for log in logs
+    ]
+
+
 @router.get("/me/activity/heatmap", response_model=list[HeatmapDataResponse])
 async def get_activity_heatmap(
     current_user: current_user_dependency,

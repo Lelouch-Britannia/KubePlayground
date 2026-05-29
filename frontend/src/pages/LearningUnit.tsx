@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, RotateCcw, ChevronDown, BookOpen, History, Menu, Lightbulb, ListOrdered, Play, Maximize2, Minimize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCcw, ChevronDown, BookOpen, History, Menu, Lightbulb, ListOrdered, Play, Maximize2, Minimize2, CheckCircle } from 'lucide-react';
 import { apiClient } from '../services/api';
 import type { UnitDetail, SyllabusItem, ValidationResponse, WSMessage, RunCompleteData, ValidateOnlyResponse, UserSubmission } from '../types/api';
 import MarkdownRenderer from '../components/shared/MarkdownRenderer';
@@ -28,8 +28,8 @@ export default function LearningUnit() {
     show: boolean;
     type: 'success' | 'error' | 'info';
     message: string;
-    score?: number;
-    total?: number;
+    // score?: number;  // scoring feature commented out
+    // total?: number;  // scoring feature commented out
   } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [activeTab, setActiveTab] = useState<'question' | 'submissions'>('question');
@@ -434,14 +434,35 @@ export default function LearningUnit() {
         setCompletedScore(100);
       }
 
-      try { await apiClient.cleanupNamespace(runNamespace); } catch { /* non-critical */ }
-      setRunNamespace(null);
-      setRunComplete(false);
+      // Refresh submissions list so new entry appears immediately
+      fetchSubmissions();
+
+      if (result.passed) {
+        try { await apiClient.cleanupNamespace(runNamespace); } catch { /* non-critical */ }
+        setRunNamespace(null);
+        setRunComplete(false);
+      }
     } catch (err) {
       console.error('Validation error:', err);
       setToast({ show: true, type: 'error', message: 'Validation failed. Please try again.' });
     } finally {
       setValidating(false);
+    }
+  };
+
+  const handleMarkRead = async () => {
+    if (!unit || isCompleted) return;
+    try {
+      await apiClient.updateProgress({ unit_slug: unit.slug, status: 'completed' });
+      setIsCompleted(true);
+      // Update local syllabus so ProblemListPanel reflects completion immediately
+      setAllUnits(prev => prev.map(u => u.slug === unit.slug ? { ...u, status: 'completed' } : u));
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+      setToast({ show: true, type: 'success', message: 'Unit marked as complete!' });
+    } catch (err) {
+      console.error('Failed to mark complete:', err);
+      setToast({ show: true, type: 'error', message: 'Failed to mark complete. Please try again.' });
     }
   };
 
@@ -621,10 +642,10 @@ export default function LearningUnit() {
                 </button>
               )}
             </div>
-            {/* Difficulty badge + maximize button — inline with the tab bar */}
+            {/* Difficulty + Mark as Read (conceptual) + maximize button */}
             <div className="flex items-center gap-2">
               {unit.difficulty && (
-                <span className={`px-2.5 py-1 text-xs font-bold uppercase tracking-wide rounded border ${
+                <span className={`px-2 py-0.5 text-xs font-bold uppercase tracking-wide rounded border ${
                   unit.difficulty === 'beginner'
                     ? 'border-dark-accent-green/40 text-dark-accent-green bg-dark-accent-green/10'
                     : unit.difficulty === 'intermediate'
@@ -633,6 +654,22 @@ export default function LearningUnit() {
                 }`}>
                   {unit.difficulty}
                 </span>
+              )}
+              {unit.type === 'conceptual' && (
+                isCompleted ? (
+                  <div className="flex items-center gap-1.5 text-dark-accent-green text-xs font-medium">
+                    <CheckCircle size={14} />
+                    <span>Completed</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleMarkRead}
+                    className="flex items-center gap-1.5 px-3 py-1 bg-dark-accent-green/10 hover:bg-dark-accent-green/20 border border-dark-accent-green/40 text-dark-accent-green text-xs font-medium rounded transition-colors"
+                  >
+                    <CheckCircle size={13} />
+                    Mark as Read
+                  </button>
+                )
               )}
               <button
                 onClick={() => { setLeftMaximized(v => !v); setRightMaximized(false); }}
@@ -1038,8 +1075,8 @@ export default function LearningUnit() {
         <Toast
           type={toast.type}
           message={toast.message}
-          score={toast.score}
-          total={toast.total}
+          // score={toast.score}  // scoring feature commented out
+          // total={toast.total}  // scoring feature commented out
           onClose={() => setToast(null)}
         />
       )}

@@ -208,6 +208,10 @@ class ApiClient {
     return this.request(`/api/v1/auth/me/activity${query ? `?${query}` : ''}`);
   }
 
+  async getRecentActivity(limit: number = 20) {
+    return this.request(`/api/v1/auth/me/activity/recent?limit=${limit}`);
+  }
+
   async getActivityHeatmap(days: number = 365) {
     const query = days ? `?days=${days}` : '';
     return this.request(`/api/v1/auth/me/activity/heatmap${query}`);

@@ -199,12 +199,33 @@ func (e *Engine) Validate(ctx context.Context, req *models.ValidationRequest) *m
 	if e.config.Kubernetes.Timeout > 0 && e.config.Kubernetes.Timeout < waitTimeout {
 		waitTimeout = e.config.Kubernetes.Timeout
 	}
-	_ = e.k8sClient.WaitForResources(namespace, waitTimeout)
+	if waitErr := e.k8sClient.WaitForResources(namespace, waitTimeout); waitErr != nil {
+		dur := int64(time.Since(phaseStart).Milliseconds())
+		response.Phases = append(response.Phases, models.ExecutionPhase{
+			Name:       "wait_ready",
+			Status:     "failed",
+			DurationMs: dur,
+			Error:      waitErr.Error(),
+		})
+		// Collect status + events so the console shows what went wrong
+		response.ResourceStatus = e.k8sClient.GetResourceStatus(namespace)
+		response.Events = e.k8sClient.GetEvents(namespace)
+		response.ValidationError = &models.ValidationError{
+			Type:    "resource_not_ready",
+			Code:    "RESOURCE_NOT_READY",
+			Message: "Resources failed to become ready",
+			Details: map[string]interface{}{"error": waitErr.Error()},
+		}
+		response.Message = waitErr.Error()
+		response.DurationMs = int64(time.Since(start).Milliseconds())
+		e.logValidationFailure(req, waitErr, float64(response.DurationMs))
+		return response
+	}
 	response.Phases = append(response.Phases, models.ExecutionPhase{
 		Name:       "wait_ready",
 		Status:     "success",
 		DurationMs: int64(time.Since(phaseStart).Milliseconds()),
-		Output:     "Resources stabilized",
+		Output:     "Resources ready",
 	})
 
 	// =====================================================================
@@ -412,9 +433,19 @@ func (e *Engine) RunManifest(ctx context.Context, req *models.RunRequest, onPhas
 	if e.config.Kubernetes.Timeout > 0 && e.config.Kubernetes.Timeout < waitTimeout {
 		waitTimeout = e.config.Kubernetes.Timeout
 	}
-	_ = e.k8sClient.WaitForResources(namespace, waitTimeout)
+	if waitErr := e.k8sClient.WaitForResources(namespace, waitTimeout); waitErr != nil {
+		dur = int64(time.Since(phaseStart).Milliseconds())
+		result.Phases = append(result.Phases, models.ExecutionPhase{Name: "wait_ready", Status: "failed", DurationMs: dur, Error: waitErr.Error()})
+		emit(models.WSMessage{Type: "phase_complete", Phase: "wait_ready", Status: "failed", Message: waitErr.Error(), Data: map[string]interface{}{"duration_ms": dur}})
+		// Collect status + events so the console shows what went wrong
+		result.ResourceStatus = e.k8sClient.GetResourceStatus(namespace)
+		result.Events = e.k8sClient.GetEvents(namespace)
+		result.DurationMs = int64(time.Since(start).Milliseconds())
+		emit(models.WSMessage{Type: "run_complete", Status: "failed", Message: waitErr.Error(), Data: result})
+		return result
+	}
 	dur = int64(time.Since(phaseStart).Milliseconds())
-	result.Phases = append(result.Phases, models.ExecutionPhase{Name: "wait_ready", Status: "success", DurationMs: dur, Output: "Resources stabilized"})
+	result.Phases = append(result.Phases, models.ExecutionPhase{Name: "wait_ready", Status: "success", DurationMs: dur, Output: "Resources ready"})
 	emit(models.WSMessage{Type: "phase_complete", Phase: "wait_ready", Status: "success", Message: "Resources ready", Data: map[string]interface{}{"duration_ms": dur}})
 
 	// =====================================================================

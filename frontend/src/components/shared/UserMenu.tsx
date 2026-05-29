@@ -92,11 +92,6 @@ export default function UserMenu() {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-dark-accent-blue to-dark-accent-green flex items-center justify-center text-white font-semibold text-sm">
             {user?.username?.charAt(0).toUpperCase() || 'U'}
           </div>
-          <span className={`font-medium hidden sm:block max-w-[120px] truncate ${
-            isDarkMode ? 'text-dark-text-primary' : 'text-gray-700'
-          }`}>
-            {user?.username}
-          </span>
           <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${
             isDarkMode ? 'text-dark-text-secondary' : 'text-gray-400'
           }`} />

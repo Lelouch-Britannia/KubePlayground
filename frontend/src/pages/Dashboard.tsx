@@ -22,6 +22,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { theme } = useTheme();
   const [dashboardData, setDashboardData] = useState<DashboardData>(DEFAULT_DASHBOARD_DATA);
+  const [longestStreak, setLongestStreak] = useState(0);
   const [loading, setLoading] = useState(true);
   // page index per course slug
   const [coursePages, setCoursePages] = useState<Record<string, number>>({});
@@ -33,8 +34,16 @@ export default function Dashboard() {
   const fetchDashboard = async () => {
     try {
       setLoading(true);
-      const data = await apiClient.getDashboard();
+      const [data, profile] = await Promise.all([
+        apiClient.getDashboard(),
+        apiClient.getProfileSummary().catch(() => null),
+      ]);
       setDashboardData(data as DashboardData);
+      const p = profile as any;
+      if (p?.streak?.longest_streak != null) setLongestStreak(p.streak.longest_streak);
+      if (p?.streak?.current_streak != null) {
+        setDashboardData(prev => ({ ...prev, current_streak: p.streak.current_streak }));
+      }
     } catch (err) {
       console.error('Dashboard fetch error:', err);
       setDashboardData(DEFAULT_DASHBOARD_DATA);
@@ -73,7 +82,7 @@ export default function Dashboard() {
       <NavHeader />
 
       <div className="max-w-7xl mx-auto px-6 py-8">
-        <UserBanner userName={user?.username || 'Learner'} streak={dashboardData.current_streak} />
+        <UserBanner userName={user?.username || 'Learner'} streak={dashboardData.current_streak} longestStreak={longestStreak} />
 
         {/* Learning Paths heading */}
         <h2 className={`text-3xl font-bold mb-6 ${isDarkMode ? 'text-dark-accent-purple' : 'text-purple-600'}`}>

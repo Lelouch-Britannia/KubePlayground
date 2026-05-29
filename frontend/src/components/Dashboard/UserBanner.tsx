@@ -3,9 +3,10 @@ import { useTheme } from '../../contexts/ThemeContext';
 interface UserBannerProps {
   userName?: string;
   streak?: number;
+  longestStreak?: number;
 }
 
-export default function UserBanner({ userName = 'Learner', streak = 0 }: UserBannerProps) {
+export default function UserBanner({ userName = 'Learner', streak = 0, longestStreak = 0 }: UserBannerProps) {
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
   const displayName = userName;
@@ -46,19 +47,30 @@ export default function UserBanner({ userName = 'Learner', streak = 0 }: UserBan
 
         {/* Streak Display */}
         <div className="flex items-center gap-6">
-          <div className="text-center">
-            <div className="flex items-center gap-3 mb-1">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                isDarkMode ? 'bg-dark-accent-orange/20' : 'bg-orange-100'
-              }`}>
-                <span className="text-2xl">🔥</span>
-              </div>
-              <div className="text-left">
-                <p className={`text-sm ${isDarkMode ? 'text-dark-text-muted' : 'text-gray-400'}`}>Current Streak</p>
-                <p className={`text-3xl font-bold ${isDarkMode ? 'text-dark-accent-orange' : 'text-orange-500'}`}>
-                  {streak} <span className={`text-base font-normal ${isDarkMode ? 'text-dark-text-secondary' : 'text-gray-500'}`}>days</span>
-                </p>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+              isDarkMode ? 'bg-dark-accent-orange/20' : 'bg-orange-100'
+            }`}>
+              <span className="text-2xl">🔥</span>
+            </div>
+            <div className="text-left">
+              <p className={`text-sm ${isDarkMode ? 'text-dark-text-muted' : 'text-gray-400'}`}>Current Streak</p>
+              <p className={`text-3xl font-bold ${isDarkMode ? 'text-dark-accent-orange' : 'text-orange-500'}`}>
+                {streak} <span className={`text-base font-normal ${isDarkMode ? 'text-dark-text-secondary' : 'text-gray-500'}`}>days</span>
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+              isDarkMode ? 'bg-dark-accent-green/20' : 'bg-green-100'
+            }`}>
+              <span className="text-2xl">🏆</span>
+            </div>
+            <div className="text-left">
+              <p className={`text-sm ${isDarkMode ? 'text-dark-text-muted' : 'text-gray-400'}`}>Longest Streak</p>
+              <p className={`text-3xl font-bold ${isDarkMode ? 'text-dark-accent-green' : 'text-green-500'}`}>
+                {longestStreak} <span className={`text-base font-normal ${isDarkMode ? 'text-dark-text-secondary' : 'text-gray-500'}`}>days</span>
+              </p>
             </div>
           </div>
         </div>

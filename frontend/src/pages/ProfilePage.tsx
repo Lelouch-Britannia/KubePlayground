@@ -95,7 +95,7 @@ export default function ProfilePage() {
       }
 
       try {
-        activity = await apiClient.getMyActivity() as any;
+        activity = await apiClient.getRecentActivity(20) as any[];
         console.log('Recent activity received:', activity);
       } catch (err) {
         console.error('Failed to fetch activity:', err);
@@ -118,12 +118,13 @@ export default function ProfilePage() {
     const heatmap: HeatmapDay[] = [];
     const activityMap = new Map<string, number>();
 
-    // Build a map of date -> points from activity data
+    // Build a map of date -> submission count from activity data
+    // scoring feature commented out — was: activity.total_points || activity.points
     if (activityData && Array.isArray(activityData)) {
       activityData.forEach(activity => {
         const date = activity.activity_date || activity.date;
         if (date) {
-          activityMap.set(date, activity.total_points || activity.points || 0);
+          activityMap.set(date, activity.exercises_completed || 0);
         }
       });
     }
@@ -137,12 +138,12 @@ export default function ProfilePage() {
       const dateStr = currentDate.toISOString().split('T')[0];
       const points = activityMap.get(dateStr) || 0;
 
-      // Calculate level based on points (0-4 scale)
+      // Calculate level based on submission count (0-4 scale)
       let level = 0;
       if (points > 0) level = 1;
-      if (points >= 5) level = 2;
-      if (points >= 10) level = 3;
-      if (points >= 20) level = 4;
+      if (points >= 3) level = 2;
+      if (points >= 5) level = 3;
+      if (points >= 10) level = 4;
 
       heatmap.push({
         date: dateStr,
@@ -289,7 +290,7 @@ export default function ProfilePage() {
                         borderRadius: '2px'
                       }}
                       className={day.date ? 'hover:ring-1 hover:ring-dark-border cursor-pointer' : ''}
-                      title={day.date ? `${day.date}: ${day.points} points` : ''}
+                      title={day.date ? `${day.date}: ${day.points} submissions` : ''}
                     />
                   ))}
                 </div>
@@ -387,6 +388,7 @@ export default function ProfilePage() {
             {/* Stats Grid */}
             {profileSummary?.stats && (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {/* Total Points card — scoring feature commented out
                 <div className="bg-dark-surface rounded-lg shadow-sm border border-dark-border p-4">
                   <div className="flex items-center gap-3 mb-2">
                     <Award size={20} className="text-dark-accent-yellow" />
@@ -394,6 +396,7 @@ export default function ProfilePage() {
                   </div>
                   <p className="text-2xl font-bold text-dark-text-primary">{profileSummary.stats.total_points}</p>
                 </div>
+                */}
 
                 {/* Quizzes Passed card — commented out (quiz/grading feature disabled)
                 <div className="bg-dark-surface rounded-lg shadow-sm border border-dark-border p-4">
@@ -458,7 +461,7 @@ export default function ProfilePage() {
             {recentActivity.length > 0 && (
               <div className="bg-dark-surface rounded-lg shadow-sm border border-dark-border p-6">
                 <h3 className="text-lg font-semibold text-dark-text-primary mb-4">Recent Activity</h3>
-                <div className="space-y-3">
+                <div className="h-64 overflow-y-auto vscode-scrollbar space-y-3 pr-1">
                   {recentActivity.map((activity: any, idx: number) => (
                     <div key={idx} className="flex items-start gap-3 pb-3 border-b border-dark-border last:border-0">
                       <div className="flex-shrink-0 mt-1">
@@ -470,6 +473,9 @@ export default function ProfilePage() {
                         {activity.activity_type === 'exercise_completed' && (
                           <Award size={16} className="text-dark-accent-green" />
                         )}
+                        {activity.activity_type === 'exercise_attempted' && (
+                          <Clock size={16} className="text-red-400" />
+                        )}
                         {activity.activity_type === 'exercise_started' && (
                           <Clock size={16} className="text-dark-text-muted" />
                         )}
@@ -479,17 +485,19 @@ export default function ProfilePage() {
                           {/* quiz_submission label — commented out (quiz/grading feature disabled)
                           {activity.activity_type === 'quiz_submission' && 'Completed quiz'}
                           */}
-                          {activity.activity_type === 'exercise_completed' && 'Completed exercise'}
+                          {activity.activity_type === 'exercise_completed' && 'Submitted — passed'}
+                          {activity.activity_type === 'exercise_attempted' && 'Submitted — failed'}
                           {activity.activity_type === 'exercise_started' && 'Started exercise'}
                         </p>
                         {activity.unit_slug && (
                           <p className="text-xs text-dark-text-secondary truncate">{activity.unit_slug}</p>
                         )}
+                        {/* scoring feature commented out
                         {activity.points_earned > 0 && (
                           <p className="text-xs text-dark-accent-green mt-1">
                             +{activity.points_earned} points
                           </p>
-                        )}
+                        )} */}
                       </div>
                       <div className="text-xs text-dark-text-muted whitespace-nowrap">
                         {activity.created_at ? new Date(activity.created_at).toLocaleDateString() : 'N/A'}

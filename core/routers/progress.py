@@ -167,14 +167,15 @@ async def update_progress(
     # Note: Points are NOT awarded here to avoid double-counting
     # - Conceptual (quiz) units: Points awarded in grading.py on first pass (1 per correct answer)
     # - Coding units: Points awarded in grading.py on successful verification (3/5/10 by difficulty)
-    points_earned = 0
+    # scoring feature commented out — points wiring intentionally disabled
+    # points_earned = 0
     activity_type = "exercise_started" if request.status == "started" else "exercise_completed"
 
     activity_log = ActivityLog(
         user_id=current_user.id,
         activity_type=activity_type,
         unit_slug=request.unit_slug,
-        points_earned=points_earned,
+        # points_earned=points_earned,  # scoring feature commented out
         score_percentage=int(request.score) if request.score else None,
         activity_metadata=json.dumps(
             {
@@ -199,13 +200,13 @@ async def update_progress(
             user_activity.exercises_started += 1
         elif request.status == "completed":
             user_activity.exercises_completed += 1
-            user_activity.total_points += points_earned
+            # user_activity.total_points += points_earned  # scoring feature commented out
         user_activity.updated_at = now
     else:
         user_activity = UserActivity(
             user_id=current_user.id,
             activity_date=today,
-            total_points=points_earned,
+            # total_points=points_earned,  # scoring feature commented out
             exercises_started=1 if request.status == "started" else 0,
             exercises_completed=1 if request.status == "completed" else 0,
             created_at=now,

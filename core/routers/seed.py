@@ -5,9 +5,10 @@ from typing import Any, Optional
 from auth.dependencies import db_dependency
 from auth.models import Course, Topic
 from fastapi import APIRouter, Depends, HTTPException
-from models import (  # Quiz, QuizOption, UnitSolution removed (quiz/grading feature commented out)
+from models import (  # Quiz, QuizOption removed (quiz/grading feature commented out)
     EditorConfig,
     LearningUnit,
+    UnitSolution,
 )
 from sqlalchemy.orm import Session
 from starlette import status
@@ -204,7 +205,7 @@ async def populate_database(topic_dir: str, *, skip_existing: bool = True, db: d
                 continue
 
         # Validate data integrity based on unit type
-        # solution_data = data.get("_solution", {})  # quiz/grading feature commented out
+        solution_data = data.get("_solution", {})
 
         # Quiz integrity validation — commented out (quiz/grading feature disabled)
         # if unit_type == "conceptual":
@@ -240,23 +241,25 @@ async def populate_database(topic_dir: str, *, skip_existing: bool = True, db: d
                 topic_id=topic_id,
             )
 
-            # Insert LearningUnit (unit_id captured for FK — commented out with UnitSolution insert)
+            # Insert LearningUnit
             await learning_unit.insert()
-            # unit_id = learning_unit.id  # quiz/grading feature commented out
+            unit_id = learning_unit.id
 
             # Update topic units_count in SQLite (cached count)
             if topic_id:
                 _increment_topic_units_count(db, topic_id)
 
-            # UnitSolution insert — commented out (quiz/grading feature disabled)
-            # unit_solution = UnitSolution(
-            #     unit_id=unit_id,  # type: ignore
-            #     quiz_answers=solution_data.get("quiz_answers"),
-            #     quiz_explanations=solution_data.get("quiz_explanations"),
-            #     code_solution=solution_data.get("code_solution"),
-            #     validation_script=solution_data.get("validation_script"),
-            # )
-            # await unit_solution.insert()
+            # Insert UnitSolution for coding units (validation_script needed by validate-only endpoint)
+            # quiz_answers/quiz_explanations stay commented out (quiz/grading feature disabled)
+            if unit_type == "coding" and solution_data.get("validation_script"):
+                unit_solution = UnitSolution(
+                    unit_id=unit_id,
+                    # quiz_answers=solution_data.get("quiz_answers"),  # quiz/grading feature commented out
+                    # quiz_explanations=solution_data.get("quiz_explanations"),  # quiz/grading feature commented out
+                    code_solution=solution_data.get("code_solution"),
+                    validation_script=solution_data.get("validation_script"),
+                )
+                await unit_solution.insert()
 
             # Update stats
             stats["created"] += 1

@@ -7,11 +7,12 @@ from typing import Annotated
 
 import httpx
 import websockets
-from auth.dependencies import get_current_user  # db_dependency removed (quiz/grading feature commented out)
-from auth.models import User  # ActivityLog, UserActivity removed (quiz/grading feature commented out)
+from auth.dependencies import db_dependency, get_current_user
+from auth.models import ActivityLog, User, UserActivity
 from auth.security import decode_token
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from models import LearningUnit, UnitSolution, UserProgress, UserSubmission
+from routers.progress import update_user_streak_background
 from schema import (
     CleanupRequest,
     CodeVerificationRequest,
@@ -331,6 +332,8 @@ async def ws_run_manifest(websocket: WebSocket):
 async def validate_only(
     request: ValidateOnlyRequest,
     current_user: current_user_dependency,
+    db: db_dependency,
+    background_tasks: BackgroundTasks,
 ) -> ValidateOnlyResponse:
     """Run validation tests on an existing namespace (after WebSocket run).
 
@@ -385,6 +388,16 @@ async def validate_only(
                 language=request.language,
                 passed=result.get("passed", False),
             )
+
+            # Log activity to SQLite (feeds profile heatmap + activity feed)
+            _log_activity(
+                db=db, user_id=current_user.id, unit_slug=request.unit_slug, passed=result.get("passed", False)
+            )
+
+            # Update streak on successful submission
+            if result.get("passed"):
+                today = datetime.now(tz=timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+                background_tasks.add_task(update_user_streak_background, current_user.id, today)
 
             return ValidateOnlyResponse(**result)
 
@@ -477,3 +490,44 @@ async def _record_submission(*, unit, user_id: int, code: str, language: str, pa
         logger.info("Submission recorded - user_id: %s, unit: %s, status: %s", user_id, unit.slug, sub.status)
     except Exception:
         logger.exception("Failed to record submission")
+
+
+def _log_activity(*, db, user_id: int, unit_slug: str, passed: bool) -> None:
+    """Log submission activity to SQLite — feeds profile heatmap and activity feed."""
+    try:
+        now = datetime.now(tz=timezone.utc)
+        today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        activity_type = "exercise_completed" if passed else "exercise_attempted"
+
+        activity_log = ActivityLog(
+            user_id=user_id,
+            activity_type=activity_type,
+            unit_slug=unit_slug,
+            # points_earned omitted — scoring feature commented out (defaults to 0)
+            created_at=now,
+        )
+        db.add(activity_log)
+
+        user_activity = (
+            db.query(UserActivity).filter(UserActivity.user_id == user_id, UserActivity.activity_date == today).first()
+        )
+        if user_activity:
+            if passed:
+                user_activity.exercises_completed += 1
+            else:
+                user_activity.exercises_started += 1
+            user_activity.updated_at = now
+        else:
+            user_activity = UserActivity(
+                user_id=user_id,
+                activity_date=today,
+                exercises_started=0 if passed else 1,
+                exercises_completed=1 if passed else 0,
+                created_at=now,
+            )
+            db.add(user_activity)
+
+        db.commit()
+        logger.info("Activity logged - user_id: %s, unit: %s, type: %s", user_id, unit_slug, activity_type)
+    except Exception:
+        logger.exception("Failed to log activity")
