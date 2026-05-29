@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -36,3 +37,29 @@ class YamlFileOperator:
         except yaml.YAMLError as e:
             msg = f"Error parsing YAML file: {e}"
             raise ValueError(msg) from e
+
+
+class JsonFileOperator:
+    @staticmethod
+    def read(entry: FileReadEntry) -> dict[str, Any]:
+        try:
+            with Path(entry.read_path).open() as file:
+                return json.load(file)
+        except FileNotFoundError:
+            msg = f"Config file not found: {entry.read_path}"
+            raise FileNotFoundError(msg) from None
+        except json.JSONDecodeError as e:
+            msg = f"Error parsing JSON file: {e}"
+            raise ValueError(msg) from e
+
+
+class ContentFileOperator:
+    @classmethod
+    def read(cls, entry: FileReadEntry) -> dict[str, Any]:
+        suffix = Path(entry.read_path).suffix.lower()
+        if suffix in {".yaml", ".yml"}:
+            return YamlFileOperator.read(entry)
+        if suffix == ".json":
+            return JsonFileOperator.read(entry)
+        msg = f"Unsupported file format: {suffix}"
+        raise ValueError(msg)

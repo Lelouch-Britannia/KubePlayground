@@ -12,7 +12,7 @@ from models import (  # Quiz, QuizOption removed (quiz/grading feature commented
 )
 from sqlalchemy.orm import Session
 from starlette import status
-from utils.file_operator import FileReadEntry, YamlFileOperator
+from utils.file_operator import ContentFileOperator, FileReadEntry
 
 
 router = APIRouter(prefix="/seed", tags=["seed"])
@@ -135,23 +135,26 @@ async def populate_database(topic_dir: str, *, skip_existing: bool = True, db: d
     if not directory.exists() or not directory.is_dir():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Directory {topic_dir} does not exist.")
 
-    # Get all YAML files sorted by filename
-    yaml_files = sorted(directory.rglob("*.yaml"))
+    # Get all unit content files sorted by filename — skip course.json and topic.json (hierarchy files)
+    content_files = sorted(
+        f for ext in ("*.yaml", "*.json") for f in directory.rglob(ext) if f.name not in ("course.json", "topic.json")
+    )
 
     # Load existing slugs for duplicate detection (O(1) lookup)
     existing_slugs: set = set(await LearningUnit.get_motor_collection().distinct("slug"))
 
-    # Process each YAML file
-    for yaml_file in yaml_files:
+    # Process each content file
+    for content_file in content_files:
         try:
-            # Parse YAML file
-            data = YamlFileOperator.read(FileReadEntry(read_path=yaml_file))
+            data = ContentFileOperator.read(FileReadEntry(read_path=content_file))
         except Exception as e:
-            stats["errors"].append(f"Failed to read {yaml_file.name}: {e!s}")
+            stats["errors"].append(f"Failed to read {content_file.name}: {e!s}")
             continue
 
-        # Extract metadata
-        metadata = data.get("metadata", {})
+        # Extract metadata — YAML wraps fields under "metadata" key; JSON is flat (root = metadata)
+        metadata = data.get("metadata") or {
+            k: v for k, v in data.items() if k not in ("_solution", "editor_config", "quizzes")
+        }
         slug = metadata.get("slug")
         unit_type = metadata.get("type")
 
@@ -160,20 +163,35 @@ async def populate_database(topic_dir: str, *, skip_existing: bool = True, db: d
             stats["skipped"] += 1
             continue
 
-        # Parse course/topic metadata (optional for backward compatibility)
-        topic_metadata = metadata.get("topic", {})
+        # Resolve course/topic — Option A: topic.json in same dir, course.json via course_slug
+        # Fallback Option B: inline metadata (YAML legacy format)
+        topic_dir_path = content_file.parent
+        topic_json_path = topic_dir_path / "topic.json"
 
-        # Handle both nested dict and legacy string formats
-        if isinstance(topic_metadata, dict):
-            course_info = metadata.get("course", {})
-            topic_info = topic_metadata
-            # Use topic name for legacy field
-            legacy_topic_str = topic_info.get("name", "General")
+        course_info: dict = {}
+        topic_info: dict = {}
+
+        if topic_json_path.exists():
+            try:
+                topic_info = ContentFileOperator.read(FileReadEntry(read_path=topic_json_path))
+                course_slug = topic_info.get("course_slug")
+                if course_slug:
+                    course_json_path = topic_dir_path.parent / course_slug / "course.json"
+                    course_info = ContentFileOperator.read(FileReadEntry(read_path=course_json_path))
+            except Exception as e:
+                stats["errors"].append(f"{content_file.name}: Failed to read hierarchy files - {e!s}")
+                continue
         else:
-            # Legacy format: topic is a string
-            course_info = {}
-            topic_info = {}
-            legacy_topic_str = topic_metadata if isinstance(topic_metadata, str) else "General"
+            # Fallback: inline metadata (YAML legacy format)
+            topic_metadata = metadata.get("topic", {})
+            if isinstance(topic_metadata, dict):
+                course_info = metadata.get("course", {})
+                topic_info = topic_metadata
+            else:
+                topic_info = {}
+                course_info = {}
+
+        legacy_topic_str = topic_info.get("name", "General")
 
         # Ensure course and topic exist in SQLite (if metadata provided)
         course_id = None
@@ -181,7 +199,6 @@ async def populate_database(topic_dir: str, *, skip_existing: bool = True, db: d
 
         if course_info and topic_info:
             try:
-                # Create/update course
                 course = _ensure_course_exists(
                     db=db,
                     slug=course_info.get("slug", ""),
@@ -190,7 +207,6 @@ async def populate_database(topic_dir: str, *, skip_existing: bool = True, db: d
                 )
                 course_id = course.id
 
-                # Create/update topic
                 topic = _ensure_topic_exists(
                     db=db,
                     course_id=course_id,
@@ -201,7 +217,7 @@ async def populate_database(topic_dir: str, *, skip_existing: bool = True, db: d
                 )
                 topic_id = topic.id
             except Exception as e:
-                stats["errors"].append(f"{yaml_file.name}: Failed to create course/topic - {e!s}")
+                stats["errors"].append(f"{content_file.name}: Failed to create course/topic - {e!s}")
                 continue
 
         # Validate data integrity based on unit type
@@ -213,13 +229,13 @@ async def populate_database(topic_dir: str, *, skip_existing: bool = True, db: d
         #     quiz_answers = solution_data.get("quiz_answers", {})
         #     validation_errors = _validate_quiz_integrity(quizzes_data, quiz_answers)
         #     if validation_errors:
-        #         stats["errors"].append(f"{yaml_file.name}: {'; '.join(validation_errors)}")
+        #         stats["errors"].append(f"{content_file.name}: {'; '.join(validation_errors)}")
         #         continue
         if unit_type == "coding" and (not data.get("editor_config") or not metadata.get("steps")):
-            stats["errors"].append(f"{yaml_file.name}: Missing editor_config or steps")
+            stats["errors"].append(f"{content_file.name}: Missing editor_config or steps")
             continue
             # if not solution_data.get('code_solution') or not solution_data.get('validation_script'):
-            #     stats['errors'].append(f"{yaml_file.name}: Missing code_solution or validation_script")
+            #     stats['errors'].append(f"{content_file.name}: Missing code_solution or validation_script")
             #     continue
 
         # Build LearningUnit (public data only)
@@ -263,10 +279,10 @@ async def populate_database(topic_dir: str, *, skip_existing: bool = True, db: d
 
             # Update stats
             stats["created"] += 1
-            stats["files_processed"].append(yaml_file.name)
+            stats["files_processed"].append(content_file.name)
 
         except Exception as e:
-            stats["errors"].append(f"{yaml_file.name}: Insert failed - {e!s}")
+            stats["errors"].append(f"{content_file.name}: Insert failed - {e!s}")
             continue
 
     return {

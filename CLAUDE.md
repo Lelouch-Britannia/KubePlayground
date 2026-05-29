@@ -162,8 +162,10 @@ Nginx proxies `/api/*` to the backend.
 LeetCode-style 3-pane layout:
 
 - **Top bar (h-12)**: logo icon → hamburger (opens `ProblemListPanel`) → divider →
-  prev/counter/next → [centered: Run icon + Submit] → UserMenu
+  prev/counter/next → [centered: Run icon + Submit] → UserMenu (icon only, no username)
 - **Left pane**: description tab (title, markdown, Exercise steps flat list, per-hint accordions)
+  - Tab bar right side: difficulty badge + Mark as Read button (theory) or difficulty badge (coding)
+  - Mark as Read calls `POST /progress/update` with `status=completed`; updates ProblemListPanel and heatmap
   - Submissions tab. Maximize button top-right.
 - **Right pane** (coding units): editor sub-pane + draggable dark gap + console sub-pane.
   Editor has Maximize + Reset. Console is minimizable (click header) and resizable (drag handle);
@@ -186,7 +188,33 @@ Config in `validation-service/config/config.yaml`.
 - **Quiz/grading feature is commented out** throughout. Relevant code is preserved with
   `# quiz/grading feature commented out` markers and in git history.
   Do not re-enable without confirming it's intentional.
+- **Scoring system is commented out** throughout (backend + frontend). Preserved with
+  `# scoring feature commented out` markers. Points fields exist in models but are zeroed.
 - **CORS is intentionally permissive** (`allow_origins=["*"]`) — this is a local-only app.
 - `ruff` excludes `sample-resources/`, `*.ipynb`, and `validation-service/` — don't add those to lint scope.
 - `sample-resources/` is a git submodule (separate repo of Kubernetes YAML exercise files).
 - Commit messages follow Conventional Commits (`commitlint.config.js`).
+
+## Activity & Streak Tracking
+
+Two paths write to SQLite `ActivityLog` + `UserActivity` + `UserStreak`:
+
+1. **Coding units** — `routers/grading.py` `validate-only` endpoint calls `_log_activity()` on every
+   submission (pass or fail) and triggers `update_user_streak_background` on pass.
+2. **Theory units** — `POST /progress/update` with `status=completed` (Mark as Read button) writes
+   `exercise_completed` to ActivityLog and updates streak via the same background task.
+
+Recent activity feed: `GET /api/v1/auth/me/activity/recent` — queries `ActivityLog` directly,
+filtered to `exercise_completed` / `exercise_attempted`. Returns per-event log (not daily aggregates).
+
+## Validation Service
+
+Terminal pod states (ImagePullBackOff, CrashLoopBackOff, OOMKilled, etc.) return an error immediately
+instead of showing as "deployed". `WaitForResources` in `pkg/k8s/client.go` covers:
+
+- Terminal container waiting reasons (11 states)
+- Pod phase `Failed` / `Unknown`
+- `Unschedulable` pod condition
+- Timeout with pending pod count
+
+Failed runs leave the namespace alive for user inspection. Only passing runs trigger namespace cleanup.
