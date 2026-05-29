@@ -41,9 +41,13 @@ ruff format .                 # Format
 ### Tests
 
 ```bash
-pytest                        # All tests
+pytest                        # All tests (core + integration)
 pytest path/to/test_file.py   # Single file
 pytest -k "test_name"         # Single test by name
+
+# DAO SDK has its own pytest root
+cd SDKs/DAO && pytest                     # All DAO unit tests
+cd SDKs/DAO && pytest -k "test_name"      # Single DAO test
 ```
 
 ### Pre-commit
@@ -116,6 +120,7 @@ Router responsibilities:
 - `routers/seed.py` — YAML file ingestion into MongoDB; called once per topic
 - `routers/courses.py` — SQLite course/topic catalog queries
 - `routers/content.py` — MongoDB `learning_units` queries
+- `routers/solutions.py` — Private answer key retrieval; never returns solution data to frontend directly
 - `routers/grading.py` — Code submission validation; runs via WebSocket (`/ws/grading/run`)
   which proxies to the validation service
 - `routers/submissions.py` — Submission history queries
@@ -124,6 +129,12 @@ Router responsibilities:
 
 `database.py` wires both DB connections. `models.py` has all Beanie Documents.
 `schema.py` has all Pydantic request/response schemas.
+
+### Environment Config
+
+`ENVIRONMENT` env var (`development` | `production`, default `development`) controls which YAML is loaded
+from `core/utils/config/{env}.yaml`. This drives both SQLite path and MongoDB connection settings.
+In Docker, set via `docker-compose.yml`; locally, export before running `uvicorn`.
 
 ### SDK (`SDKs/DAO/daolib/`)
 
@@ -145,6 +156,24 @@ React 18 + TypeScript SPA. Route structure mirrors the course hierarchy:
 `AuthContext` manages JWT storage (localStorage keys: `kp_access_token`, `kp_refresh_token`).
 `services/api.ts` handles auto-refresh on 401. In Docker, `VITE_API_BASE_URL` is empty —
 Nginx proxies `/api/*` to the backend.
+
+#### LearningUnit layout (`pages/LearningUnit.tsx`)
+
+LeetCode-style 3-pane layout:
+
+- **Top bar (h-12)**: logo icon → hamburger (opens `ProblemListPanel`) → divider →
+  prev/counter/next → [centered: Run icon + Submit] → UserMenu
+- **Left pane**: description tab (title, markdown, Exercise steps flat list, per-hint accordions)
+  - Submissions tab. Maximize button top-right.
+- **Right pane** (coding units): editor sub-pane + draggable dark gap + console sub-pane.
+  Editor has Maximize + Reset. Console is minimizable (click header) and resizable (drag handle);
+  auto-expands on Run/Submit.
+- `ProblemListPanel` (`components/shared/ProblemListPanel.tsx`) — fixed overlay,
+  Course→Topics→Units nested list with search and completion indicators.
+- `MarkdownRenderer` (`components/shared/MarkdownRenderer.tsx`) — custom parser, all text at
+  `text-sm` density. Do not add `text-lg` — intentionally reduced to match LeetCode.
+- Docker rebuild: `docker compose build frontend && TAG=<tag> docker compose up -d --force-recreate frontend`.
+  Nginx serves assets with `Cache-Control: immutable` — hard refresh won't show changes; must rebuild.
 
 ### Validation Service (`validation-service/`)
 

@@ -80,7 +80,7 @@ export const Console: React.FC<ConsoleProps> = ({
 
   return (
     <div
-      className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-[#1e1e1e] flex flex-col overflow-hidden"
+      className="border-t border-[#3e3e42] bg-[#1e1e1e] flex flex-col overflow-hidden"
       style={{
         height: isOpen ? (height ? `${height}px` : '250px') : '36px',
         transition: 'height 150ms ease-out',
@@ -89,7 +89,7 @@ export const Console: React.FC<ConsoleProps> = ({
       {/* Header */}
       <div
         onClick={() => onToggle(!isOpen)}
-        className="h-9 min-h-[36px] bg-gray-50 dark:bg-[#252526] border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#2a2a2b]"
+        className="h-9 min-h-[36px] bg-[#252526] border-b border-[#3e3e42] flex items-center justify-between px-4 cursor-pointer hover:bg-[#2a2d2e]"
       >
         <div className="flex items-center gap-2 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
           <Terminal size={14} /> Cluster Output

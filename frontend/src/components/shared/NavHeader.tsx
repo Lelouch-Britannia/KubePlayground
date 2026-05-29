@@ -42,7 +42,6 @@ export default function NavHeader({ title }: NavHeaderProps) {
               <path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.5L18.5 7 12 9.5 5.5 7 12 4.5zM4 8.5l7 3.5v7l-7-3.5v-7zm9 10.5v-7l7-3.5v7l-7 3.5z"/>
             </svg>
           </div>
-          <span className="text-lg font-bold text-dark-text-primary">KubePlayground</span>
         </div>
 
         {/* Navigation Links */}

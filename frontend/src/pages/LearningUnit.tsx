@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, RotateCcw, ChevronDown, BookOpen, History } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCcw, ChevronDown, BookOpen, History, Menu, Lightbulb, ListOrdered, Play, Maximize2, Minimize2 } from 'lucide-react';
 import { apiClient } from '../services/api';
 import type { UnitDetail, SyllabusItem, ValidationResponse, WSMessage, RunCompleteData, ValidateOnlyResponse, UserSubmission } from '../types/api';
 import MarkdownRenderer from '../components/shared/MarkdownRenderer';
@@ -9,13 +9,11 @@ import Confetti from '../components/shared/Confetti';
 import CodeEditor from '../components/RightPanel/CodeEditor';
 import { Console } from '../components/RightPanel/Console';
 import UserMenu from '../components/shared/UserMenu';
-import UnitNavigation from '../components/shared/UnitNavigation';
-import { useAuth } from '../contexts/AuthContext';
+import ProblemListPanel from '../components/shared/ProblemListPanel';
 
 export default function LearningUnit() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [unit, setUnit] = useState<UnitDetail | null>(null);
   const [allUnits, setAllUnits] = useState<SyllabusItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
@@ -38,9 +36,10 @@ export default function LearningUnit() {
   const [submissions, setSubmissions] = useState<UserSubmission[]>([]);
   const [submissionsLoading, setSubmissionsLoading] = useState(false);
   const [expandedSubmissionId, setExpandedSubmissionId] = useState<string | null>(null);
-  const [hintsExpanded, setHintsExpanded] = useState(false);
-  const [consoleExpanded, setConsoleExpanded] = useState(false);
+
+  const [openHints, setOpenHints] = useState<Set<number>>(new Set());
   const [consoleHeight, setConsoleHeight] = useState(250);
+  const [consoleOpen, setConsoleOpen] = useState(false);
   const consoleResizing = useRef(false);
   const rightPanelRef = useRef<HTMLDivElement>(null);
   // const [solutionHistory, setSolutionHistory] = useState<any[]>([]); // quiz/grading feature commented out
@@ -58,6 +57,9 @@ export default function LearningUnit() {
   const [wsMessages, setWsMessages] = useState<WSMessage[]>([]);
   const [runData, setRunData] = useState<RunCompleteData | null>(null);
   const wsRef = useRef<{ close: () => void } | null>(null);
+  const [showProblemList, setShowProblemList] = useState(false);
+  const [leftMaximized, setLeftMaximized] = useState(false);
+  const [rightMaximized, setRightMaximized] = useState(false);
 
   useEffect(() => {
     fetchSyllabus();
@@ -124,7 +126,6 @@ export default function LearningUnit() {
       setRunComplete(false);
       setRunNamespace(null);
       setRunData(null);
-      setConsoleExpanded(false);
       setValidating(false);
       setActiveTab('question');
       setSubmissions([]);
@@ -226,23 +227,18 @@ export default function LearningUnit() {
     if (newWidth > 25 && newWidth < 75) setLeftWidth(newWidth);
   };
 
-  // Console vertical resize: drag the handle to adjust console height
   const startConsoleResize = (e: React.MouseEvent) => {
     e.preventDefault();
     consoleResizing.current = true;
     const startY = e.clientY;
     const startHeight = consoleHeight;
-
     const onMove = (ev: MouseEvent) => {
       if (!consoleResizing.current) return;
-      // Dragging upward increases console height
       const delta = startY - ev.clientY;
       const panelRect = rightPanelRef.current?.getBoundingClientRect();
-      const maxHeight = panelRect ? panelRect.height - 120 : 600;
-      const newHeight = Math.max(100, Math.min(maxHeight, startHeight + delta));
-      setConsoleHeight(newHeight);
+      const maxHeight = panelRect ? panelRect.height - 80 : 600;
+      setConsoleHeight(Math.max(80, Math.min(maxHeight, startHeight + delta)));
     };
-
     const onUp = () => {
       consoleResizing.current = false;
       document.removeEventListener('mousemove', onMove);
@@ -250,7 +246,6 @@ export default function LearningUnit() {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
     document.body.style.cursor = 'row-resize';
@@ -355,13 +350,13 @@ export default function LearningUnit() {
     if (!unit) return;
     try {
       setRunning(true);
+      setConsoleOpen(true);
       setRunComplete(false);
       setRunNamespace(null);
       setRunData(null);
       setValidationResponse(null);
       setValidating(false);
       setWsMessages([]);
-      setConsoleExpanded(true);
 
       const handle = apiClient.runManifestWS(
         { unit_slug: unit.slug, code, language: unit.editor_config?.language || 'yaml' },
@@ -403,7 +398,7 @@ export default function LearningUnit() {
     if (!unit || !runNamespace) return;
     try {
       setValidating(true);
-      setConsoleExpanded(true);
+      setConsoleOpen(true);
 
       const result = await apiClient.validateOnly({ unit_slug: unit.slug, namespace: runNamespace, code, language: unit.editor_config?.language || 'yaml' }) as ValidateOnlyResponse;
 
@@ -503,86 +498,100 @@ export default function LearningUnit() {
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-dark-bg">
-      {/* Header */}
-      <header className="h-14 bg-dark-surface border-b border-dark-border flex items-center justify-between px-5 shrink-0">
+      {/* Single compact top bar */}
+      <header className="h-12 bg-dark-surface border-b border-dark-border flex items-center px-3 gap-2 shrink-0 relative">
         {isNavigating && (
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-dark-accent-green animate-pulse" />
         )}
-        <div className="flex items-center gap-6">
-          {/* Logo */}
-          <div
-            className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
-            onClick={() => user ? navigate('/') : navigate('/auth')}
-          >
-            <div className="w-8 h-8 bg-gradient-to-br from-dark-accent-blue to-dark-accent-green rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.5L18.5 7 12 9.5 5.5 7 12 4.5zM4 8.5l7 3.5v7l-7-3.5v-7zm9 10.5v-7l7-3.5v7l-7 3.5z"/>
-              </svg>
-            </div>
-            <span className="text-lg font-bold text-dark-text-primary">KubePlayground</span>
+
+        {/* Logo icon — far left */}
+        <button
+          onClick={() => navigate('/')}
+          className="w-8 h-8 flex items-center justify-center rounded hover:bg-dark-hover cursor-pointer"
+          title="Home"
+        >
+          <div className="w-6 h-6 bg-gradient-to-br from-dark-accent-blue to-dark-accent-green rounded-md flex items-center justify-center">
+            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.5L18.5 7 12 9.5 5.5 7 12 4.5zM4 8.5l7 3.5v7l-7-3.5v-7zm9 10.5v-7l7-3.5v7l-7 3.5z"/>
+            </svg>
           </div>
+        </button>
 
-          {/* Navigation Links */}
-          <nav className="flex items-center gap-1">
-            <button
-              onClick={() => navigate('/')}
-              className="px-4 py-2 text-sm font-medium rounded text-dark-text-secondary hover:text-dark-text-primary hover:bg-dark-active transition-colors"
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={() => navigate('/courses')}
-              className="px-4 py-2 text-sm font-medium rounded text-dark-text-secondary hover:text-dark-text-primary hover:bg-dark-active transition-colors"
-            >
-              Courses
-            </button>
-          </nav>
-        </div>
+        {/* Panel toggle (hamburger) */}
+        <button
+          onClick={() => setShowProblemList(prev => !prev)}
+          className="w-8 h-8 flex items-center justify-center rounded hover:bg-dark-hover text-dark-text-secondary hover:text-dark-text-primary transition-colors"
+          title="Problem list"
+        >
+          <Menu size={16} />
+        </button>
 
-        <div className="flex items-center gap-4">
-          {/* User Menu */}
-          <UserMenu />
-        </div>
+        {/* Divider */}
+        <div className="h-5 w-px bg-dark-border mx-1" />
+
+        {/* Prev / counter / Next */}
+        <button
+          onClick={() => navigateToUnit('prev')}
+          disabled={!hasPrev || isNavigating}
+          className="w-7 h-7 flex items-center justify-center rounded text-dark-text-secondary hover:bg-dark-hover hover:text-dark-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronLeft size={14} />
+        </button>
+        <span className="text-xs text-dark-text-muted font-medium tabular-nums min-w-[44px] text-center select-none">
+          {currentIndex + 1} / {allUnits.length}
+        </span>
+        <button
+          onClick={() => navigateToUnit('next')}
+          disabled={!hasNext || isNavigating}
+          className="w-7 h-7 flex items-center justify-center rounded text-dark-text-secondary hover:bg-dark-hover hover:text-dark-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronRight size={14} />
+        </button>
+
+        {/* Center cluster — Run icon button + Submit text button */}
+        {unit.type === 'coding' && (
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
+            {/* Run icon button */}
+            <button
+              onClick={handleCodeSubmit}
+              disabled={running || validating}
+              className="w-8 h-8 rounded bg-blue-600 hover:bg-blue-500 disabled:bg-dark-elevated flex items-center justify-center text-white transition-colors"
+              title="Run"
+            >
+              {running ? (
+                <div className="animate-spin border-2 border-white border-t-transparent rounded-full w-3 h-3" />
+              ) : (
+                <Play size={14} />
+              )}
+            </button>
+            {/* Submit text button */}
+            <button
+              onClick={handleValidate}
+              disabled={!runComplete || validating || running}
+              className="px-4 py-1.5 bg-dark-accent-green hover:bg-dark-accent-green/80 disabled:bg-dark-elevated disabled:cursor-not-allowed text-dark-bg rounded text-sm font-semibold transition-colors"
+            >
+              {validating ? 'Submitting...' : 'Submit'}
+            </button>
+          </div>
+        )}
+
+        {/* Flex-1 spacer pushes UserMenu to the right */}
+        <div className="flex-1" />
+
+        {/* User Menu */}
+        <UserMenu />
       </header>
 
-      {/* Secondary Navigation Banner */}
-      <div className="h-12 bg-dark-surface border-b border-dark-border flex items-center px-5 shrink-0">
-        {/* Left spacer - balances the right nav arrows */}
-        <div className="min-w-[120px]" />
+      {/* Problem List Panel */}
+      {showProblemList && <ProblemListPanel currentUnitSlug={unit.slug} onClose={() => setShowProblemList(false)} />}
 
-        {/* Center: Topic + Unit dropdowns */}
-        <div className="flex-1 flex items-center justify-center">
-          <UnitNavigation currentUnitSlug={unit.slug} currentTopic={unit.topic} />
-        </div>
-
-        {/* Right: Prev / progress counter / Next — consistent style */}
-        <div className="flex items-center gap-1.5 min-w-[120px] justify-end">
-          <button
-            onClick={() => navigateToUnit('prev')}
-            disabled={!hasPrev || isNavigating}
-            className="w-8 h-8 flex items-center justify-center rounded bg-dark-elevated text-dark-text-secondary hover:bg-dark-hover hover:text-dark-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <span className="text-xs text-dark-text-muted font-medium tabular-nums min-w-[44px] text-center select-none">
-            {currentIndex + 1} / {allUnits.length}
-          </span>
-          <button
-            onClick={() => navigateToUnit('next')}
-            disabled={!hasNext || isNavigating}
-            className="w-8 h-8 flex items-center justify-center rounded bg-dark-elevated text-dark-text-secondary hover:bg-dark-hover hover:text-dark-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronRight size={16} />
-          </button>
-        </div>
-      </div>
-
-      {/* Main Workspace */}
-      <div className="flex-1 flex overflow-hidden relative p-4 gap-2">
+      {/* Main Workspace — bg-dark-bg fills gaps between panels like LeetCode */}
+      <div className="flex-1 flex overflow-hidden relative px-2 pt-2 pb-0 gap-2 bg-dark-bg">
         {/* Left Panel - Description/Content with Tabs */}
+        {!rightMaximized && (
         <div
-          style={rightPanelOpen ? { width: `${leftWidth}%` } : undefined}
-          className={`${rightPanelOpen ? 'min-w-[350px]' : 'flex-1'} flex flex-col bg-dark-surface border border-dark-border rounded-lg overflow-hidden transition-opacity duration-200 ${isNavigating ? 'opacity-50' : 'opacity-100'}`}
+          style={rightPanelOpen && !leftMaximized ? { width: `${leftWidth}%` } : undefined}
+          className={`${leftMaximized ? 'flex-1' : rightPanelOpen ? 'min-w-[350px]' : 'flex-1'} flex flex-col bg-dark-surface border border-dark-border rounded-t-lg overflow-hidden transition-opacity duration-200 ${isNavigating ? 'opacity-50' : 'opacity-100'}`}
         >
           {/* Tabs */}
           <div className="h-12 bg-dark-surface border-b border-dark-border flex items-center justify-between px-4 shrink-0">
@@ -612,18 +621,27 @@ export default function LearningUnit() {
                 </button>
               )}
             </div>
-            {/* Difficulty badge — inline with the tab bar */}
-            {unit.difficulty && (
-              <span className={`px-2.5 py-1 text-xs font-bold uppercase tracking-wide rounded border ${
-                unit.difficulty === 'beginner'
-                  ? 'border-dark-accent-green/40 text-dark-accent-green bg-dark-accent-green/10'
-                  : unit.difficulty === 'intermediate'
-                  ? 'border-dark-accent-yellow/40 text-dark-accent-yellow bg-dark-accent-yellow/10'
-                  : 'border-red-400/40 text-red-400 bg-red-400/10'
-              }`}>
-                {unit.difficulty}
-              </span>
-            )}
+            {/* Difficulty badge + maximize button — inline with the tab bar */}
+            <div className="flex items-center gap-2">
+              {unit.difficulty && (
+                <span className={`px-2.5 py-1 text-xs font-bold uppercase tracking-wide rounded border ${
+                  unit.difficulty === 'beginner'
+                    ? 'border-dark-accent-green/40 text-dark-accent-green bg-dark-accent-green/10'
+                    : unit.difficulty === 'intermediate'
+                    ? 'border-dark-accent-yellow/40 text-dark-accent-yellow bg-dark-accent-yellow/10'
+                    : 'border-red-400/40 text-red-400 bg-red-400/10'
+                }`}>
+                  {unit.difficulty}
+                </span>
+              )}
+              <button
+                onClick={() => { setLeftMaximized(v => !v); setRightMaximized(false); }}
+                className="w-7 h-7 flex items-center justify-center rounded text-dark-text-muted hover:text-dark-text-primary hover:bg-dark-hover transition-colors"
+                title={leftMaximized ? 'Restore' : 'Maximize'}
+              >
+                {leftMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              </button>
+            </div>
           </div>
 
           {/* Tab Content */}
@@ -631,53 +649,62 @@ export default function LearningUnit() {
             {activeTab === 'question' && (
               <>
                 {/* Description */}
-                <div className="mb-8">
-                  <h2 className="text-2xl font-bold text-[#569cd6] mb-5">{unit.title}</h2>
-                  <div className="text-[#cccccc] text-base leading-relaxed max-w-none">
+                <div className="mb-6">
+                  <h2 className="text-xl font-bold text-[#569cd6] mb-3">{unit.title}</h2>
+                  <div className="text-[#cccccc] text-sm leading-relaxed max-w-none">
                     <MarkdownRenderer content={unit.description} />
                   </div>
                 </div>
 
-                {/* Steps */}
+                {/* Exercise (Steps) — flat inline section, no dropdown */}
                 {unit.steps && unit.steps.length > 0 && (
-                  <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-[#4ec9b0] mb-4">Steps</h3>
-                    <ol className="list-decimal list-inside space-y-2.5 text-[#cccccc] text-base leading-relaxed">
+                  <div className="mb-4">
+                    <div className="border-t border-dark-border mb-3" />
+                    <div className="flex items-center gap-2 mb-3">
+                      <ListOrdered size={15} className="text-dark-text-muted shrink-0" />
+                      <span className="text-xs font-semibold uppercase tracking-wider text-dark-text-muted">Exercise</span>
+                    </div>
+                    <ol className="space-y-2 list-none">
                       {unit.steps.map((step, idx) => (
-                        <li key={idx} className="pl-2">{step}</li>
+                        <li key={idx} className="flex gap-2.5 items-start">
+                          <span className="text-[#c586c0] font-mono text-xs mt-0.5 shrink-0 w-4 select-none">{idx + 1}.</span>
+                          <span className="text-sm text-[#cccccc] leading-relaxed">{step}</span>
+                        </li>
                       ))}
                     </ol>
                   </div>
                 )}
 
-                {/* Collapsible Hints */}
+                {/* Hints accordion — one row per hint */}
                 {unit.hints && unit.hints.length > 0 && (
-                  <div className="mb-6">
-                    <button
-                      onClick={() => setHintsExpanded(!hintsExpanded)}
-                      className="flex items-center justify-between w-full px-4 py-3 bg-dark-elevated hover:bg-dark-active border border-dark-border rounded-lg transition-colors"
-                    >
-                      <span className="text-base font-semibold text-[#dcdcaa] flex items-center gap-2">
-                        💡 Hints ({unit.hints.length})
-                      </span>
-                      <ChevronDown
-                        className={`w-5 h-5 text-[#dcdcaa] transition-transform ${
-                          hintsExpanded ? 'rotate-180' : ''
-                        }`}
-                      />
-                    </button>
-                    {hintsExpanded && (
-                      <div className="mt-3 px-4 py-3 bg-dark-elevated border border-dark-border rounded-lg">
-                        <ul className="space-y-3 text-[#cccccc] text-base leading-relaxed">
-                          {unit.hints.map((hint, idx) => (
-                            <li key={idx} className="flex gap-2">
-                              <span className="text-[#dcdcaa] font-bold">{idx + 1}.</span>
-                              <span>{hint}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                  <div>
+                    <div className="border-t border-dark-border" />
+                    {unit.hints.map((hint, idx) => (
+                      <React.Fragment key={idx}>
+                        <button
+                          onClick={() => {
+                            setOpenHints(prev => {
+                              const next = new Set(prev);
+                              next.has(idx) ? next.delete(idx) : next.add(idx);
+                              return next;
+                            });
+                          }}
+                          className="flex items-center gap-3 px-0 py-3 cursor-pointer hover:text-dark-text-primary border-b border-dark-border w-full text-left"
+                        >
+                          <Lightbulb size={15} className="text-dark-accent-yellow shrink-0" />
+                          <span className="text-sm font-medium text-dark-text-primary flex-1">Hint {idx + 1}</span>
+                          <ChevronDown
+                            size={15}
+                            className={`text-dark-text-muted transition-transform shrink-0 ${openHints.has(idx) ? 'rotate-180' : ''}`}
+                          />
+                        </button>
+                        {openHints.has(idx) && (
+                          <div className="py-3 px-1 text-sm text-dark-text-secondary leading-relaxed border-b border-dark-border">
+                            {hint}
+                          </div>
+                        )}
+                      </React.Fragment>
+                    ))}
                   </div>
                 )}
               </>
@@ -770,9 +797,10 @@ export default function LearningUnit() {
             )}
           </div>
         </div>
+        )}
 
-        {/* Resizer - only shown for coding units when right panel is open */}
-        {rightPanelOpen && unit.type === 'coding' && (
+        {/* Resizer - only shown for coding units when right panel is open and neither panel is maximized */}
+        {rightPanelOpen && unit.type === 'coding' && !leftMaximized && !rightMaximized && (
           <div
             className="w-1.5 bg-transparent hover:bg-dark-accent-purple cursor-col-resize z-10 transition-colors shrink-0"
             onDrag={handleDrag}
@@ -793,8 +821,8 @@ export default function LearningUnit() {
         )}
 
         {/* Right Panel - Editor (coding) / Future Quiz (conceptual) */}
-        {rightPanelOpen && (
-          <div ref={rightPanelRef} className={`flex-1 flex flex-col min-w-[400px] bg-dark-surface border border-dark-border rounded-lg overflow-hidden transition-opacity duration-200 ${isNavigating ? 'opacity-50' : 'opacity-100'}`}>
+        {rightPanelOpen && !leftMaximized && (
+          <div ref={rightPanelRef} className={`flex-1 flex flex-col ${rightMaximized ? '' : 'min-w-[400px]'} bg-dark-bg transition-opacity duration-200 ${isNavigating ? 'opacity-50' : 'opacity-100'}`}>
             {/* Conceptual: placeholder with close arrow (future quiz panel) */}
             {unit.type === 'conceptual' && (
               <>
@@ -818,28 +846,37 @@ export default function LearningUnit() {
 
             {unit.type === 'coding' && unit.editor_config && (
             <>
+              {/* Editor sub-panel */}
+              <div className="flex-1 flex flex-col min-h-0 border border-dark-border rounded-t-lg overflow-hidden bg-dark-surface">
               {/* Editor Header */}
-              <div className="h-12 bg-dark-elevated border-b border-dark-border flex items-center justify-between px-4">
+              <div className="h-10 bg-dark-elevated border-b border-dark-border flex items-center justify-between px-4 shrink-0">
                 <div className="flex items-center gap-3">
-                  <span className="bg-dark-bg text-dark-text-primary text-sm px-3 py-1.5 rounded border border-dark-border capitalize">
+                  <span className="text-dark-text-secondary text-xs font-mono uppercase tracking-wide">
                     {unit.editor_config.language}
                   </span>
                   {isCompleted && (
-                    <div className="flex items-center gap-2 px-2 py-1 bg-green-500/10 border border-green-500/30 rounded">
-                      <span className="text-xs font-medium text-green-400">✓ Completed</span>
-                    </div>
+                    <span className="text-xs font-medium text-green-400">✓ Completed</span>
                   )}
                 </div>
-                <button
-                  onClick={() => setCode(unit.editor_config!.initial_code)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-dark-text-primary hover:text-dark-accent-purple transition-colors"
-                >
-                  <RotateCcw size={14} /> Reset
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCode(unit.editor_config!.initial_code)}
+                    className="flex items-center gap-1.5 px-2 py-1 text-xs text-dark-text-secondary hover:text-dark-text-primary transition-colors"
+                  >
+                    <RotateCcw size={12} /> Reset
+                  </button>
+                  <button
+                    onClick={() => { setRightMaximized(v => !v); setLeftMaximized(false); }}
+                    className="w-6 h-6 flex items-center justify-center rounded text-dark-text-muted hover:text-dark-text-primary hover:bg-dark-hover transition-colors"
+                    title={rightMaximized ? 'Restore' : 'Maximize'}
+                  >
+                    {rightMaximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                  </button>
+                </div>
               </div>
 
-              {/* Code Editor */}
-              <div className="flex-1 overflow-hidden">
+              {/* Editor — takes remaining space above console */}
+              <div className="flex-1 overflow-hidden min-h-0">
                 <CodeEditor
                   value={code}
                   onChange={setCode}
@@ -847,42 +884,31 @@ export default function LearningUnit() {
                 />
               </div>
 
-              {/* Console Resize Handle */}
-              {consoleExpanded && (
-                <div
-                  onMouseDown={startConsoleResize}
-                  className="h-1 min-h-[4px] bg-transparent hover:bg-dark-accent-purple cursor-row-resize transition-colors flex-shrink-0"
-                />
-              )}
+              </div>{/* end editor sub-panel */}
 
-              {/* Console + Submit Bar */}
-              <div className="flex flex-col flex-shrink-0" style={consoleExpanded ? { height: `${consoleHeight}px` } : undefined}>
+              {/* Resize handle — drag upward to resize console */}
+              <div
+                onMouseDown={startConsoleResize}
+                className="h-2 shrink-0 bg-dark-bg hover:bg-dark-accent-purple/40 cursor-row-resize transition-colors flex items-center justify-center"
+              >
+                <div className="w-8 h-0.5 bg-dark-border rounded-full" />
+              </div>
+
+              {/* Console pane — minimizable, resizable */}
+              <div
+                className="shrink-0 rounded-t-lg overflow-hidden border border-dark-border bg-[#1e1e1e] transition-all duration-150"
+                style={{ height: consoleOpen ? `${consoleHeight}px` : '36px' }}
+              >
                 <Console
-                  isOpen={consoleExpanded}
-                  onToggle={setConsoleExpanded}
+                  isOpen={consoleOpen}
+                  onToggle={setConsoleOpen}
                   validating={validating}
                   running={running}
                   runComplete={runComplete}
                   wsMessages={wsMessages}
                   validationResponse={validationResponse}
-                  height={consoleExpanded ? consoleHeight - 56 : undefined}
+                  height={consoleOpen ? consoleHeight - 36 : undefined}
                 />
-                <div className="h-14 bg-dark-surface border-t border-dark-border flex items-center justify-end px-4 gap-3 shrink-0">
-                  <button
-                    onClick={handleCodeSubmit}
-                    disabled={running || validating}
-                    className="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-dark-elevated disabled:cursor-not-allowed text-white rounded text-sm font-semibold transition-colors"
-                  >
-                    {running ? 'Deploying...' : 'Run'}
-                  </button>
-                  <button
-                    onClick={handleValidate}
-                    disabled={!runComplete || validating || running}
-                    className="px-6 py-2 bg-dark-accent-green hover:bg-dark-accent-green/80 disabled:bg-dark-elevated disabled:cursor-not-allowed text-dark-bg rounded text-sm font-semibold transition-colors"
-                  >
-                    {validating ? 'Validating...' : 'Validate'}
-                  </button>
-                </div>
               </div>
             </>
           )}
