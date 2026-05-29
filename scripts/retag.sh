@@ -2,29 +2,58 @@
 set -e
 
 REGISTRY="ghcr.io/lelouch-britannia"
-FROM_TAG="${1:-latest}"
-TO_TAG="${2}"
-
 IMAGES=(
   "kubeplayground-backend"
   "kubeplayground-frontend"
   "kubeplayground-validation-service"
 )
 
-if [ -z "$TO_TAG" ]; then
-  echo "Usage: $0 <from-tag> <to-tag>"
-  echo "  Example: $0 latest 1.1.0"
-  exit 1
-fi
-
-for image in "${IMAGES[@]}"; do
-  full="$REGISTRY/$image"
-  echo "--- $image ---"
-  docker pull "$full:$FROM_TAG"
-  docker tag "$full:$FROM_TAG" "$full:$TO_TAG"
-  docker push "$full:$TO_TAG"
-  echo "Done: $full:$TO_TAG"
+usage() {
+  echo "Usage:"
+  echo "  $0 retag <from-tag> <to-tag>   # retag existing images"
+  echo "  $0 push <tag>                  # build locally and push"
   echo ""
-done
+  echo "Examples:"
+  echo "  $0 retag latest 1.1.0"
+  echo "  $0 push 1.1.0"
+  exit 1
+}
 
-echo "All images retagged and pushed: $FROM_TAG → $TO_TAG"
+cmd="${1}"
+
+case "$cmd" in
+  retag)
+    FROM_TAG="${2}"
+    TO_TAG="${3}"
+    [ -z "$FROM_TAG" ] || [ -z "$TO_TAG" ] && usage
+    for image in "${IMAGES[@]}"; do
+      full="$REGISTRY/$image"
+      echo "--- $image ---"
+      docker pull "$full:$FROM_TAG"
+      docker tag "$full:$FROM_TAG" "$full:$TO_TAG"
+      docker push "$full:$TO_TAG"
+      echo "Done: $full:$TO_TAG"
+    done
+    echo "Retagged: $FROM_TAG → $TO_TAG"
+    ;;
+
+  push)
+    TAG="${2}"
+    [ -z "$TAG" ] && usage
+    echo "Building TAG=$TAG..."
+    TAG=$TAG docker compose build
+    for image in "${IMAGES[@]}"; do
+      full="$REGISTRY/$image"
+      echo "Pushing $full:$TAG..."
+      docker push "$full:$TAG"
+      docker tag "$full:$TAG" "$full:latest"
+      docker push "$full:latest"
+      echo "Done: $full:$TAG + latest"
+    done
+    echo "Built and pushed: $TAG + latest"
+    ;;
+
+  *)
+    usage
+    ;;
+esac
