@@ -176,7 +176,8 @@ async def populate_database(topic_dir: str, *, skip_existing: bool = True, db: d
                 topic_info = ContentFileOperator.read(FileReadEntry(read_path=topic_json_path))
                 course_slug = topic_info.get("course_slug")
                 if course_slug:
-                    course_json_path = topic_dir_path.parent / course_slug / "course.json"
+                    # course.json lives in the parent dir (same level as topic dirs)
+                    course_json_path = topic_dir_path.parent / "course.json"
                     course_info = ContentFileOperator.read(FileReadEntry(read_path=course_json_path))
             except Exception as e:
                 stats["errors"].append(f"{content_file.name}: Failed to read hierarchy files - {e!s}")

@@ -52,7 +52,7 @@ services:
         condition: service_healthy
     volumes:
       # Mount sample resources for seeding database
-      # Inside container: /app/seed-data/k8s/pods101/*.yaml etc.
+      # Inside container: /app/seed-data/k8s/kubernetes-fundamentals/pods101/*.json etc.
       - ./sample-resources:/app/seed-data:ro
       # Persist SQLite database for IAM (user accounts, sessions, activity)
       - sqlite_data:/app/data
@@ -137,13 +137,13 @@ services:
     command: >
       sh -c "
         echo 'Seeding Pods 101...' &&
-        curl -X POST 'http://backend:8000/api/v1/seed/populate?topic_dir=/app/seed-data/k8s/pods101' &&
+        curl -X POST 'http://backend:8000/api/v1/seed/populate?topic_dir=/app/seed-data/k8s/kubernetes-fundamentals/pods101' &&
         echo '' &&
         echo 'Seeding ReplicaSet 101...' &&
-        curl -X POST 'http://backend:8000/api/v1/seed/populate?topic_dir=/app/seed-data/k8s/replicaset101' &&
+        curl -X POST 'http://backend:8000/api/v1/seed/populate?topic_dir=/app/seed-data/k8s/kubernetes-fundamentals/replicaset101' &&
         echo '' &&
         echo 'Seeding Deployment 101...' &&
-        curl -X POST 'http://backend:8000/api/v1/seed/populate?topic_dir=/app/seed-data/k8s/deployment101' &&
+        curl -X POST 'http://backend:8000/api/v1/seed/populate?topic_dir=/app/seed-data/k8s/kubernetes-fundamentals/deployment101' &&
         echo '' && echo 'Seeding complete!'
       "
     networks:
