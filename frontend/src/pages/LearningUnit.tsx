@@ -58,6 +58,7 @@ export default function LearningUnit() {
   const [runData, setRunData] = useState<RunCompleteData | null>(null);
   const wsRef = useRef<{ close: () => void } | null>(null);
   const [showProblemList, setShowProblemList] = useState(false);
+  const [panelRefreshKey, setPanelRefreshKey] = useState(0);
   const [leftMaximized, setLeftMaximized] = useState(false);
   const [rightMaximized, setRightMaximized] = useState(false);
 
@@ -97,6 +98,28 @@ export default function LearningUnit() {
   //
   //   return () => clearTimeout(timer);
   // }, [code, unit, lastSavedCode]);
+
+  // Draft autosave debounce ref
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+
+  // Autosave draft to backend (debounced 2s)
+  useEffect(() => {
+    if (!unit?.slug || unit.type !== 'coding' || !unit.editor_config) return;
+    if (code === unit.editor_config.initial_code) {
+      apiClient.deleteDraft(unit.slug).catch(() => {});
+      setAutosaveStatus('idle');
+      return;
+    }
+    setAutosaveStatus('saving');
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = setTimeout(() => {
+      apiClient.saveDraft(unit.slug, code, unit.editor_config!.language || 'yaml')
+        .then(() => setAutosaveStatus('saved'))
+        .catch(() => setAutosaveStatus('idle'));
+    }, 2000);
+    return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
+  }, [code, unit]);
 
   const fetchSyllabus = async () => {
     try {
@@ -157,7 +180,21 @@ export default function LearningUnit() {
         //   // No previous solution, use template
         //   setCode(data.editor_config.initial_code);
         // }
-        setCode(data.editor_config.initial_code);
+        // Restore draft from backend, fall back to initial_code
+        try {
+          const [draftRes, nsRes] = await Promise.all([
+            apiClient.getDraft(unitSlug).catch(() => ({ code: null })),
+            apiClient.getNamespace(unitSlug).catch(() => ({ namespace: null })),
+          ]);
+          setCode((draftRes as any).code || data.editor_config.initial_code);
+          const savedNs = (nsRes as any).namespace;
+          if (savedNs) {
+            setRunNamespace(savedNs);
+            setRunComplete(true);
+          }
+        } catch {
+          setCode(data.editor_config.initial_code);
+        }
       }
 
       // Check if unit was already completed
@@ -357,6 +394,7 @@ export default function LearningUnit() {
       setValidationResponse(null);
       setValidating(false);
       setWsMessages([]);
+      if (unit) apiClient.deleteNamespace(unit.slug).catch(() => {});
 
       const handle = apiClient.runManifestWS(
         { unit_slug: unit.slug, code, language: unit.editor_config?.language || 'yaml' },
@@ -368,6 +406,7 @@ export default function LearningUnit() {
               if (data) { setRunData(data); setRunNamespace(data.namespace || null); }
               if (msg.status === 'success') {
                 setRunComplete(true);
+                if (data?.namespace && unit) apiClient.saveNamespace(unit.slug, data.namespace).catch(() => {});
                 setToast({ show: true, type: 'info', message: 'Resources deployed! Click "Validate" to run tests.' });
               } else {
                 setToast({ show: true, type: 'error', message: msg.message || 'Manifest deployment failed.' });
@@ -416,7 +455,7 @@ export default function LearningUnit() {
         namespace: runNamespace,
         phases: [
           ...(runData?.phases || []),
-          { name: 'validation', status: result.passed ? 'success' : 'failed', duration_ms: result.duration_ms, output: result.message },
+          { name: 'validation', status: result.passed ? 'success' : 'failed', duration_ms: result.duration_ms, output: result.test_results?.[0]?.output || result.message, error: result.test_results?.[0]?.error_output },
         ],
       };
       setValidationResponse(fullResponse);
@@ -432,6 +471,8 @@ export default function LearningUnit() {
         setTimeout(() => setShowConfetti(false), 3000);
         setIsCompleted(true);
         setCompletedScore(100);
+        setAllUnits(prev => prev.map(u => u.slug === unit.slug ? { ...u, status: 'completed' } : u));
+        setPanelRefreshKey(k => k + 1);
       }
 
       // Refresh submissions list so new entry appears immediately
@@ -441,6 +482,10 @@ export default function LearningUnit() {
         try { await apiClient.cleanupNamespace(runNamespace); } catch { /* non-critical */ }
         setRunNamespace(null);
         setRunComplete(false);
+        if (unit) {
+          apiClient.deleteNamespace(unit.slug).catch(() => {});
+          apiClient.deleteDraft(unit.slug).catch(() => {});
+        }
       }
     } catch (err) {
       console.error('Validation error:', err);
@@ -457,6 +502,7 @@ export default function LearningUnit() {
       setIsCompleted(true);
       // Update local syllabus so ProblemListPanel reflects completion immediately
       setAllUnits(prev => prev.map(u => u.slug === unit.slug ? { ...u, status: 'completed' } : u));
+      setPanelRefreshKey(k => k + 1);
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 3000);
       setToast({ show: true, type: 'success', message: 'Unit marked as complete!' });
@@ -604,7 +650,7 @@ export default function LearningUnit() {
       </header>
 
       {/* Problem List Panel */}
-      {showProblemList && <ProblemListPanel currentUnitSlug={unit.slug} onClose={() => setShowProblemList(false)} />}
+      {showProblemList && <ProblemListPanel currentUnitSlug={unit.slug} onClose={() => setShowProblemList(false)} refreshKey={panelRefreshKey} />}
 
       {/* Main Workspace — bg-dark-bg fills gaps between panels like LeetCode */}
       <div className="flex-1 flex overflow-hidden relative px-2 pt-2 pb-0 gap-2 bg-dark-bg">
@@ -897,7 +943,7 @@ export default function LearningUnit() {
                 </div>
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => setCode(unit.editor_config!.initial_code)}
+                    onClick={() => { setCode(unit.editor_config!.initial_code); apiClient.deleteDraft(unit.slug).catch(() => {}); }}
                     className="flex items-center gap-1.5 px-2 py-1 text-xs text-dark-text-secondary hover:text-dark-text-primary transition-colors"
                   >
                     <RotateCcw size={12} /> Reset
@@ -919,6 +965,30 @@ export default function LearningUnit() {
                   onChange={setCode}
                   language={unit.editor_config.language}
                 />
+              </div>
+
+              {/* Autosave status bar */}
+              <div className="h-5 shrink-0 px-3 flex items-center justify-end bg-[#1e1e1e] border-t border-dark-border">
+                {autosaveStatus === 'saving' && (
+                  <span className="flex items-center gap-1 text-[10px] text-dark-text-muted">
+                    <svg className="w-2.5 h-2.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                    Saving…
+                  </span>
+                )}
+                {autosaveStatus === 'saved' && (
+                  <span className="flex items-center gap-1 text-[10px] text-dark-accent-green">
+                    <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Draft saved
+                  </span>
+                )}
+                {autosaveStatus === 'idle' && (
+                  <span className="text-[10px] text-dark-text-muted opacity-40">draft</span>
+                )}
               </div>
 
               </div>{/* end editor sub-panel */}

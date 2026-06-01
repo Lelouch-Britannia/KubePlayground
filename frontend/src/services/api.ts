@@ -301,6 +301,38 @@ class ApiClient {
     return this.request('/api/v1/grading/code/cleanup', { method: 'POST', body: JSON.stringify({ namespace }) });
   }
 
+  // Draft autosave
+  async saveDraft(unitSlug: string, code: string, language = 'yaml') {
+    return this.request('/api/v1/grading/code/draft', {
+      method: 'POST',
+      body: JSON.stringify({ unit_slug: unitSlug, code, language }),
+    });
+  }
+
+  async getDraft(unitSlug: string): Promise<{ unit_slug: string; code: string | null }> {
+    return this.request(`/api/v1/grading/code/draft/${unitSlug}`);
+  }
+
+  async deleteDraft(unitSlug: string) {
+    return this.request(`/api/v1/grading/code/draft/${unitSlug}`, { method: 'DELETE' });
+  }
+
+  // Namespace persistence
+  async saveNamespace(unitSlug: string, namespace: string) {
+    return this.request('/api/v1/grading/code/namespace', {
+      method: 'POST',
+      body: JSON.stringify({ unit_slug: unitSlug, namespace }),
+    });
+  }
+
+  async getNamespace(unitSlug: string): Promise<{ unit_slug: string; namespace: string | null }> {
+    return this.request(`/api/v1/grading/code/namespace/${unitSlug}`);
+  }
+
+  async deleteNamespace(unitSlug: string) {
+    return this.request(`/api/v1/grading/code/namespace/${unitSlug}`, { method: 'DELETE' });
+  }
+
   // ==================== Submissions API ====================
 
   async getSubmissions(unitSlug: string) {
