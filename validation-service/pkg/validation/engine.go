@@ -195,7 +195,7 @@ func (e *Engine) Validate(ctx context.Context, req *models.ValidationRequest) *m
 	// Phase 4: Wait for resources to stabilize
 	// =====================================================================
 	phaseStart = time.Now()
-	waitTimeout := 30 * time.Second
+	waitTimeout := 90 * time.Second
 	if e.config.Kubernetes.Timeout > 0 && e.config.Kubernetes.Timeout < waitTimeout {
 		waitTimeout = e.config.Kubernetes.Timeout
 	}
@@ -429,7 +429,7 @@ func (e *Engine) RunManifest(ctx context.Context, req *models.RunRequest, onPhas
 	// =====================================================================
 	emit(models.WSMessage{Type: "phase_start", Phase: "wait_ready", Message: "Waiting for resources to become ready..."})
 	phaseStart = time.Now()
-	waitTimeout := 30 * time.Second
+	waitTimeout := 90 * time.Second
 	if e.config.Kubernetes.Timeout > 0 && e.config.Kubernetes.Timeout < waitTimeout {
 		waitTimeout = e.config.Kubernetes.Timeout
 	}

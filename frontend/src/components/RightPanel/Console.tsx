@@ -235,9 +235,21 @@ export const Console: React.FC<ConsoleProps> = ({
                         <span>{res.message || 'All tests passed!'} ✨</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 text-red-600 dark:text-red-400 font-semibold">
-                        <XCircle size={16} />
-                        <span>{res.message || 'Validation failed'}</span>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-red-600 dark:text-red-400 font-semibold">
+                          <XCircle size={16} />
+                          <span>{res.message || 'Validation failed'}</span>
+                        </div>
+                        {res.test_results?.[0]?.output && (
+                          <pre className="text-xs text-gray-300 bg-[#1e1e1e] p-2 rounded border border-gray-700 whitespace-pre-wrap">
+                            {res.test_results[0].output}
+                          </pre>
+                        )}
+                        {res.test_results?.[0]?.error_output && (
+                          <pre className="text-xs text-red-400 bg-red-900/20 p-2 rounded border border-red-800 whitespace-pre-wrap">
+                            {res.test_results[0].error_output}
+                          </pre>
+                        )}
                       </div>
                     )}
                   </div>
@@ -320,7 +332,7 @@ export const Console: React.FC<ConsoleProps> = ({
                         </td>
                         <td className="py-1.5 pr-2 text-gray-700 dark:text-gray-300">{evt.reason}</td>
                         <td className="py-1.5 pr-2 text-gray-500">{evt.object}</td>
-                        <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-400 max-w-xs truncate">{evt.message}</td>
+                        <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-400 max-w-xs break-words">{evt.message}</td>
                         <td className="py-1.5 text-gray-500">{evt.age}</td>
                       </tr>
                     ))}
@@ -414,16 +426,20 @@ const StreamingLine: React.FC<{ msg: WSMessage }> = ({ msg }) => {
   if (msg.type === 'phase_complete') {
     const dur = (msg.data as any)?.duration_ms;
     return (
-      <div className="flex items-center gap-2 py-0.5">
-        {msg.status === 'success' ? (
-          <CheckCircle size={13} className="text-green-500 shrink-0" />
-        ) : (
-          <XCircle size={13} className="text-red-500 shrink-0" />
-        )}
-        <span className="text-gray-700 dark:text-gray-300">{phaseName}</span>
-        {dur !== undefined && <span className="text-[10px] text-gray-400">{dur}ms</span>}
+      <div className="py-0.5">
+        <div className="flex items-center gap-2">
+          {msg.status === 'success' ? (
+            <CheckCircle size={13} className="text-green-500 shrink-0" />
+          ) : (
+            <XCircle size={13} className="text-red-500 shrink-0" />
+          )}
+          <span className="text-gray-700 dark:text-gray-300">{phaseName}</span>
+          {dur !== undefined && <span className="text-[10px] text-gray-400">{dur}ms</span>}
+        </div>
         {msg.status === 'failed' && msg.message && (
-          <span className="text-[10px] text-red-500 ml-1 truncate max-w-xs">{msg.message}</span>
+          <pre className="text-[11px] text-red-400 mt-1 ml-5 whitespace-pre-wrap break-all bg-red-900/10 p-1.5 rounded border border-red-800/30">
+            {msg.message}
+          </pre>
         )}
       </div>
     );
