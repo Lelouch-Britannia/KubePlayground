@@ -45,6 +45,7 @@ export interface UnitDetail {
   hints?: string[];
   // quizzes?: Quiz[];  // quiz/grading feature commented out
   editor_config?: EditorConfig;
+  course_slug?: string;
 }
 
 // Dashboard API Types
@@ -67,6 +68,26 @@ export interface CourseProgress {
   topics: TopicProgress[];
 }
 
+export interface MyCourseItem {
+  course_id: number;
+  course_slug: string;
+  course_name: string;
+  course_description?: string;
+  status: 'active' | 'paused';
+  completion_pct: number;
+  completed_units: number;
+  total_units: number;
+  enrolled_at: string;
+  last_accessed_at: string;
+}
+
+export interface PausedCourseSummary {
+  course_slug: string;
+  course_name: string;
+  completion_pct: number;
+  last_accessed_at: string;
+}
+
 export interface DashboardData {
   user_id?: string;
   greeting?: string;
@@ -76,6 +97,8 @@ export interface DashboardData {
   completed_count: number;
   in_progress_count: number;
   current_streak: number;
+  active_course?: CourseProgress | null;
+  paused_courses?: PausedCourseSummary[];
 }
 
 // Course Hierarchy API Types

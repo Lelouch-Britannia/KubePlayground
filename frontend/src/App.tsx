@@ -9,6 +9,7 @@ import ProfilePage from './pages/ProfilePage';
 import CoursesPage from './pages/CoursesPage';
 import CourseChaptersPage from './pages/CourseChaptersPage';
 import TopicUnitsPage from './pages/TopicUnitsPage';
+import MyCourses from './pages/MyCourses';
 import ProtectedRoute from './components/shared/ProtectedRoute';
 
 export default function App() {
@@ -75,6 +76,15 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <TopicUnitsPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/my-courses"
+              element={
+                <ProtectedRoute>
+                  <MyCourses />
                 </ProtectedRoute>
               }
             />

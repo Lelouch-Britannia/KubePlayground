@@ -35,7 +35,13 @@ export default function ProblemListPanel({ currentUnitSlug, onClose, refreshKey 
       try {
         const data = await apiClient.getDashboard();
         if (!cancelled) {
-          const fetched: CourseProgress[] = (data as any).courses || [];
+          // Support both new enrollment shape (active_course) and legacy courses[]
+          const d = data as any;
+          const fetched: CourseProgress[] = d.courses?.length
+            ? d.courses
+            : d.active_course
+            ? [d.active_course]
+            : [];
           setCourses(fetched);
 
           const activeTopicKey = findTopicForUnit(fetched, currentUnitSlug);

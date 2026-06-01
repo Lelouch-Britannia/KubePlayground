@@ -352,6 +352,31 @@ class ApiClient {
   async getTopicUnits(topicId: number) {
     return this.request(`/api/v1/courses/topics/${topicId}/units`);
   }
+
+  // ==================== Enrollment API ====================
+
+  async enrollCourse(courseSlug: string) {
+    return this.request(`/api/v1/courses/${courseSlug}/enroll`, { method: 'POST' });
+  }
+
+  async unenrollCourse(courseSlug: string) {
+    return this.request(`/api/v1/courses/${courseSlug}/enroll`, { method: 'DELETE' });
+  }
+
+  async setCourseStatus(courseSlug: string, status: 'active' | 'paused') {
+    return this.request(`/api/v1/courses/${courseSlug}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async updateCourseAccess(courseSlug: string) {
+    return this.request(`/api/v1/courses/${courseSlug}/access`, { method: 'PATCH' }).catch(() => {});
+  }
+
+  async getMyCourses(): Promise<import('../types/api').MyCourseItem[]> {
+    return this.request('/api/v1/courses/my');
+  }
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);

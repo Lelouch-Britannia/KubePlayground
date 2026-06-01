@@ -166,6 +166,11 @@ export default function LearningUnit() {
       // Open right panel for coding units (editor); conceptual defaults to full-width
       setRightPanelOpen(data.type === 'coding' && !!data.editor_config);
 
+      // Update course access timestamp for enrollment tracking
+      if (data.course_slug) {
+        apiClient.updateCourseAccess(data.course_slug);
+      }
+
       // Load previous solution for coding exercises
       if (data.editor_config) {
         // Load previous solution — commented out (solutions feature disabled)

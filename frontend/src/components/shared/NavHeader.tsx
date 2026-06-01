@@ -14,10 +14,12 @@ export default function NavHeader({ title }: NavHeaderProps) {
   const navItems = [
     { label: 'Dashboard', path: '/' },
     { label: 'Courses', path: '/courses' },
+    { label: 'My Courses', path: '/my-courses' },
   ];
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
+    if (path === '/courses') return location.pathname === '/courses' || (location.pathname.startsWith('/courses') && !location.pathname.startsWith('/my-courses'));
     return location.pathname.startsWith(path);
   };
 
