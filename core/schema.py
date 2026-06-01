@@ -43,6 +43,7 @@ class SyllabusItemResponse(BaseModel):
     order_index: int
     type: Literal["conceptual", "coding"]
     difficulty: Literal["beginner", "intermediate", "advanced"] | None = None
+    status: Literal["not_started", "in_progress", "completed"] | None = None
 
 
 class SyllabusResponse(BaseModel):
@@ -416,3 +417,30 @@ class SubmissionListResponse(BaseModel):
     unit_slug: str
     submissions: list[SubmissionResponse]
     total: int
+
+
+# ============================================================================
+# Draft Autosave & Namespace Persistence Schemas (Redis-backed)
+# ============================================================================
+
+
+class DraftSaveRequest(BaseModel):
+    unit_slug: str
+    code: str
+    language: str = "yaml"
+
+
+class DraftResponse(BaseModel):
+    unit_slug: str
+    code: str | None = None
+    language: str = "yaml"
+
+
+class NamespaceSaveRequest(BaseModel):
+    unit_slug: str
+    namespace: str
+
+
+class NamespaceResponse(BaseModel):
+    unit_slug: str
+    namespace: str | None = None

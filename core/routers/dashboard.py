@@ -72,14 +72,17 @@ async def get_dashboard(current_user: current_user_dependency, db: db_dependency
             # Build unit list for response
             unit_items = [
                 SyllabusItemResponse(
-                    slug=unit.slug,
-                    title=unit.title,
-                    topic=unit.topic,
-                    order_index=unit.order_index,
-                    type=unit.type,
-                    difficulty=unit.difficulty,
+                    slug=u.slug,
+                    title=u.title,
+                    topic=u.topic,
+                    order_index=u.order_index,
+                    type=u.type,
+                    difficulty=u.difficulty,
+                    status="completed"
+                    if progress_map.get(str(u.id)) and progress_map[str(u.id)].status == "completed"
+                    else ("in_progress" if str(u.id) in progress_map else "not_started"),
                 )
-                for unit in units
+                for u in units
             ]
 
             completion_pct = (topic_completed / len(units) * 100) if units else 0.0

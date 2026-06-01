@@ -4,3 +4,6 @@
 [submodule "SDKs/DAO"]
 	path = SDKs/DAO
 	url = https://github.com/Lelouch-Britannia/DAO.git
+[submodule "references"]
+	path = references
+	url = https://github.com/collabnix/kubelabs.git

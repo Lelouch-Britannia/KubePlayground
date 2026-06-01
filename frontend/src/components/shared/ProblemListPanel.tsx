@@ -7,6 +7,7 @@ import type { CourseProgress } from '../../types/api';
 interface ProblemListPanelProps {
   currentUnitSlug: string;
   onClose: () => void;
+  refreshKey?: number;
 }
 
 function findTopicForUnit(courses: CourseProgress[], unitSlug: string): string | null {
@@ -20,7 +21,7 @@ function findTopicForUnit(courses: CourseProgress[], unitSlug: string): string |
   return null;
 }
 
-export default function ProblemListPanel({ currentUnitSlug, onClose }: ProblemListPanelProps) {
+export default function ProblemListPanel({ currentUnitSlug, onClose, refreshKey }: ProblemListPanelProps) {
   const navigate = useNavigate();
   const [courses, setCourses] = useState<CourseProgress[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,7 +54,7 @@ export default function ProblemListPanel({ currentUnitSlug, onClose }: ProblemLi
     };
     fetchCourses();
     return () => { cancelled = true; };
-  }, [currentUnitSlug]);
+  }, [currentUnitSlug, refreshKey]);
 
   useEffect(() => {
     if (!loading && activeUnitRef.current) {
