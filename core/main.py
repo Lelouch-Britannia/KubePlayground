@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from auth import router as auth_router
 from auth.models import User
-from database import Base, SessionLocal, engine, get_mongo_helper, init_db
+from database import Base, SessionLocal, close_db, engine, get_mongo_helper, init_db
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -33,9 +33,11 @@ limiter = Limiter(key_func=get_remote_address)
 async def lifespan(_app: FastAPI):
     # Setup structured logging
     setup_logging()
-    # Initialize MongoDB connection (async)
+    # Initialize MongoDB and Redis connections (async)
     await init_db()
     yield
+    # Close Redis connection on shutdown
+    await close_db()
 
 
 app = FastAPI(lifespan=lifespan)

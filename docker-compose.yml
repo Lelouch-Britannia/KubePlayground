@@ -33,6 +33,24 @@ services:
       - kubeplayground-net
 
   # ===========================================================================
+  # Redis - Draft Autosave & Namespace Persistence
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: kubeplayground-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    networks:
+      - kubeplayground-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ===========================================================================
   # Backend - FastAPI Application (Scalable)
   # ===========================================================================
   backend:
@@ -49,6 +67,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production-please}
     depends_on:
       mongodb:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       # Mount sample resources for seeding database
@@ -136,15 +156,28 @@ services:
         condition: service_healthy
     command: >
       sh -c "
+        BASE=/app/seed-data/k8s/kubernetes-fundamentals &&
         echo 'Seeding Pods 101...' &&
-        curl -X POST 'http://backend:8000/api/v1/seed/populate?topic_dir=/app/seed-data/k8s/kubernetes-fundamentals/pods101' &&
-        echo '' &&
+        curl -X POST "http://backend:8000/api/v1/seed/populate?topic_dir=$$BASE/pods101" && echo '' &&
         echo 'Seeding ReplicaSet 101...' &&
-        curl -X POST 'http://backend:8000/api/v1/seed/populate?topic_dir=/app/seed-data/k8s/kubernetes-fundamentals/replicaset101' &&
-        echo '' &&
+        curl -X POST "http://backend:8000/api/v1/seed/populate?topic_dir=$$BASE/replicaset101" && echo '' &&
         echo 'Seeding Deployment 101...' &&
-        curl -X POST 'http://backend:8000/api/v1/seed/populate?topic_dir=/app/seed-data/k8s/kubernetes-fundamentals/deployment101' &&
-        echo '' && echo 'Seeding complete!'
+        curl -X POST "http://backend:8000/api/v1/seed/populate?topic_dir=$$BASE/deployment101" && echo '' &&
+        echo 'Seeding ConfigMaps 101...' &&
+        curl -X POST "http://backend:8000/api/v1/seed/populate?topic_dir=$$BASE/configmaps101" && echo '' &&
+        echo 'Seeding Scheduler 101...' &&
+        curl -X POST "http://backend:8000/api/v1/seed/populate?topic_dir=$$BASE/scheduler101" && echo '' &&
+        echo 'Seeding Services 101...' &&
+        curl -X POST "http://backend:8000/api/v1/seed/populate?topic_dir=$$BASE/services101" && echo '' &&
+        echo 'Seeding StatefulSets 101...' &&
+        curl -X POST "http://backend:8000/api/v1/seed/populate?topic_dir=$$BASE/statefulsets101" && echo '' &&
+        echo 'Seeding DaemonSets 101...' &&
+        curl -X POST "http://backend:8000/api/v1/seed/populate?topic_dir=$$BASE/daemonsets101" && echo '' &&
+        echo 'Seeding Ingress 101...' &&
+        curl -X POST "http://backend:8000/api/v1/seed/populate?topic_dir=$$BASE/ingress101" && echo '' &&
+        echo 'Seeding RBAC 101...' &&
+        curl -X POST "http://backend:8000/api/v1/seed/populate?topic_dir=$$BASE/rbac101" && echo '' &&
+        echo 'Seeding complete!'
       "
     networks:
       - kubeplayground-net
@@ -171,3 +204,5 @@ volumes:
   sqlite_data:
     driver: local
     # Stores: user accounts, refresh tokens, activity logs, streaks
+  redis_data:
+    driver: local

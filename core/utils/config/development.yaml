@@ -11,3 +11,10 @@ databases:
   dev-primary:
     system: sqlite
     database: "./data/kubeplayground.db"
+
+redis:
+  host: "redis"
+  port: 6379
+  db: 0
+  draft_ttl: 604800   # 7 days in seconds
+  namespace_ttl: 86400  # 24 hours in seconds

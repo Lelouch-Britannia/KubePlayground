@@ -10,6 +10,7 @@ import websockets
 from auth.dependencies import db_dependency, get_current_user
 from auth.models import ActivityLog, User, UserActivity
 from auth.security import decode_token
+from database import get_redis_client
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from models import LearningUnit, UnitSolution, UserProgress, UserSubmission
 from routers.progress import update_user_streak_background
@@ -17,6 +18,10 @@ from schema import (
     CleanupRequest,
     CodeVerificationRequest,
     CodeVerificationResponse,
+    DraftResponse,
+    DraftSaveRequest,
+    NamespaceResponse,
+    NamespaceSaveRequest,
     # QuizResultItem,  # quiz/grading feature commented out
     # QuizSubmissionRequest,  # quiz/grading feature commented out
     # QuizSubmissionResponse,  # quiz/grading feature commented out
@@ -355,7 +360,7 @@ async def validate_only(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=150.0) as client:
             response = await client.post(
                 f"{VALIDATION_SERVICE_URL}/api/v1/validate-only",
                 headers={
@@ -435,6 +440,67 @@ async def cleanup_namespace(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Cannot connect to validation service"
         )
+
+
+# ============================================================================
+# Draft autosave endpoints (Redis-backed, TTL 7 days)
+# ============================================================================
+
+DRAFT_TTL = 604800  # 7 days
+NS_TTL = 86400  # 24 hours
+
+
+@router.post("/code/draft")
+async def save_draft(request: DraftSaveRequest, current_user: current_user_dependency) -> dict:
+    """Save a code draft for a unit to Redis."""
+    key = f"draft:{current_user.id}:{request.unit_slug}"
+    await get_redis_client().setex(key, DRAFT_TTL, request.code)
+    return {"status": "saved"}
+
+
+@router.get("/code/draft/{unit_slug}")
+async def get_draft(unit_slug: str, current_user: current_user_dependency) -> DraftResponse:
+    """Retrieve a saved code draft for a unit from Redis."""
+    key = f"draft:{current_user.id}:{unit_slug}"
+    code = await get_redis_client().get(key)
+    return DraftResponse(unit_slug=unit_slug, code=code)
+
+
+@router.delete("/code/draft/{unit_slug}")
+async def delete_draft(unit_slug: str, current_user: current_user_dependency) -> dict:
+    """Delete a saved code draft for a unit from Redis."""
+    key = f"draft:{current_user.id}:{unit_slug}"
+    await get_redis_client().delete(key)
+    return {"status": "deleted"}
+
+
+# ============================================================================
+# Namespace persistence endpoints (Redis-backed, TTL 24 hours)
+# ============================================================================
+
+
+@router.post("/code/namespace")
+async def save_namespace(request: NamespaceSaveRequest, current_user: current_user_dependency) -> dict:
+    """Persist a K8s namespace name for a unit to Redis."""
+    key = f"ns:{current_user.id}:{request.unit_slug}"
+    await get_redis_client().setex(key, NS_TTL, request.namespace)
+    return {"status": "saved"}
+
+
+@router.get("/code/namespace/{unit_slug}")
+async def get_namespace(unit_slug: str, current_user: current_user_dependency) -> NamespaceResponse:
+    """Retrieve the persisted K8s namespace name for a unit from Redis."""
+    key = f"ns:{current_user.id}:{unit_slug}"
+    ns = await get_redis_client().get(key)
+    return NamespaceResponse(unit_slug=unit_slug, namespace=ns)
+
+
+@router.delete("/code/namespace/{unit_slug}")
+async def delete_namespace(unit_slug: str, current_user: current_user_dependency) -> dict:
+    """Delete the persisted K8s namespace name for a unit from Redis."""
+    key = f"ns:{current_user.id}:{unit_slug}"
+    await get_redis_client().delete(key)
+    return {"status": "deleted"}
 
 
 # ============================================================================

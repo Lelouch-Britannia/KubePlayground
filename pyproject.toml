@@ -69,6 +69,7 @@ dependencies = [
     "python-multipart==0.0.20",
     "pytz==2024.2",
     "pyzmq==27.1.0",
+    "redis[asyncio]==5.2.1",
     "regex==2023.8.8",
     "requests==2.32.3",
     "six==1.17.0",

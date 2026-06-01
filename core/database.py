@@ -1,7 +1,11 @@
+import os
 from collections.abc import Generator
+from pathlib import Path
 
+import redis.asyncio as aioredis
 from models import LearningUnit, UnitSolution, UserProgress, UserSubmission
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
+from utils.file_operator import FileReadEntry, YamlFileOperator
 from utils.mongo_helper import MongoHelper
 from utils.sqlite_helper import get_engine
 
@@ -10,6 +14,7 @@ class DatabaseState:
     """Container for database connection state."""
 
     mongo_helper: MongoHelper | None = None
+    redis_client: aioredis.Redis | None = None
 
 
 _db_state = DatabaseState()
@@ -23,12 +28,34 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 async def init_db():
-    """Initialize the MongoDB connection (async only)."""
+    """Initialize the MongoDB and Redis connections (async only)."""
     # Create MongoHelper with document models
     _db_state.mongo_helper = MongoHelper(document_models=[LearningUnit, UnitSolution, UserProgress, UserSubmission])
 
     # Initialize MongoDB connection + bind to Beanie
     await _db_state.mongo_helper.init()
+
+    # Initialize Redis connection
+    env = os.getenv("ENVIRONMENT", "development")
+    config_path = Path(__file__).parent / "utils" / "config" / f"{env}.yaml"
+    config = YamlFileOperator.read(FileReadEntry(read_path=config_path))
+    redis_config = config.get("redis", {})
+    _db_state.redis_client = aioredis.from_url(
+        f"redis://{redis_config.get('host', 'redis')}:{redis_config.get('port', 6379)}/{redis_config.get('db', 0)}",
+        encoding="utf-8",
+        decode_responses=True,
+    )
+
+
+async def close_db():
+    """Close the Redis connection on shutdown."""
+    if _db_state.redis_client:
+        await _db_state.redis_client.aclose()
+
+
+def get_redis_client() -> aioredis.Redis | None:
+    """Get the Redis client instance."""
+    return _db_state.redis_client
 
 
 def get_mongo_helper() -> MongoHelper | None:
