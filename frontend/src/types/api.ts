@@ -337,6 +337,30 @@ export interface ValidateOnlyResponse {
   duration_ms: number;
 }
 
+// Course Landing Page Types
+export interface CourseModule {
+  title: string;
+  week?: number;
+  topics: string[];
+}
+
+export interface CourseDetail {
+  id: number;
+  slug: string;
+  name: string;
+  tagline?: string;
+  description?: string;
+  level?: string;
+  estimated_hours?: number;
+  prerequisites: string[];
+  what_you_learn: string[];
+  author_name?: string;
+  author_bio?: string;
+  modules: CourseModule[];
+  topics_count: number;
+  total_units: number;
+}
+
 // Submissions API Types
 export interface UserSubmission {
   id: string;

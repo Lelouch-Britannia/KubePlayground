@@ -377,6 +377,10 @@ class ApiClient {
   async getMyCourses(): Promise<import('../types/api').MyCourseItem[]> {
     return this.request('/api/v1/courses/my');
   }
+
+  async getCourseDetail(courseSlug: string) {
+    return this.request(`/api/v1/courses/${courseSlug}/detail`);
+  }
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);

@@ -10,6 +10,7 @@ import CoursesPage from './pages/CoursesPage';
 import CourseChaptersPage from './pages/CourseChaptersPage';
 import TopicUnitsPage from './pages/TopicUnitsPage';
 import MyCourses from './pages/MyCourses';
+import CourseLandingPage from './pages/CourseLandingPage';
 import ProtectedRoute from './components/shared/ProtectedRoute';
 
 export default function App() {
@@ -85,6 +86,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <MyCourses />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/courses/:courseSlug/landing"
+              element={
+                <ProtectedRoute>
+                  <CourseLandingPage />
                 </ProtectedRoute>
               }
             />

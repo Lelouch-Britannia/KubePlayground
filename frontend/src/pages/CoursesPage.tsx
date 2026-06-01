@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import NavHeader from '../components/shared/NavHeader';
 import { useTheme } from '../contexts/ThemeContext';
 import { apiClient } from '../services/api';
-import type { CourseInfo, CourseChaptersResponse, TopicUnitsResponse } from '../types/api';
+import type { CourseInfo } from '../types/api';
 import { BookOpen, ChevronRight, Loader2 } from 'lucide-react';
 
 export default function CoursesPage() {
@@ -39,36 +39,8 @@ export default function CoursesPage() {
     }
   };
 
-  const handleCourseClick = async (courseSlug: string) => {
-    if (!enrolledSlugs.has(courseSlug)) return;
-    try {
-      // Fetch course chapters to get the first topic
-      const chaptersData = await apiClient.getCourseChapters(courseSlug) as CourseChaptersResponse;
-
-      if (chaptersData.chapters && chaptersData.chapters.length > 0) {
-        // Get the first topic (ordered by order_position)
-        const firstTopic = chaptersData.chapters[0];
-
-        // Fetch units for the first topic
-        const topicUnitsData = await apiClient.getTopicUnits(firstTopic.id) as TopicUnitsResponse;
-
-        if (topicUnitsData.units && topicUnitsData.units.length > 0) {
-          // Navigate to the first unit
-          const firstUnit = topicUnitsData.units[0];
-          navigate(`/unit/${firstUnit.slug}`);
-        } else {
-          // No units found, navigate to topic page
-          navigate(`/courses/${courseSlug}/topics/${firstTopic.id}`);
-        }
-      } else {
-        // No topics found, navigate to course chapters page
-        navigate(`/courses/${courseSlug}`);
-      }
-    } catch (err) {
-      console.error('Failed to navigate to course:', err);
-      // Fallback to course chapters page
-      navigate(`/courses/${courseSlug}`);
-    }
+  const handleCourseClick = (courseSlug: string) => {
+    navigate(`/courses/${courseSlug}/landing`);
   };
 
   if (loading) {
@@ -122,26 +94,18 @@ export default function CoursesPage() {
                 <div
                   key={course.id}
                   onClick={() => handleCourseClick(course.slug)}
-                  className={`text-left p-6 rounded-xl border transition-all group ${
-                    isEnrolled
-                      ? `cursor-pointer ${isDarkMode
-                          ? 'bg-dark-surface border-dark-border hover:border-dark-accent-purple/50 hover:shadow-lg hover:shadow-dark-accent-purple/5'
-                          : 'bg-white border-gray-200 hover:border-purple-300 hover:shadow-lg'}`
-                      : `cursor-default ${isDarkMode
-                          ? 'bg-dark-surface border-dark-border'
-                          : 'bg-white border-gray-200'}`
+                  className={`text-left p-6 rounded-xl border transition-all group cursor-pointer ${
+                    isDarkMode
+                      ? 'bg-dark-surface border-dark-border hover:border-dark-accent-purple/50 hover:shadow-lg hover:shadow-dark-accent-purple/5'
+                      : 'bg-white border-gray-200 hover:border-purple-300 hover:shadow-lg'
                   }`}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <h3 className={`text-xl font-bold mb-2 transition-colors ${
-                        isEnrolled
-                          ? isDarkMode
-                            ? 'text-dark-text-primary group-hover:text-dark-accent-blue'
-                            : 'text-gray-900 group-hover:text-blue-600'
-                          : isDarkMode
-                          ? 'text-dark-text-primary'
-                          : 'text-gray-900'
+                        isDarkMode
+                          ? 'text-dark-text-primary group-hover:text-dark-accent-blue'
+                          : 'text-gray-900 group-hover:text-blue-600'
                       }`}>
                         {course.name}
                       </h3>
@@ -151,13 +115,11 @@ export default function CoursesPage() {
                         </p>
                       )}
                     </div>
-                    {isEnrolled && (
-                      <ChevronRight className={`w-6 h-6 flex-shrink-0 ml-4 transition-colors ${
-                        isDarkMode
-                          ? 'text-dark-text-muted group-hover:text-dark-accent-blue'
-                          : 'text-gray-400 group-hover:text-blue-600'
-                      }`} />
-                    )}
+                    <ChevronRight className={`w-6 h-6 flex-shrink-0 ml-4 transition-colors ${
+                      isDarkMode
+                        ? 'text-dark-text-muted group-hover:text-dark-accent-blue'
+                        : 'text-gray-400 group-hover:text-blue-600'
+                    }`} />
                   </div>
 
                   <div className="flex items-center gap-4 text-sm mb-3">

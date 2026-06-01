@@ -184,11 +184,6 @@ export default function Dashboard() {
                       <h3 className={`text-2xl font-bold ${isDarkMode ? 'text-dark-text-primary' : 'text-gray-900'}`}>
                         {course.course_name}
                       </h3>
-                      {course.course_description && (
-                        <p className={`text-sm mt-1 ${isDarkMode ? 'text-dark-text-secondary' : 'text-gray-600'}`}>
-                          {course.course_description}
-                        </p>
-                      )}
                     </div>
                     {hasActiveCourse && (
                       <button
