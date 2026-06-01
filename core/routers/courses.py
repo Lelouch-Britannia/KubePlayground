@@ -1,5 +1,6 @@
 """Course and topic browsing endpoints for curriculum navigation."""
 
+import json
 import logging
 from typing import Annotated
 
@@ -9,7 +10,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from models import LearningUnit, UserProgress
 from schema import (
     CourseChaptersResponse,
+    CourseDetailResponse,
     CourseInfo,
+    CourseModule,
     LearningUnitSummary,
     TopicSummary,
     TopicUnitsResponse,
@@ -61,6 +64,59 @@ async def list_courses(db: db_dependency) -> list[CourseInfo]:
         )
 
     return result
+
+
+@router.get("/{course_slug}/detail")
+async def get_course_detail(course_slug: str, db: db_dependency) -> CourseDetailResponse:
+    """Get full course landing page data.
+
+    Returns all metadata for the course landing page: tagline, level,
+    estimated hours, prerequisites, learning outcomes, author info, and modules.
+
+    Args:
+        course_slug: Course identifier (e.g., "kubernetes-fundamentals")
+        db: SQLite database session
+
+    Returns:
+        CourseDetailResponse: Full course landing page data
+
+    Raises:
+        HTTPException 404: Course not found
+    """
+    course = db.query(Course).filter(Course.slug == course_slug).first()
+    if not course:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Course not found: {course_slug}")
+
+    topics = db.query(Topic).filter(Topic.course_id == course.id).order_by(Topic.order_position).all()
+    total_units = sum(t.units_count for t in topics)
+
+    def parse_json_list(val: str | None) -> list:
+        if not val:
+            return []
+        try:
+            return json.loads(val)
+        except Exception:
+            return []
+
+    raw_modules = parse_json_list(course.modules)
+    modules = [CourseModule(**m) for m in raw_modules if isinstance(m, dict)]
+
+    return CourseDetailResponse(
+        id=course.id,
+        slug=course.slug,
+        name=course.name,
+        tagline=course.tagline,
+        description=course.description,
+        level=course.level,
+        estimated_hours=course.estimated_hours,
+        prerequisites=parse_json_list(course.prerequisites),
+        what_you_learn=parse_json_list(course.what_you_learn),
+        author_name=course.author_name,
+        author_bio=course.author_bio,
+        modules=modules,
+        topics_count=len(topics),
+        total_units=total_units,
+    )
 
 
 @router.get("/{course_slug}/chapters")

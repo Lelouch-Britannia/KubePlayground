@@ -385,6 +385,31 @@ class CourseInfo(BaseModel):
     total_units: int = 0
 
 
+class CourseModule(BaseModel):
+    title: str
+    week: int | None = None
+    topics: list[str] = []  # topic slugs
+
+
+class CourseDetailResponse(BaseModel):
+    """Full course landing page data."""
+
+    id: int
+    slug: str
+    name: str
+    tagline: str | None = None
+    description: str | None = None
+    level: str | None = None
+    estimated_hours: int | None = None
+    prerequisites: list[str] = []
+    what_you_learn: list[str] = []
+    author_name: str | None = None
+    author_bio: str | None = None
+    modules: list[CourseModule] = []
+    topics_count: int = 0
+    total_units: int = 0
+
+
 class TopicSummary(BaseModel):
     """Topic/chapter summary with progress stats."""
 

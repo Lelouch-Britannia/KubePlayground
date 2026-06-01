@@ -128,6 +128,14 @@ class Course(Base):
     slug = Column(String, unique=True, nullable=False, index=True)
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
+    tagline = Column(String, nullable=True)
+    level = Column(String, nullable=True)  # "beginner" | "intermediate" | "advanced"
+    estimated_hours = Column(Integer, nullable=True)
+    prerequisites = Column(Text, nullable=True)  # JSON array string
+    what_you_learn = Column(Text, nullable=True)  # JSON array string
+    author_name = Column(String, nullable=True)
+    author_bio = Column(Text, nullable=True)
+    modules = Column(Text, nullable=True)  # JSON array string
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

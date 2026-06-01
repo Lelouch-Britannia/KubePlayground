@@ -1,3 +1,4 @@
+import json
 import logging
 from pathlib import Path
 from typing import Any, Optional
@@ -19,7 +20,20 @@ router = APIRouter(prefix="/seed", tags=["seed"])
 logger = logging.getLogger(__name__)
 
 
-def _ensure_course_exists(db: Session, slug: str, name: str, description: str | None = None) -> Course:
+def _ensure_course_exists(
+    db: Session,
+    slug: str,
+    name: str,
+    description: str | None = None,
+    tagline: str | None = None,
+    level: str | None = None,
+    estimated_hours: int | None = None,
+    prerequisites: list | None = None,
+    what_you_learn: list | None = None,
+    author_name: str | None = None,
+    author_bio: str | None = None,
+    modules: list | None = None,
+) -> Course:
     """Ensure course exists in SQLite, create if missing (upsert).
 
     Args:
@@ -27,23 +41,76 @@ def _ensure_course_exists(db: Session, slug: str, name: str, description: str | 
         slug: Course slug (unique identifier)
         name: Course display name
         description: Optional course description
+        tagline: Short marketing tagline
+        level: Difficulty level ("beginner" | "intermediate" | "advanced")
+        estimated_hours: Estimated completion time in hours
+        prerequisites: List of prerequisite topic slugs or descriptions
+        what_you_learn: List of learning outcomes
+        author_name: Course author display name
+        author_bio: Course author biography
+        modules: List of module dicts with title, week, and topics
 
     Returns:
         Course: Existing or newly created course
     """
+    prerequisites_json = json.dumps(prerequisites) if prerequisites is not None else None
+    what_you_learn_json = json.dumps(what_you_learn) if what_you_learn is not None else None
+    modules_json = json.dumps(modules) if modules is not None else None
+
     course = db.query(Course).filter(Course.slug == slug).first()
 
     if course:
-        # Update name/description if changed
-        if course.name != name or course.description != description:
+        # Update all fields if changed
+        changed = False
+        if course.name != name:
             course.name = name
+            changed = True
+        if course.description != description:
             course.description = description
+            changed = True
+        if course.tagline != tagline:
+            course.tagline = tagline
+            changed = True
+        if course.level != level:
+            course.level = level
+            changed = True
+        if course.estimated_hours != estimated_hours:
+            course.estimated_hours = estimated_hours
+            changed = True
+        if course.prerequisites != prerequisites_json:
+            course.prerequisites = prerequisites_json
+            changed = True
+        if course.what_you_learn != what_you_learn_json:
+            course.what_you_learn = what_you_learn_json
+            changed = True
+        if course.author_name != author_name:
+            course.author_name = author_name
+            changed = True
+        if course.author_bio != author_bio:
+            course.author_bio = author_bio
+            changed = True
+        if course.modules != modules_json:
+            course.modules = modules_json
+            changed = True
+        if changed:
             db.commit()
             db.refresh(course)
             logger.info("Updated course: %s", slug)
     else:
         # Create new course
-        course = Course(slug=slug, name=name, description=description)
+        course = Course(
+            slug=slug,
+            name=name,
+            description=description,
+            tagline=tagline,
+            level=level,
+            estimated_hours=estimated_hours,
+            prerequisites=prerequisites_json,
+            what_you_learn=what_you_learn_json,
+            author_name=author_name,
+            author_bio=author_bio,
+            modules=modules_json,
+        )
         db.add(course)
         db.commit()
         db.refresh(course)
@@ -205,6 +272,14 @@ async def populate_database(topic_dir: str, *, skip_existing: bool = True, db: d
                     slug=course_info.get("slug", ""),
                     name=course_info.get("name", ""),
                     description=course_info.get("description"),
+                    tagline=course_info.get("tagline"),
+                    level=course_info.get("level"),
+                    estimated_hours=course_info.get("estimated_hours"),
+                    prerequisites=course_info.get("prerequisites"),
+                    what_you_learn=course_info.get("what_you_learn"),
+                    author_name=course_info.get("author", {}).get("name") if course_info.get("author") else None,
+                    author_bio=course_info.get("author", {}).get("bio") if course_info.get("author") else None,
+                    modules=course_info.get("modules"),
                 )
                 course_id = course.id
 
