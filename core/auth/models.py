@@ -135,6 +135,27 @@ class Course(Base):
         return f"<Course(id={self.id}, slug={self.slug}, name={self.name})>"
 
 
+class UserEnrollment(Base):
+    """Course enrollment tracking per user."""
+
+    __tablename__ = "user_enrollments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    course_id = Column(Integer, nullable=False)
+    status = Column(String, nullable=False, default="active")  # "active" | "paused"
+    enrolled_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_accessed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("idx_enrollment_user_course", "user_id", "course_id", unique=True),
+        Index("idx_enrollment_user_status", "user_id", "status"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<UserEnrollment(user_id={self.user_id}, course_id={self.course_id}, status={self.status})>"
+
+
 class Topic(Base):
     """Topics within courses (chapters) with learning path ordering."""
 

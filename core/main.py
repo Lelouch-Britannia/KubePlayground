@@ -10,6 +10,7 @@ from routers import (
     content,
     courses,
     dashboard,
+    enrollment,
     grading,
     progress,
     seed,
@@ -161,6 +162,7 @@ async def health_check():
 app.include_router(auth_router.router, prefix="/api/v1")
 app.include_router(seed.router, prefix="/api/v1")
 app.include_router(courses.router, prefix="/api/v1")
+app.include_router(enrollment.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(content.router, prefix="/api/v1")
 # app.include_router(solutions.router, prefix="/api/v1")  # quiz/grading feature commented out

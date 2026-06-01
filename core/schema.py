@@ -67,6 +67,7 @@ class UnitDetailResponse(BaseModel):
     hints: list[str] | None = None
     # quizzes: list[QuizResponse] | None = None  # quiz/grading feature commented out
     editor_config: EditorConfigResponse | None = None
+    course_slug: str | None = None
 
 
 # ============================================================================
@@ -325,17 +326,47 @@ class CourseProgressSummary(BaseModel):
     topics: list[TopicProgressSummary]
 
 
+# ============================================================================
+# Enrollment API Schemas
+# ============================================================================
+
+
+class EnrollmentStatusRequest(BaseModel):
+    status: Literal["active", "paused"]
+
+
+class MyCourseItem(BaseModel):
+    course_id: int
+    course_slug: str
+    course_name: str
+    course_description: str | None = None
+    status: Literal["active", "paused"]
+    completion_pct: float
+    completed_units: int
+    total_units: int
+    enrolled_at: datetime
+    last_accessed_at: datetime
+
+
+class PausedCourseSummary(BaseModel):
+    course_slug: str
+    course_name: str
+    completion_pct: float
+    last_accessed_at: datetime
+
+
 class DashboardResponse(BaseModel):
     """Complete dashboard view with course and topic-grouped progress."""
 
-    user_id: int  # Integer matches SQLite User.id
-    greeting: str  # "Welcome back, User!"
-    courses: list[CourseProgressSummary]
-    overall_completion: float  # Overall percentage
+    user_id: int
+    greeting: str
+    active_course: CourseProgressSummary | None = None
+    paused_courses: list[PausedCourseSummary] = []
+    overall_completion: float
     total_units: int
     completed_count: int
     in_progress_count: int
-    current_streak: int = 0  # Placeholder for future
+    current_streak: int = 0
 
 
 # ============================================================================

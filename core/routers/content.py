@@ -1,5 +1,7 @@
 import logging
 
+from auth.dependencies import db_dependency
+from auth.models import Course
 from fastapi import APIRouter, HTTPException
 from models import LearningUnit
 from schema import (
@@ -42,11 +44,12 @@ async def get_syllabus() -> SyllabusResponse:
 
 
 @router.get("/{slug}")
-async def get_unit_detail(slug: str) -> UnitDetailResponse:
+async def get_unit_detail(slug: str, db: db_dependency) -> UnitDetailResponse:
     """Get full details for specific learning unit (excludes solutions).
 
     Args:
         slug: Unique unit identifier (URL-friendly)
+        db: SQLite database session (used for course slug lookup)
 
     Returns:
         UnitDetailResponse: Complete unit content without answer keys
@@ -58,4 +61,10 @@ async def get_unit_detail(slug: str) -> UnitDetailResponse:
     if not unit:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learning unit not found")
 
-    return UnitDetailResponse(**unit.model_dump())
+    course_slug = None
+    if unit.course_id:
+        course = db.query(Course).filter(Course.id == unit.course_id).first()
+        if course:
+            course_slug = course.slug
+
+    return UnitDetailResponse(**unit.model_dump(), course_slug=course_slug)
