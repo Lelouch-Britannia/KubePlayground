@@ -95,7 +95,7 @@ is enforced in application code.
 
 | Database | Stores | Access |
 |----------|--------|--------|
-| SQLite | Users, auth tokens, course/topic catalog, activity logs | Synchronous via SQLAlchemy |
+| SQLite | Users, auth tokens, course/topic catalog, enrollments, activity logs | Synchronous via SQLAlchemy |
 | MongoDB | Learning content, user progress, submissions, answer keys | Async via Beanie ODM |
 | Redis | Draft autosave, session cache | Direct Redis client |
 
@@ -117,15 +117,17 @@ FastAPI monolith. Entrypoint: `core/main.py`. All routes prefixed `/api/v1`.
 Router responsibilities:
 
 - `auth/` — JWT access tokens (60min) + refresh tokens (7 days), bcrypt, activity tracking
-- `routers/seed.py` — YAML file ingestion into MongoDB; called once per topic
-- `routers/courses.py` — SQLite course/topic catalog queries
+- `routers/seed.py` — JSON/YAML file ingestion into MongoDB; reads `course.json`+`topic.json` hierarchy
+- `routers/courses.py` — SQLite course/topic catalog queries + `GET /{slug}/detail` landing page endpoint
+- `routers/enrollment.py` — Course enrollment: enroll, unenroll, set status (active/paused), access tracking, `GET /my`
 - `routers/content.py` — MongoDB `learning_units` queries
 - `routers/solutions.py` — Private answer key retrieval; never returns solution data to frontend directly
 - `routers/grading.py` — Code submission validation; runs via WebSocket (`/ws/grading/run`)
   which proxies to the validation service
 - `routers/submissions.py` — Submission history queries
 - `routers/progress.py` — `user_progress` upserts and queries
-- `routers/dashboard.py` — Aggregated dashboard view (joins SQLite catalog + MongoDB progress)
+- `routers/dashboard.py` — Enrollment-filtered dashboard: returns `active_course` or `paused_courses[]`;
+  no enrollment → empty state
 
 `database.py` wires both DB connections. `models.py` has all Beanie Documents.
 `schema.py` has all Pydantic request/response schemas.
@@ -143,14 +145,16 @@ connection pooling and structured logging. Install with `uv pip install -e SDKs/
 
 ### Frontend (`frontend/src/`)
 
-React 18 + TypeScript SPA. Route structure mirrors the course hierarchy:
+React 18 + TypeScript SPA. Route structure:
 
 ```
-/              → Dashboard (topic cards + progress)
-/courses       → Course list
-/courses/:slug → CourseChaptersPage (topic list)
-/topics/:slug  → TopicUnitsPage (unit list)
-/unit/:slug    → LearningUnit (Monaco editor or conceptual)
+/                         → Dashboard (active course or enrollment empty state)
+/courses                  → Course catalog with Enroll buttons
+/courses/:slug/landing    → CourseLandingPage (Udemy-style: what you'll learn, modules, author)
+/my-courses               → MyCourses (all enrollments with Start/Pause/Unenroll)
+/courses/:slug            → CourseChaptersPage (topic list)
+/topics/:slug             → TopicUnitsPage (unit list)
+/unit/:slug               → LearningUnit (Monaco editor or conceptual)
 ```
 
 `AuthContext` manages JWT storage (localStorage keys: `kp_access_token`, `kp_refresh_token`).
@@ -192,8 +196,49 @@ Config in `validation-service/config/config.yaml`.
   `# scoring feature commented out` markers. Points fields exist in models but are zeroed.
 - **CORS is intentionally permissive** (`allow_origins=["*"]`) — this is a local-only app.
 - `ruff` excludes `sample-resources/`, `*.ipynb`, and `validation-service/` — don't add those to lint scope.
-- `sample-resources/` is a git submodule (separate repo of Kubernetes YAML exercise files).
+- `sample-resources/` is a git submodule. Content files are JSON (not YAML). Directory hierarchy:
+  `course.json` + topic dirs each with `topic.json` + unit `.json` files. Seeder reads hierarchy automatically.
 - Commit messages follow Conventional Commits (`commitlint.config.js`).
+
+## Content Format
+
+Unit files: `sample-resources/k8s/<course-slug>/<topic-slug>/<NN>-name.json`
+
+```
+k8s/kubernetes-fundamentals/
+  course.json          ← course metadata + landing page fields (tagline, modules, author, etc.)
+  pods101/
+    topic.json         ← topic metadata (slug, name, order, icon, course_slug)
+    01-pods-fundamentals.json
+    04-first-nginx-pod.json
+```
+
+`course.json` fields:
+`slug, name, description, tagline, level, estimated_hours, prerequisites[], what_you_learn[], author{name,bio}, modules[{title,week,topics[]}]`
+
+Unit JSON:
+`slug, title, order_index, type, difficulty, description, steps[], hints[], editor_config{language,initial_code},`
+`quizzes[], _solution{code_solution, validation_script, quiz_answers, quiz_explanations}`
+
+`_solution` is private — seeder routes it to `unit_solutions` collection. Everything else → `learning_units`.
+
+## Course Enrollment
+
+`UserEnrollment` table in SQLite: `user_id, course_id, status, enrolled_at, last_accessed_at`
+
+- `status`: `"active"` | `"paused"`. Only one active per user at a time.
+- **Enroll** → auto-sets active, auto-pauses any existing active enrollment.
+- **Start** (from paused) → same auto-pause logic.
+- **Unenroll** → deletes enrollment row; `UserProgress` (unit completions) is kept.
+- Dashboard returns `active_course` (full detail) or `paused_courses[]` (lightweight) or empty state.
+- `last_accessed_at` updated on every unit open via `PATCH /courses/{slug}/access`.
+
+## Redis Draft Autosave & Namespace Persistence
+
+- **Draft**: `draft:{user_id}:{unit_slug}` — editor code autosaved every 2s, TTL 7 days
+- **Namespace**: `ns:{user_id}:{unit_slug}` — active K8s namespace after Run, TTL 24h
+- Both restored on unit load → user can refresh without losing work or re-deploying
+- Cleared on validation pass, explicit Reset, or unenroll
 
 ## Activity & Streak Tracking
 

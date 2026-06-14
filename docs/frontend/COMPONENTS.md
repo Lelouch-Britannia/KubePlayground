@@ -1,769 +1,261 @@
 # Frontend Component Documentation
 
+**Version:** 2.0
+**Last Updated:** June 2026
+
+---
+
+## Route Map
+
+| Path | Component | Auth |
+|------|-----------|------|
+| `/auth` | `AuthPage` | Public |
+| `/logout` | `LogoutPage` | Public |
+| `/` | `Dashboard` | Protected |
+| `/dashboard` | `Dashboard` | Protected |
+| `/courses` | `CoursesPage` | Protected |
+| `/courses/:courseSlug/landing` | `CourseLandingPage` | Protected |
+| `/courses/:courseSlug` | `CourseChaptersPage` | Protected |
+| `/courses/:courseSlug/topics/:topicId` | `TopicUnitsPage` | Protected |
+| `/my-courses` | `MyCourses` | Protected |
+| `/unit/:slug` | `LearningUnit` | Protected |
+| `/profile` | `ProfilePage` | Protected |
+| `*` | Redirect to `/` | — |
+
+`ProtectedRoute` wraps all authenticated pages. Unauthenticated users redirect to `/auth`.
+
+---
+
 ## Component Architecture
 
 ```
 App.tsx (React Router)
-├── Dashboard (Route: /)
-│   ├── UserBanner
-│   │   ├── Avatar & User Info
-│   │   └── Streak Counter
-│   ├── Stats Cards
-│   │   ├── Total Units
-│   │   ├── Completed
-│   │   ├── In Progress
-│   │   └── Not Started
-│   └── Topics Grid
-│       └── TopicCard (clickable)
-│           ├── Topic Name
-│           ├── Progress Bar
-│           ├── Completion %
-│           └── Unit Counts
 │
-└── LearningUnit (Route: /unit/:slug)
-    ├── Header
-    │   ├── Home Button
-    │   ├── Breadcrumb (Topic / Title)
-    │   ├── Navigation (Prev/Next)
-    │   └── Loading Indicator
-    │
-    ├── SplitPane (Resizable)
-    │   ├── LeftPanel (40% width)
-    │   │   ├── Description Section
-    │   │   │   └── MarkdownRenderer
-    │   │   ├── Steps Section
-    │   │   └── Hints Section
-    │   │
-    │   ├── Resizer (Draggable divider)
-    │   │
-    │   └── RightPanel (60% width)
-    │       ├── CodeEditor (Type: "coding")
-    │       │   ├── Editor Header (Reset, Submit)
-    │       │   └── Textarea with Syntax Highlighting
-    │       │
-    │       └── QuizPanel (Type: "conceptual")
-    │           ├── Quiz Header (Submit)
-    │           ├── Questions
-    │           │   ├── Question Text
-    │           │   └── Radio Options
-    │           └── Submit Button
-    │
-    ├── Toast Notification (Conditional)
-    │   ├── Success/Error Icon (Animated)
-    │   ├── Message
-    │   ├── Score Display (for quizzes)
-    │   └── Progress Bar
-    │
-    └── Confetti (On quiz pass)
+├── AuthPage
+│
+├── Dashboard
+│   ├── NavHeader
+│   ├── UserBanner (streak, username)
+│   ├── Stats Cards (total / completed / in-progress)
+│   └── CourseProgressSummary cards (paginated topics per course)
+│       └── TopicCard (clickable → navigates to first unit in topic)
+│
+├── CoursesPage
+│   └── CourseInfo cards (name, unit count, enrolled badge)
+│       └── Click → CourseLandingPage
+│
+├── CourseLandingPage
+│   ├── NavHeader
+│   ├── Course hero (tagline, level, hours)
+│   ├── What You'll Learn list
+│   ├── Modules accordion
+│   ├── Author bio
+│   └── Enroll / Go to Course button
+│
+├── MyCourses
+│   ├── NavHeader
+│   └── MyCourseItem cards (status, completion %, Start/Pause/Unenroll)
+│
+├── CourseChaptersPage
+│   ├── NavHeader
+│   └── Topic chapter cards (unit count, completion %)
+│
+├── TopicUnitsPage
+│   ├── NavHeader
+│   └── Unit row list (type badge, difficulty, completion indicator)
+│
+├── LearningUnit
+│   ├── Top bar (h-12)
+│   │   ├── Logo icon → hamburger (toggles ProblemListPanel)
+│   │   ├── Divider
+│   │   ├── Prev / counter / Next navigation
+│   │   ├── [centered] Run icon + Submit button
+│   │   └── UserMenu (icon only)
+│   ├── ProblemListPanel (fixed overlay, toggled by hamburger)
+│   ├── Left pane (resizable, maximizable)
+│   │   ├── Tab bar: Description | Submissions
+│   │   │   └── Right side: difficulty badge + Mark as Read (theory) or difficulty only (coding)
+│   │   ├── Description tab
+│   │   │   ├── MarkdownRenderer (title + description)
+│   │   │   ├── Steps (flat ordered list)
+│   │   │   └── Hints (per-hint accordions, expand individually)
+│   │   └── Submissions tab (past run results from user_submissions)
+│   ├── Draggable gap (resize left/right panes)
+│   └── Right pane (coding units only, maximizable)
+│       ├── CodeEditor sub-pane (Monaco, Reset button)
+│       └── Console sub-pane (minimizable, resizable drag handle)
+│           └── Auto-expands on Run/Submit
+│
+└── ProfilePage
+    ├── NavHeader
+    ├── Profile summary (streak, stats)
+    └── Activity heatmap (GitHub-style, year dropdown)
 ```
 
 ---
 
-## Component Specifications
+## Page Descriptions
 
-### App.tsx
+### Dashboard
 
-**Purpose**: Root component with React Router setup.
+Fetches `/api/v1/dashboard` + `/api/v1/auth/profile/summary` in parallel on mount.
 
-**Props**: None (root component)
+Renders three states:
 
-**Routes**:
+- **Active course**: full `CourseProgressSummary` with topic-level progress cards, paginated 3 topics/page
+- **Paused courses**: lightweight cards with last-accessed timestamp and resume button
+- **No enrollment**: empty state directing user to `/courses`
 
-- `/` → Dashboard
-- `/unit/:slug` → LearningUnit
+Stats row (total/completed/in-progress) shown when any enrollment exists.
 
-**Features**:
+### CoursesPage
 
-- BrowserRouter configuration
-- Route-based navigation
-- No global state (handled in page components)
+Fetches all courses and current enrollments in parallel. Shows enrolled badge on enrolled courses.
+Clicking a course navigates to its landing page, not directly to chapters.
 
----
+### CourseLandingPage
 
-### Dashboard Component
+Fetches `GET /courses/{slug}/detail` and `GET /courses/my` in parallel. Displays Udemy-style
+landing page: tagline, level, estimated hours, prerequisites, what_you_learn list, modules
+accordion, author name and bio. Enroll button calls `POST /{slug}/enroll`; if already enrolled,
+shows "Go to Course" → `/courses/{slug}`.
 
-**Location**: `pages/Dashboard.tsx`
+### MyCourses
 
-**Purpose**: Landing page with topic overview and progress tracking.
+Fetches `GET /courses/my`. Lists all enrollments with status badge, completion percentage,
+and three actions: Start (set active), Pause (set paused), Unenroll (delete enrollment row,
+keeps unit progress).
 
-**State**:
+### CourseChaptersPage
 
-```typescript
-- dashboardData: DashboardData | null
-- loading: boolean
-- error: string | null
-```
+Fetches `GET /courses/{slug}/chapters`. Displays topics as chapter cards with unit count and
+completion percentage. Clicking navigates to `TopicUnitsPage`.
 
-**Key Functions**:
+### TopicUnitsPage
 
-- `fetchDashboard()` - Fetch from `/api/dashboard`
-- `handleTopicClick(topic)` - Navigate to first unit in topic
+Fetches `GET /courses/topics/{topic_id}/units`. Lists units with type badge (conceptual/coding),
+difficulty, and green check if completed. Clicking navigates to `/unit/{slug}`.
 
-**API Integration**:
+### LearningUnit
 
-- Fetches dashboard data on mount
-- Shows loading state
-- Error handling with retry option
+Main learning interface. On mount:
 
-**Layout**:
+1. Fetches syllabus (all units, once) — populates prev/next navigation
+2. Fetches unit detail for current slug
+3. Restores Redis draft (code editor content) and Redis namespace (active K8s namespace)
+4. Checks user progress for completion status
 
-- UserBanner with streak counter
-- 4 stats cards (Total, Completed, In Progress, Not Started)
-- Topic cards grid (clickable to navigate)
+On slug change: fetches new unit with `isNavigating` state (subtle opacity + progress bar, no full
+reload). Content stays visible during navigation.
 
----
+**Run flow**: Opens WebSocket to `/ws/grading/run`, streams pod events to Console, stores namespace
+in Redis on success.
 
-### LearningUnit Component
+**Submit (validate-only) flow**: Calls `POST /grading/code/validate-only` against existing namespace.
+On pass: clears namespace, marks progress completed, updates ProblemListPanel via `refreshKey`.
 
-**Location**: `pages/LearningUnit.tsx`
+**Mark as Read** (theory units): Calls `POST /progress/update` with `status=completed`. Updates
+ProblemListPanel and triggers streak update.
 
-**Purpose**: Main learning interface with split-screen layout.
+**Draft autosave**: 2-second debounce after typing, calls `POST /grading/code/draft`.
 
-**State**:
+### ProfilePage
 
-```typescript
-- unit: UnitDetail | null
-- allUnits: SyllabusItem[] (for navigation)
-- currentIndex: number
-- loading: boolean (initial load only)
-- isNavigating: boolean (subsequent navigation)
-- error: string | null
-- code: string (for coding exercises)
-- selectedAnswers: Record<string, string> (for quizzes)
-- leftWidth: number (resizable panel width)
-- toast: ToastState | null
-- showConfetti: boolean
-```
-
-**Key Functions**:
-
-- `fetchSyllabus()` - Get all units for navigation
-- `fetchUnit(slug)` - Get unit details
-- `navigateToUnit(direction)` - Prev/next navigation
-- `handleQuizSubmit()` - Submit quiz answers
-- `handleCodeSubmit()` - Submit code for validation
-- `handleDrag(e)` - Resize panels
-
-**Performance Optimizations**:
-
-- **No full-page loading** on navigation between units
-- **Subtle loading indicator** (purple bar in header)
-- **Opacity transitions** (200ms) during navigation
-- **Disabled navigation buttons** during load
-- **Optimistic UI** - keeps content visible
-
-**API Integration**:
-
-- Fetches syllabus once on mount
-- Fetches unit details on slug change
-- Submits quiz answers with grading
-- Auto-saves code (future)
-- Updates user progress
+Fetches profile summary and heatmap data. Heatmap shows 365 days with GitHub-style intensity
+(level 0–4 based on percentile of user's own activity distribution). Year dropdown changes
+heatmap date range.
 
 ---
 
-### Header Component
+## Shared Component Descriptions
 
-**Purpose**: Top navigation bar with exercise selector and action buttons.
+### NavHeader
 
-**Props**:
+Global top navigation. Contains KubePlayground logo, main nav links (Dashboard, Courses,
+My Courses), theme toggle (dark/light), and `UserMenu`.
 
-```typescript
-interface HeaderProps {
-  currentExercise: Exercise;
-  currentExerciseIdx: number;
-  onExerciseChange: (idx: number) => void;
-  topics: string[];
-  currentTopic: string;
-  onTopicChange: (topic: string) => void;
-  theme: 'dark' | 'light';
-  onThemeToggle: () => void;
-  onRunValidation: () => void;
-  onSubmit: () => void;
-  isValidating: boolean;
-}
-```
+### UserMenu
 
-**Features**:
+Icon-only button that opens a dropdown: profile link, logout. Displays no username text
+in the top bar to keep it compact.
 
-- Logo with app name
-- Topic dropdown (filtered)
-- Exercise dropdown (by topic)
-- Run/Submit buttons (only visible for code exercises)
-- Theme toggle
-- User avatar placeholder
+### ProblemListPanel
 
----
+Fixed overlay (not in layout flow). Toggled by hamburger in LearningUnit top bar.
+Fetches dashboard data to build Course → Topics → Units tree. Shows completion indicators
+(green check) per unit. Search filters across all unit titles. Clicking a unit navigates
+to `/unit/{slug}` and closes the panel. `refreshKey` prop triggers re-fetch after completion.
 
-### DescriptionPanel Component
+### MarkdownRenderer
 
-**Purpose**: Displays exercise description, steps, and hints in tabbed interface.
+Custom parser (no external markdown library). Renders: `##`/`###` headings, `` `inline code` ``,
+`**bold**`, fenced code blocks with language label, and `- list items`. All text at `text-sm`
+density — intentionally compact, matches LeetCode style. Do not increase base size.
 
-**Location**: `components/LeftPanel/DescriptionPanel.tsx`
+### ProtectedRoute
 
-**Props**:
+Wraps protected pages. Redirects to `/auth` if no valid access token in `AuthContext`.
 
-```typescript
-interface DescriptionPanelProps {
-  exercise: Exercise;
-}
-```
+### Toast
 
-**Tabs**:
+Slide-in notification from bottom-right. `success` type: green, trophy icon. `error` type: red,
+X icon. Auto-dismisses after 5 seconds. Shows score and pass/fail status for submission results.
 
-1. **Description Tab**
-   - Exercise title
-   - Difficulty & topic badges
-   - Time estimate
-   - Markdown-rendered description
-   - Requirements list
+### Confetti
 
-2. **Steps Tab**
-   - Renders `StepsPanel` component
-   - Phase-based guidance
-   - Checkbox tracking
+50 particles falling from top in Dracula theme colors. Auto-cleans up after duration.
+Triggered on passing submission.
 
-3. **Hints Tab**
-   - Placeholder for hints (future feature)
+### CourseNavigation / UnitNavigation
 
-**Features**:
-
-- Tab switching
-- Markdown rendering for description
-- Badge styling
-- Smooth scrolling
+Thin wrappers providing breadcrumb-style navigation between courses and units.
 
 ---
 
-### StepsPanel Component
+## Shared Types (`src/types/api.ts`)
 
-**Location**: `components/LeftPanel/StepsPanel.tsx`
+Key interfaces used across pages:
 
-**Props**:
-
-```typescript
-interface StepsPanelProps {
-  steps: Phase[];
-}
-
-interface Phase {
-  phase: string; // e.g., "Phase 1: Diagnosis"
-  tasks: Task[];
-}
-
-interface Task {
-  id: string;
-  text: string;
-}
-```
-
-**Features**:
-
-- Visual timeline (vertical line)
-- Phase badges with numbers
-- Task checkboxes
-- Completed state styling (green, strikethrough)
-- State management (tracking completed tasks)
-
-**State**:
-
-```typescript
-- completed: Record<string, boolean> (task ID → completion status)
-```
+| Interface | Used by |
+|-----------|---------|
+| `DashboardData` | Dashboard |
+| `CourseProgressSummary` | Dashboard, ProblemListPanel |
+| `MyCourseItem` | MyCourses |
+| `CourseInfo` | CoursesPage |
+| `CourseDetail` | CourseLandingPage |
+| `SyllabusItem` | LearningUnit, ProblemListPanel |
+| `UnitDetail` | LearningUnit |
+| `UserSubmission` | LearningUnit Submissions tab |
+| `ValidationResponse` | LearningUnit Console |
 
 ---
 
-### CodeEditor Component
+## Styling
 
-**Location**: `components/RightPanel/CodeEditor.tsx`
+Dracula dark theme throughout. Key color roles:
 
-**Props**:
+| Color | Hex | Used for |
+|-------|-----|---------|
+| Background | `#282a36` | Page background |
+| Current Line | `#44475a` | Cards, panels |
+| Purple | `#bd93f9` | Links, active states, progress bars |
+| Pink | `#ff79c6` | H2 headings |
+| Green | `#50fa7b` | Success, completion indicators |
+| Red | `#ff5555` | Errors, failures |
+| Orange | `#ffb86c` | Inline code |
+| Cyan | `#8be9fd` | Info accents |
 
-```typescript
-interface CodeEditorProps {
-  value: string;
-  onChange: (code: string) => void;
-}
-```
-
-**Features**:
-
-- Line numbers
-- Syntax highlighting (YAML)
-- Real-time editing
-- Copy-paste support
-- Keyboard shortcuts (Ctrl+S to save)
-
-**Implementation**:
-
-- Custom textarea + div overlay for highlighting
-- CSS classes for syntax colors
-- `renderHighlightedCode()` function for YAML parsing
-
-**Future Enhancements**:
-
-- Integrate Monaco Editor for advanced features
-- Multi-language support (JSON, Go, Python)
-- Error squiggles for YAML validation
+Light theme support is toggled via `ThemeContext`; Tailwind dark classes handle the switch.
 
 ---
 
-### Console Component
-
-**Location**: `components/RightPanel/Console.tsx`
-
-**Props**:
-
-```typescript
-interface ConsoleProps {
-  isOpen: boolean;
-  onToggle: (open: boolean) => void;
-  validating: boolean;
-  validationResults: ValidationResult[] | null;
-}
-
-interface ValidationResult {
-  step: string;
-  status: 'passed' | 'failed';
-  message: string;
-}
-```
-
-**Features**:
-
-- Collapsible drawer (animated height)
-- Loading spinner during validation
-- Styled output (green for passed, red for failed)
-- Copy button for output
-- Live streaming (via WebSocket - future)
-
-**States**:
-
-- **Validating**: Shows spinner and "Running kubectl commands..."
-- **Results Available**: Shows validation step results
-- **Idle**: Shows placeholder message
-
----
-
-### QuizPanel Component
-
-**Location**: `components/RightPanel/QuizPanel.tsx`
-
-**Props**:
-
-```typescript
-interface QuizPanelProps {
-  quizData: QuizData;
-}
-
-interface QuizData {
-  questions: Question[];
-}
-
-interface Question {
-  id: number;
-  text: string;
-  options: Option[];
-  correct: string;
-  explanation: string;
-}
-
-interface Option {
-  id: string;
-  text: string;
-}
-```
-
-**Features**:
-
-- Question counter ("1 of 5")
-- Single-select radio buttons
-- Answer tracking
-- Submit button
-- Results view with explanations
-- Score calculation
-
-**State**:
-
-```typescript
-- answers: Record<number, string> (question ID → selected option ID)
-- showResults: boolean
-```
-
----
-
-### Badge Component
-
-**Location**: `components/ui/Badge.tsx`
-
-**Props**:
-
-```typescript
-interface BadgeProps {
-  children: React.ReactNode;
-  color?: 'blue' | 'green' | 'gray';
-}
-```
-
-**Usage**:
-
-```tsx
-<Badge color="green">Basic</Badge>
-<Badge color="blue">Intermediate</Badge>
-<Badge color="gray">Deployment</Badge>
-```
-
-**Styling**: Tailwind CSS with dark mode support
-
----
-
-### MarkdownRenderer Component
-
-**Location**: `components/shared/MarkdownRenderer.tsx`
-
-**Props**:
-
-```typescript
-interface MarkdownRendererProps {
-  content: string;
-}
-```
-
-**Features**:
-
-- Parse markdown syntax:
-  - `## Heading` → `<h2>` (pink)
-  - `### Heading` → `<h3>` (green)
-  - `` `code` `` → inline code (orange with background)
-  - `**bold**` → strong text (purple)
-  - ` ```yaml ... ``` ` → code blocks with language label
-  - `- item` → list items with purple markers
-
-**Helper Function**: `parseInline(text)` for inline styles
-
-**Styling**: Dracula theme with larger text sizes (18px base)
-
----
-
-### Toast Component
-
-**Location**: `components/shared/Toast.tsx`
-
-**Props**:
-
-```typescript
-interface ToastProps {
-  type: 'success' | 'error';
-  message: string;
-  score?: number;
-  total?: number;
-  onClose: () => void;
-  duration?: number; // default 5000ms
-}
-```
-
-**Features**:
-
-- **Slide-in animation** from right
-- **Success state** (70%+ score):
-  - Trophy icon with bounce animation
-  - Green Dracula theme (`#50fa7b`)
-  - Animated progress bar
-- **Failure state** (<70% score):
-  - X icon with shake animation
-  - Red Dracula theme (`#ff5555`)
-  - Score breakdown
-- **Auto-dismiss** after 5 seconds
-- **Manual close** button
-- **Score display** with animated progress bar
-- **Pass/fail indicator**
-
-**Usage**:
-
-```tsx
-<Toast
-  type="success"
-  message="Excellent work! You passed the quiz!"
-  score={8}
-  total={10}
-  onClose={() => setToast(null)}
-/>
-```
-
----
-
-### Confetti Component
-
-**Location**: `components/shared/Confetti.tsx`
-
-**Props**:
-
-```typescript
-interface ConfettiProps {
-  duration?: number; // default 3000ms
-}
-```
-
-**Features**:
-
-- **50 animated particles** falling from top
-- **Dracula colors**: green, purple, pink, yellow, cyan, orange
-- **Random sizes and shapes** (circles and squares)
-- **Physics-based animation** (gravity + drift)
-- **Auto-cleanup** after duration
-
-**Usage**:
-
-```tsx
-{showConfetti && <Confetti />}
-```
-
-**Triggered**: When user passes a quiz (70%+ score)
-
----
-
-## Data Flow
-
-### Dashboard Loading Flow
-
-```
-Dashboard Mount
-  ↓
-useEffect(() => fetchDashboard())
-  ↓
-apiClient.getDashboard()
-  ↓
-GET /api/dashboard
-  ↓
-setDashboardData(response)
-  ↓
-Render topic cards with progress
-```
-
-### Unit Navigation Flow
-
-```
-User clicks topic card
-  ↓
-navigate(`/unit/${firstUnitSlug}`)
-  ↓
-LearningUnit component mounts
-  ↓
-fetchSyllabus() (once)
-  ↓
-fetchUnit(slug)
-  ↓
-GET /api/units/{slug}
-  ↓
-Render split-screen interface
-```
-
-### Quiz Submission Flow
-
-```
-User selects quiz answers
-  ↓
-setSelectedAnswers({ questionId: optionId })
-  ↓
-User clicks "Submit Quiz"
-  ↓
-handleQuizSubmit()
-  ↓
-POST /api/grading/quiz/submit
-  ↓
-Receive { score_percentage, passed }
-  ↓
-Show animated toast notification
-  ↓
-If passed: trigger confetti + update progress
-  ↓
-POST /api/progress/update
-```
-
-### Code Submission Flow
-
-```
-User types in CodeEditor
-  ↓
-setCode(newCode)
-  ↓
-User clicks "Submit"
-  ↓
-handleCodeSubmit()
-  ↓
-POST /api/solutions/autosave (save first)
-  ↓
-POST /api/grading/code/verify (validate)
-  ↓
-Show animated toast with result
-  ↓
-POST /api/progress/update (mark in progress)
-```
-
-### Optimized Navigation Flow
-
-```
-User clicks Next/Prev
-  ↓
-navigateToUnit(direction)
-  ↓
-navigate(`/unit/${newSlug}`)
-  ↓
-fetchUnit(newSlug)
-  ↓
-setIsNavigating(true) (not setLoading)
-  ↓
-Show purple progress bar + 50% opacity
-  ↓
-API returns (13ms backend response)
-  ↓
-setIsNavigating(false)
-  ↓
-Smooth opacity transition (200ms)
-  ↓
-Content updated - no page reload!
-```
-
----
-
-## Styling & Theming
-
-### Dracula Theme
-
-All components use the Dracula color scheme for consistent dark theme:
-
-**Primary Colors**:
-
-- Background: `#282a36` (Dracula background)
-- Foreground: `#f8f8f2` (Dracula foreground)
-- Current Line: `#44475a`
-- Comment: `#6272a4`
-- Purple: `#bd93f9` (links, highlights)
-- Pink: `#ff79c6` (headings)
-- Green: `#50fa7b` (success)
-- Yellow: `#f1fa8c` (warning)
-- Cyan: `#8be9fd` (info)
-- Orange: `#ffb86c` (code)
-- Red: `#ff5555` (error)
-
-**Typography**:
-
-- Base text: `text-lg` (18px) with `leading-relaxed`
-- Headers: h2 = `text-3xl`, h3 = `text-2xl`
-- Code blocks: `text-base` (16px) with `line-height: 1.6`
-- Inline code: Orange (`#ffb86c`) with highlighted background
-
-### Custom Scrollbar
-
-```css
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 3px;
-}
-
-.dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #4b5563;
-}
-```
-
----
-
-## Performance Optimizations
-
-1. **Code Splitting**:
-   - Components lazy-loaded with `React.lazy()`
-   - QuizPanel only loads when type === "quiz"
-
-2. **Memoization**:
-   - `React.memo()` for expensive components
-   - `useMemo()` for derived data
-
-3. **Debouncing**:
-   - Auto-save debounced 2 seconds
-   - Prevents excessive API calls
-
-4. **Caching**:
-   - Exercise list cached in localStorage
-   - Manual refresh button for updates
-
----
-
-## Accessibility
-
-- Semantic HTML (`<header>`, `<main>`, `<footer>`)
-- ARIA labels for interactive elements
-- Keyboard navigation support
-- Tab order management
-- Color contrast ratios (WCAG AA)
-
----
-
-## Testing
-
-### Component Unit Tests
-
-```typescript
-describe('CodeEditor', () => {
-  it('should render textarea', () => {
-    render(<CodeEditor value="" onChange={jest.fn()} />);
-    expect(screen.getByRole('textbox')).toBeInTheDocument();
-  });
-
-  it('should call onChange when code is typed', () => {
-    const handleChange = jest.fn();
-    render(<CodeEditor value="" onChange={handleChange} />);
-    fireEvent.change(screen.getByRole('textbox'), {
-      target: { value: 'new code' }
-    });
-    expect(handleChange).toHaveBeenCalledWith('new code');
-  });
-});
-```
-
-### Integration Tests
-
-```typescript
-describe('App Integration', () => {
-  it('should load exercises on mount', async () => {
-    render(<App />);
-    await waitFor(() => {
-      expect(screen.getByText(/Debug Broken Deployment/i)).toBeInTheDocument();
-    });
-  });
-});
-```
-
----
-
-## Component Props Summary
-
-| Component | Props | State | Key Methods |
-|-----------|-------|-------|-------------|
-| App | None | 8 state vars | handleExerciseChange, runValidation |
-| DescriptionPanel | exercise | activeTab | setActiveTab |
-| StepsPanel | steps | completed | toggleTask |
-| CodeEditor | value, onChange | None | renderHighlightedCode |
-| Console | isOpen, onToggle, validating, results | None | (controlled) |
-| QuizPanel | quizData | answers, showResults | toggleOption, submit |
-| Badge | children, color | None | (none) |
-| MarkdownRenderer | content | None | parseInline |
-
----
-
-## Future Component Enhancements
-
-- [ ] Replace custom CodeEditor with Monaco Editor
-- [ ] Add breadcrumb navigation
-- [ ] Implement Hints functionality
-- [ ] Add file upload for YAML
-- [ ] Support for multiple files in editor
-- [ ] Keyboard shortcut help modal
-- [ ] Submission history sidebar
-- [ ] Code diff viewer (user vs solution)
-- [ ] Collaborate in real-time (WebSocket)
-- [ ] Comment system for discussions
+## Commented-Out Components
+
+Code preserved in source but non-functional:
+
+| Component | Status |
+|-----------|--------|
+| `QuizPanel` | Exists in `components/RightPanel/QuizPanel.tsx` but not rendered — quiz feature commented out |
+| Quiz answer state in `LearningUnit` | Commented out with `// quiz/grading feature commented out` markers |
+| Solution history state | Commented out — replaced by Redis draft autosave |
+| Autosave status indicator (old versioned approach) | Commented out |

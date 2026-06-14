@@ -1,1176 +1,313 @@
 # Backend Technical Design Document
 
-**Version:** 1.0  
-**Document Type:** Technical Design Document (Architecture & Design Decisions)
+**Version:** 2.0
+**Last Updated:** June 2026
+**Document Type:** Technical Design Document
 
 ---
 
 ## 1. Project Overview
 
-**Objective:** Develop a robust, secure, and scalable backend for an interactive learning platform that
-supports dual-mode learning: **Conceptual Modules** (Markdown + Quizzes) and **Coding Exercises**
-(Kubernetes/YAML editor).
+KubePlayground is a local-first, privacy-focused Kubernetes learning platform. Users generate course
+content with AI, save it as JSON files, and seed it into the app. No cloud dependencies.
 
-**Deployment Model:**
+**Deployment model:** Single-user Docker Compose. No multi-tenancy. No cloud services.
 
-* **Local Hosting Only:** Designed for single-user desktop environments (Docker Compose)
-* **AI-Powered Content Generation:** Users can generate custom courses using AI tools and load them via seeding API
-* **Personal Learning:** Each user runs their own instance with their own content and progress
-* **No Multi-Tenancy:** Architecture optimized for local performance, not cloud scalability
+**Core philosophy:**
 
-**Core Philosophy:**
-
-* **Security First:** "Split-Brain" architecture separates public content from private solutions
-* **Resilience:** Ephemeral state (Drafts) is isolated from permanent state (Progress)
-* **Performance:** Hybrid database architecture optimized for local workloads
-* **Flexibility:** User-generated content through AI with simple YAML seeding
-
-### 1.1 Technology Stack
-
-* **Framework:** FastAPI (Python 3.10+)
-* **Database (Content):** MongoDB 6.0+ (Motor + Beanie ODM) - Learning units, user progress
-* **Database (Catalog/IAM):** SQLite - Course hierarchy, authentication, activity tracking
-* **Cache / Draft Store:** Redis - Autosave drafts, session state
-* **Code Execution:** Independent Sandboxed Microservice (Runner)
-
-### 1.2 Hybrid Database Architecture Rationale
-
-**Why SQLite + MongoDB Instead of MongoDB Only?**
-
-| Use Case | Database | Reasoning |
-|----------|----------|----------|
-| **Course Catalog Browsing** | SQLite | 20-25x faster for simple hierarchical queries (courses → topics → units list) |
-| **Authentication & Sessions** | SQLite | Strong consistency requirements, ACID transactions for JWT tokens |
-| **Activity Tracking** | SQLite | Time-series data benefits from SQL window functions and aggregations |
-| **Learning Unit Content** | MongoDB | Flexible schema for quizzes, YAML configurations, nested quiz structures |
-| **User Progress** | MongoDB | Document-based progress tracking with flexible metadata |
-| **Draft Autosave** | Redis | High-frequency writes, ephemeral data, TTL-based expiration |
-
-**Performance Comparison (Local SQLite vs MongoDB):**
-
-* Course list query: 5ms (SQLite) vs 50-80ms (MongoDB)
-* Chapter grid with progress: 35ms (hybrid) vs 150-200ms (MongoDB only)
-* Unit content fetch: 15ms (MongoDB with SQLite FK) vs 50ms (MongoDB text search)
-
-**Key Design Decision:** Use the right tool for each job rather than forcing one database to handle all use cases.
+- Split-brain architecture isolates public content from private answer keys
+- Hybrid database: SQLite for structured/relational data, MongoDB for document content
+- Redis for ephemeral state (drafts, active namespaces) — separate from permanent progress
+- Enrollment-driven UX: users enroll in one active course at a time
 
 ---
 
-## 2. System Architecture
+## 2. Technology Stack
 
-### 2.1 High-Level Design
-
-The system operates as a secure gateway between the Client and the Data/Execution layers.
-
-1. **FastAPI Backend:** Orchestrates all logic, authentication, and grading. It is the only entity with access
-   to the "Private" solution database.
-2. **MongoDB (Split-Brain):**
-   * *Public Collection:* Stores questions and instructions.
-   * *Private Collection:* Stores answer keys and validation scripts.
-3. **Redis:** Handles high-frequency write operations for autosaving user inputs (Drafts).
-4. **Code Runner:** An isolated service that receives user code + hidden validation scripts from the Backend to
-   execute tests.
+| Layer | Technology |
+|-------|-----------|
+| Framework | FastAPI (Python 3.10+) |
+| Content DB | MongoDB 6+ via Beanie ODM (async) |
+| Catalog/IAM DB | SQLite via SQLAlchemy (sync) |
+| Ephemeral store | Redis |
+| Validation service | Go microservice (Phase 2, partially implemented) |
+| Content SDK | `dbdaolib` (internal Python package in `SDKs/DAO/`) |
 
 ---
 
-## 3. Database Schema Design (MongoDB)
+## 3. Hybrid Database Architecture
 
-### 3.1 Collection: `learning_units` (Public Content)
+### 3.1 Rationale
 
-*Stores data safe for the frontend to render.*
+| Use Case | Database | Reason |
+|----------|----------|--------|
+| Course catalog browsing | SQLite | 20–25× faster for hierarchical queries |
+| Authentication and sessions | SQLite | ACID transactions required for JWT tokens |
+| Enrollment and access tracking | SQLite | Relational; requires atomic status transitions |
+| Activity heatmap and streaks | SQLite | Aggregation 20–25× faster than MongoDB pipeline |
+| Learning unit content | MongoDB | Document model fits nested steps/hints/config |
+| User progress and submissions | MongoDB | Per-unit documents; no joins needed |
+| Answer keys and validation scripts | MongoDB | Separate collection, never exposed to frontend |
+| Draft autosave | Redis | Ephemeral; TTL-managed; no persistence needed |
+| Active namespace tracking | Redis | Short-lived; cleared on pass or unenroll |
 
-**Schema:** `core/content/models.py - LearningUnit`
+### 3.2 Cross-Database Referential Integrity
 
-**Key Design Elements:**
+No database-level foreign keys exist between SQLite and MongoDB. Integrity is enforced at the
+application layer:
 
-* URL-friendly slug for unique identification
-* Hybrid references: `course_id` and `topic_id` (FK to SQLite catalog)
-* Type discrimination: conceptual (quizzes) vs coding (editor config)
-* Flexible quiz structure with embedded questions/options (no answers)
-* Markdown content for left pane instructions
-
-**Security:** This collection contains NO answers or validation scripts - client-safe data only.
-
-**ER Diagram:** See Section 6.1 for complete entity relationships.
-
-### 3.2 Collection: `unit_solutions` (Private Logic)
-
-*Stores secrets. NEVER exposed to the API.*
-
-**Schema:** `core/content/models.py - UnitSolution`
-
-**Key Design Elements:**
-
-* One-to-one relationship with `learning_units` via foreign key
-* Quiz answers stored as question-to-answer mappings
-* Complete solution files for coding exercises
-* Validation scripts executed by isolated Runner service
-
-**Security:** Backend-only access. Never transmitted to client. Used exclusively for server-side grading.
-
-**ER Diagram:** See Section 6.1 for complete entity relationships.
-
-### 3.3 Collection: `user_progress` (Permanent State)
-
-*Stores the official record of completion.*
-
-**Schema:** `core/content/models.py - UserProgress`
-
-**Key Design Elements:**
-
-* Composite key: user + learning unit
-* Status tracking: started vs completed
-* Score persistence for quiz results
-* Timestamp for completion analytics
-
-**Purpose:** Permanent record separate from ephemeral drafts (Redis). Used for progress dashboards and streak calculations.
-
-**ER Diagram:** See Section 6.1 for complete entity relationships.
+- `database.validate_user_exists()` called before any MongoDB write that references a user
+- `activity_log.unit_slug` references MongoDB `learning_units.slug` — validated before write
+- MongoDB `user_progress.user_id` is an integer matching `users.id` — validated before write
 
 ---
 
-## 3.4 Course Hierarchy Architecture (Hybrid Database)
+## 4. Router Responsibilities
 
-**Design Decision:** Course catalog structure lives in SQLite while content lives in MongoDB.
+All routes prefixed `/api/v1`. Entry point: `core/main.py`.
 
-### Why Separate Catalog from Content?
+### `auth/` — Identity and Access Management
 
-**Problem:** MongoDB queries for course browsing (list courses → list topics →
-count units) required multiple aggregations and text searches, taking 150-200ms
-for the chapter grid view.
+- `POST /register`, `POST /login`: bcrypt verify, generate JWT pair, store refresh token hash
+- `POST /refresh`: validate refresh token, issue new access token
+- `GET /me`: current user profile from SQLite
+- `POST /logout`, `POST /logout-all`: revoke refresh token(s) in SQLite
+- `POST /change-password`: bcrypt update, revoke all sessions
+- `GET /me/activity/heatmap`, `GET /me/activity/recent`: GitHub-style heatmap, per-event feed
+- `GET /me/streak`, `GET /me/stats`, `GET /profile/summary`: gamification data
+- `POST /activity`: internal — called by grading router on submission (not called by frontend directly)
 
-**Solution:** Extract catalog structure to SQLite, keep rich content in MongoDB.
+### `routers/seed.py` — Content Seeder
 
-### SQLite Tables (Catalog)
+Reads the `sample-resources/k8s/` directory hierarchy:
 
-**Schema Reference:** `core/auth/models.py` - Course, Topic
+- `course.json` → upserts `courses` + `topics` in SQLite
+- Per-unit JSON → splits into `learning_units` (public) and `unit_solutions` (private) in MongoDB
 
-**ER Diagram:** See Section 6.1 for complete entity relationships
+`_solution` key is stripped from the unit and routed to the `unit_solutions` collection. All other
+fields go to `learning_units`. Idempotent — safe to re-run.
 
-**Design Elements:**
+### `routers/courses.py` — Course Catalog
 
-* **courses:** Course metadata with unique slug identifier
-* **topics:** Chapter/topic structure with foreign key to course, order_position for learning path sequencing
+- `GET /`: list all courses with unit counts (SQLite)
+- `GET /{slug}/detail`: full landing page data — tagline, prerequisites, what_you_learn, modules,
+  author (SQLite `courses` table, JSON fields parsed from stored strings)
+- `GET /{slug}/chapters`: chapter list with per-topic unit count and completion % (SQLite + MongoDB
+  progress join at application layer)
+- `GET /topics/{topic_id}/units`: all units for a topic (SQLite catalog + MongoDB unit detail)
 
-**Benefits:**
+### `routers/enrollment.py` — Course Enrollment
 
-* **Fast browsing:** 5ms course list, 35ms chapter grid (vs 150-200ms MongoDB)
-* **Stable ordering:** `order_position` ensures consistent learning path
-* **Cached counts:** `units_count` field avoids expensive MongoDB aggregations
-* **Referential integrity:** SQLite foreign keys enforce course → topic relationships
+- `POST /{slug}/enroll`: create `user_enrollments` row with `status=active`; atomically set any
+  existing active enrollment to `paused`
+- `DELETE /{slug}/enroll`: remove enrollment row; `user_progress` is preserved
+- `PATCH /{slug}/status`: set `active` or `paused`; activating auto-pauses other active enrollment
+- `PATCH /{slug}/access`: update `last_accessed_at`; called on every unit open
+- `GET /my`: all enrollments with status, completion %, last accessed
 
-### MongoDB Integration
+Only one `active` enrollment per user is enforced by application logic (not a DB constraint).
 
-**Learning units reference SQLite catalog:**
+### `routers/dashboard.py` — Enrollment-Filtered Dashboard
 
-**Implementation:** `core/content/models.py - LearningUnit`
+Single `GET /` endpoint. Returns:
 
-**Design Pattern:** Cross-database foreign keys
+- `active_course`: full `CourseProgressSummary` with per-topic completion data
+- `paused_courses`: lightweight list of `PausedCourseSummary`
+- Aggregate stats: `total_units`, `completed_count`, `in_progress_count`, `current_streak`
 
-* MongoDB documents store integer references to SQLite catalog entities
-* `course_id` and `topic_id` fields link to SQLite courses/topics tables
-* Enables fast catalog queries (SQLite) with flexible content storage (MongoDB)
+When no enrollment exists, both `active_course` and `paused_courses` are empty — frontend renders
+the enrollment empty state.
 
-**Query Pattern:**
+### `routers/content.py` — Learning Unit Content
 
-1. SQLite: Fetch topic structure (fast, 5ms)
-2. MongoDB: Fetch units by `topic_id` (indexed lookup, 15ms)
-3. Application: Combine results for chapter grid display
+- `GET /syllabus`: flat ordered list of all units (from MongoDB `learning_units`)
+- `GET /{slug}`: full unit detail — description, steps, hints, editor_config (from MongoDB)
 
-**Trade-off:** No native database joins, but performance gain outweighs application-level join cost for local hosting.
+Quiz fields and solutions are **never returned**. `unit_solutions` collection is accessed only by
+`grading.py` and `solutions.py`.
 
-### YAML Metadata Structure
+### `routers/grading.py` — Validation and Submission
 
-**Complete Metadata Example:**
+- `WS /ws/run`: WebSocket — applies manifest to K8s cluster, streams pod events, runs validation
+  script, returns structured result. Stores namespace in Redis on success.
+- `POST /code/validate`: HTTP apply-and-validate (non-streaming)
+- `POST /code/validate-only`: validate against existing namespace (no re-apply)
+- `POST /code/cleanup`: delete K8s namespace after passing run
+- `POST /code/draft` / `GET /code/draft/{unit_slug}` / `DELETE /code/draft/{unit_slug}`:
+  Redis-backed draft autosave (`draft:{user_id}:{unit_slug}`, TTL 7 days)
+- `POST /code/namespace` / `GET /code/namespace/{unit_slug}` / `DELETE /code/namespace/{unit_slug}`:
+  Redis namespace persistence (`ns:{user_id}:{unit_slug}`, TTL 24h)
 
-```yaml
-metadata:
-  # Unit identification
-  slug: "kubernetes-pod-lifecycle"
-  title: "Understanding Pod Lifecycle"
-  order_index: 1
-  type: "conceptual"  # or "coding"
-  difficulty: "beginner"  # optional
-  description: "Learn how Kubernetes manages pod lifecycles"
+On passing validation:
 
-  # Course hierarchy (auto-creates in SQLite)
-  course:
-    slug: "k8s-fundamentals"
-    name: "Kubernetes Fundamentals"
-    description: "Master Kubernetes core concepts"  # optional
+1. `_update_progress_on_pass()` upserts `user_progress` in MongoDB
+2. `_record_submission()` writes to `user_submissions` in MongoDB
+3. `_log_activity()` writes to `ActivityLog` in SQLite and fires `update_user_streak_background`
 
-  topic:
-    slug: "pods"
-    name: "Pods 101"
-    order: 1       # Learning path position
-    icon: "🎯"     # optional emoji
-```
+Quiz submission (`/quiz/submit`) is **commented out**.
 
-**Backward Compatibility:** YAMLs without `course`/`topic` nested structures still work with legacy `topic` string
-field (course_id/topic_id will be NULL).
+### `routers/progress.py` — User Progress
 
-### Auto-Creation from YAML Metadata
+- `POST /update`: upsert `user_progress` in MongoDB; on `status=completed`, writes `exercise_completed`
+  to `ActivityLog` and fires `update_user_streak_background` as a background task
+- `GET /me`: all unit progress for current user (MongoDB `user_progress`)
 
-When users seed AI-generated content, the system auto-creates course/topic
-hierarchy:
+`user_id` extracted from JWT — not accepted in request body.
 
-**Seeding Algorithm:**
+### `routers/solutions.py` — Private Answer Keys
 
-1. **Course Check:** If `course.slug` doesn't exist → create course with metadata
-2. **Topic Check:** If `topic.slug` doesn't exist → create topic with `order_position`
-3. **Topic Update:** If topic exists but order changed → update `order_position`
-   field
-4. **Unit Insert:** Insert learning unit in MongoDB with `course_id`, `topic_id` foreign keys
-5. **Count Update:** Increment `topics.units_count` cached counter for fast UI rendering
+Accesses `unit_solutions` collection. Never returns solution data to frontend.
+Used internally for validation script lookup during grading.
 
-**Incremental Seeding:** Users can seed topics **gradually** via API endpoint
-(`POST /api/v1/seed/populate?topic_dir=/path`). AI-generated content can be
-added incrementally without requiring complete course structure upfront.
+### `routers/submissions.py` — Submission History
 
-**Example Incremental Workflow:**
-
-```bash
-# Day 1: Seed first topic
-POST /api/v1/seed/populate?topic_dir=/user-courses/k8s-101/pods
-# Result: Course + Pods topic created
-
-# Day 7: Add second topic later
-POST /api/v1/seed/populate?topic_dir=/user-courses/k8s-101/deployments
-# Result: Course now has 2 topics, displayed in order
-```
-
-Result: Course automatically expands with new topics in correct learning path order.
-
-### Topic Ordering Best Practices
-
-**Use Gaps for Future Insertions:**
-
-```yaml
-# pods/metadata.yaml
-topic:
-  order: 10
-
-# services/metadata.yaml  
-topic:
-  order: 20
-
-# deployments/metadata.yaml
-topic:
-  order: 30
-```
-
-**Benefit:** Can insert "ReplicaSets" at order 15 later without reordering all existing topics.
-
-**Reordering Topics:**
-
-To change learning path order, update `order` in YAML and reseed:
-
-```yaml
-# Before: Services at order 20
-# After: Move Services to order 35 (after Deployments)
-topic:
-  order: 35
-```
-
-Re-run seeding API → SQLite `order_position` updated instantly.
-
-### Performance Metrics
-
-| Operation | MongoDB Only | Hybrid (SQLite + MongoDB) | Speedup |
-|-----------|--------------|---------------------------|---------|
-| Course list | 50-80ms | 5ms | 10-16x |
-| Chapter grid with progress | 150-200ms | 35ms | 4-6x |
-| Unit list by topic | 50ms (text search) | 15ms (indexed FK) | 3x |
-
-**Hardware:** Local development (Docker on SSD, single user load)
-
-### Troubleshooting
-
-#### Issue: Topic order wrong in UI
-
-* **Check:** SQLite `order_position` field in topics table
-* **Solution:** Update YAML `topic.order` value and reseed
-
-#### Issue: Units not appearing in topic
-
-* **Check MongoDB:** Query `learning_units` for matching `topic_id`
-* **Solution:** If `topic_id` is NULL, reseed YAML with proper course/topic metadata
-
-#### Issue: Duplicate course/topic slugs
-
-* **Constraint:** Slugs must be globally unique
-* **Solution:** Update slug in YAML and reseed with new identifier
+- `GET /{unit_slug}`: all submissions for current user + unit (MongoDB `user_submissions`)
 
 ---
 
-## 3.5 AI-Generated Content Workflow
+## 5. Data Models
 
-**Use Case:** Users generate custom courses with AI (ChatGPT, Claude, etc.) and load them locally.
+### 5.1 MongoDB Collections (Beanie Documents)
 
-### Content Generation Flow
+| Collection | Purpose |
+|------------|---------|
+| `learning_units` | Public content: title, slug, type, difficulty, description, steps, hints, editor_config. Safe for frontend. |
+| `unit_solutions` | Private: code_solution, validation_script, quiz_answers. Never exposed to frontend. |
+| `user_submissions` | Per-user submission records: code, language, passed, timestamp, output |
+| `user_progress` | Permanent completion tracking: user_id (int), unit_slug, status, completed_at |
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant AI as AI Tool (ChatGPT/Claude)
-    participant FS as File System
-    participant API as Seeding API
-    participant SQLite
-    participant MongoDB
+Quiz-related embedded fields in `LearningUnit` are **commented out**.
 
-    User->>AI: "Generate K8s course: Pods, Services, Deployments"
-    AI->>AI: Generate YAML files with metadata
-    AI-->>User: ZIP file with structured YAMLs
+### 5.2 SQLite Tables (SQLAlchemy)
 
-    User->>FS: Extract to /course-content/k8s-basics/
-    User->>API: POST /seed/populate?topic_dir=/course-content/k8s-basics/pods
-
-    API->>API: Parse YAML metadata
-    API->>SQLite: Create/Update course & topic
-    API->>MongoDB: Insert learning_units with FKs
-    API-->>User: {status: "success", units_inserted: 8}
-
-    User->>User: Repeat for each topic (services, deployments...)
-```
-
-### AI Generation Prompt Example
-
-**Recommended Prompt Structure:**
-
-```
-Generate a Kubernetes learning course with:
-1. Course: "Kubernetes Fundamentals"
-2. Topics:
-   - Pods (order: 1) - 5-8 conceptual units
-   - Services (order: 2) - 5-8 conceptual units
-   - Deployments (order: 3) - 5-8 conceptual units
-3. Each unit includes:
-   - Title, description, difficulty level
-   - 3-5 multiple choice quiz questions with 1 correct answer
-4. Format: YAML with embedded metadata
-
-Metadata structure required:
-- course.slug, course.name, course.description
-- topic.slug, topic.name, topic.order, topic.icon (emoji)
-- Unit: slug, title, order_index, type, difficulty
-- Quiz: questions with options and correct_answer marked
-```
-
-### Directory Structure
-
-**Generated Content Organization:**
-
-```bash
-/user-courses/k8s-fundamentals/
-  ├── pods/
-  │   ├── 01-basics.yaml
-  │   ├── 02-lifecycle.yaml
-  │   ├── 03-multi-container.yaml
-  │   └── ...
-  ├── services/
-  │   ├── 01-introduction.yaml
-  │   ├── 02-service-types.yaml
-  │   └── ...
-  └── deployments/
-      ├── 01-deployment-basics.yaml
-      ├── 02-rolling-updates.yaml
-      └── ...
-```
-
-### Seeding Commands
-
-**Topic-by-Topic Seeding:**
-
-```bash
-# Seed first topic
-POST /api/v1/seed/populate?topic_dir=/user-courses/k8s-fundamentals/pods
-# Response: {status: "success", course_created: true, topic_created: true, units: 8}
-
-# Add second topic
-POST /api/v1/seed/populate?topic_dir=/user-courses/k8s-fundamentals/services
-# Response: {status: "success", course_created: false, topic_created: true, units: 6}
-
-# Add third topic
-POST /api/v1/seed/populate?topic_dir=/user-courses/k8s-fundamentals/deployments
-# Response: {status: "success", course_created: false, topic_created: true, units: 9}
-```
-
-**Result:**
-
-* SQLite: 1 course + 3 topics with correct order (1, 2, 3)
-* MongoDB: 23 learning units with course_id/topic_id references
-* UI: Chapter grid displays topics in learning path order
-
-### Content Validation & Error Handling
-
-API validates during seeding:
-
-* Required metadata fields present
-* Course/topic slugs are URL-safe
-* Quiz questions have correct answer marked
-* File structure matches expected format
-
-**Error Handling:**
-
-* Invalid YAML → Skip file, log error, continue
-* Duplicate slug → Update existing unit
-* Missing metadata → Use defaults (course: "General", topic: NULL)
-
-### Local Storage
-
-**Volume Mount Strategy:**
-
-* Pre-built courses: Read-only sample resources directory
-* AI-generated courses: User content directory mounted read-only
-* SQLite database: Volume-mounted for persistence
-* MongoDB: Docker named volume for data persistence
-
-**Data Ownership:** All content and progress data stored locally on user's machine. No cloud dependencies.
-
-**Implementation:** See `docker-compose.yml` for volume configuration.
+| Table | Purpose |
+|-------|---------|
+| `users` | Account: email (unique), username, bcrypt password_hash, is_active, last_login |
+| `refresh_tokens` | Session management: SHA256 token_hash, expires_at, revoked_at |
+| `courses` | Course catalog: slug (unique), name, description, tagline, level, estimated_hours, JSON fields (prerequisites, what_you_learn, author, modules) |
+| `topics` | Chapter catalog: slug, name, order_position, icon, units_count (cached), FK → courses |
+| `user_enrollments` | Enrollment state: user_id, course_id, status (active/paused), enrolled_at, last_accessed_at |
+| `user_activity` | Daily activity aggregates for heatmap: user_id + activity_date (composite unique), total_points, exercise counts |
+| `user_streaks` | 1:1 with users: current_streak, longest_streak, last_activity_date |
+| `activity_log` | Append-only event log: activity_type, unit_slug, points_earned, metadata JSON |
 
 ---
 
-## 3.6 Course Navigation UI & API Flow
+## 6. Content Format and Seeding
 
-### Navigation Structure
+Content lives in `sample-resources/k8s/` (git submodule). Files are JSON.
 
-The UI implements a three-level navigation hierarchy with progressive disclosure:
-
-```mermaid
-graph LR
-    subgraph NAV["HEADER NAVIGATION"]
-        H1["🏠 KubePlayground | Dashboard | Courses"]
-        H2["Chapters ▼"]
-        H3["@username ▼"]
-    end
-
-    subgraph DROP["CHAPTERS DROPDOWN"]
-        D1["▼ Kubernetes Fundamentals"]
-        D2["  🎯 Pods 101"]
-        D3["  🌐 Services"]
-        D4["  📦 Deployments"]
-        D1 --> D2 & D3 & D4
-    end
-
-    subgraph UNIT["UNIT PAGE NAVIGATION"]
-        U1["CH1: Pods ▼"]
-        U2["L2: Lifecycle ▼"]
-    end
-
-    H2 -.-> DROP
-    D2 -.-> UNIT
-
-    style NAV fill:#1a1d23,stroke:#4a5568
-    style DROP fill:#2d1b4e,stroke:#6d28d9
-    style UNIT fill:#3e2723,stroke:#d97706
+```
+k8s/kubernetes-fundamentals/
+  course.json            ← course metadata + landing page fields
+  pods101/
+    topic.json           ← topic metadata (slug, name, order, icon, course_slug)
+    01-pods-fundamentals.json
+    04-first-nginx-pod.json
 ```
 
-### API Endpoints
+Unit JSON top-level keys: `slug, title, order_index, type, difficulty, description, steps[],
+hints[], editor_config{language, initial_code}, quizzes[], _solution{...}`
 
-```mermaid
-flowchart TB
-    subgraph Client["Client Requests"]
-        R1["Dashboard Load"]
-        R2["Topic Click"]
-        R3["Course Page Load"]
-    end
+The seeder:
 
-    subgraph API["FastAPI Endpoints"]
-        E1["GET /api/v1/dashboard<br/>35ms | SQLite + MongoDB"]
-        E2["GET /api/v1/courses/topics/{id}/units<br/>15ms | MongoDB"]
-        E3["GET /api/v1/courses/{slug}/chapters<br/>35ms | SQLite + MongoDB"]
-    end
-
-    subgraph Response["Response Data"]
-        D1["All courses + topics<br/>+ progress summary"]
-        D2["Topic metadata<br/>+ ordered units list"]
-        D3["Course details<br/>+ topic cards + progress"]
-    end
-
-    R1 --> E1 --> D1
-    R2 --> E2 --> D2
-    R3 --> E3 --> D3
-
-    D1 -.->|"Powers"| UI1["CourseNavigation.tsx<br/>Header dropdown"]
-    D2 -.->|"Powers"| UI2["UnitNavigation.tsx<br/>Context dropdowns"]
-    D3 -.->|"Powers"| UI3["CourseChaptersPage.tsx<br/>Chapter grid"]
-
-    style Client fill:#1e293b,stroke:#475569
-    style API fill:#1e40af,stroke:#3b82f6
-    style Response fill:#065f46,stroke:#10b981
-```
-
-**Query Pattern:**
-
-* Dashboard/Chapters: SQLite (topics) + MongoDB (progress) = 35ms
-* Unit navigation: MongoDB indexed lookup = 15ms
-* Client-side caching for instant re-access
+1. Reads `course.json` → upserts `courses` in SQLite
+2. Reads each `topic.json` → upserts `topics` in SQLite
+3. For each unit JSON:
+   - Strips `_solution` → writes to `unit_solutions` in MongoDB
+   - Writes remainder → upserts `learning_units` in MongoDB
 
 ---
 
-### Progressive Disclosure Pattern
+## 7. Activity and Streak Tracking
 
-**Lazy Loading Strategy:**
+Two write paths converge on the same SQLite tables:
 
-```
-Initial Load (Dashboard)
-├─ Load: All courses + topics (fast, 35ms)
-└─ Defer: Unit details until topic clicked
+**Path 1 — Coding unit submission** (`grading.py`):
 
-User Clicks Topic
-├─ Load: Units for that topic only (15ms)
-└─ Cache: Client-side for instant re-access
+- Every submission (pass or fail) calls `_log_activity()` → writes `exercise_attempted` to `ActivityLog`
+- On pass: fires `update_user_streak_background` background task
 
-User Navigates to Unit
-└─ Context dropdowns: Pre-loaded from dashboard data
-```
+**Path 2 — Theory unit Mark as Read** (`progress.py`):
 
-**Why This Pattern:**
+- `POST /progress/update` with `status=completed` writes `exercise_completed` to `ActivityLog`
+- Fires same `update_user_streak_background` background task
 
-* **Fast Initial Render:** Topics load immediately, units deferred
-* **Reduced Bandwidth:** Don't fetch hundreds of units upfront
-* **Instant Navigation:** Once loaded, dropdown navigation is instant
-* **Optimal for Local:** Takes advantage of fast local database queries
+**Streak algorithm** (`update_user_streak_background`):
 
----
+- `days_diff == 0`: same day, no change
+- `days_diff == 1`: increment `current_streak`, update `longest_streak` if exceeded
+- `days_diff > 1`: reset `current_streak = 1`
 
-### UI Navigation Flows
+**Heatmap** (`GET /me/activity/heatmap`):
 
-#### Flow 1: Topic Selection from Header
-
-```
-User clicks "Chapters" → Dropdown shows all courses/topics
-User clicks topic → Navigate to first unit in that topic
-```
-
-#### Flow 2: Unit-to-Unit Navigation
-
-```
-User on unit page → Dropdowns show: [CH1: Pods ▼] [L2: Lifecycle ▼]
-User clicks dropdown → See all units in current topic
-User selects unit → Navigate to that unit
-```
-
-#### Flow 3: Topic Switching from Unit Page
-
-```
-User clicks topic dropdown → See all topics in course with progress
-User selects different topic → Jump to first unit of new topic
-```
-
-**Technical Notes:**
-
-* All navigation state cached client-side after first load
-* Progress updates refresh via dashboard API call
-* Topic/unit slugs used for routing (`/unit/{slug}`)
+- Queries `user_activity` (single indexed table scan)
+- Calculates percentile-based intensity thresholds (levels 1–4) from user's own distribution
+- Returns complete 365-day date range with level 0 for inactive days
 
 ---
 
-## 4. Redis Caching Strategy (Drafts)
+## 8. Enrollment Flow
 
-**Purpose:** Prevent data loss on page refresh/crash without overloading the primary DB.
+`UserEnrollment` table: `user_id, course_id, status, enrolled_at, last_accessed_at`
 
-**Design Pattern:**
+Status transitions:
 
-* **Key Pattern:** `draft:{user_id}:{unit_id}` for isolated user/unit state
-* **TTL:** 30 days with refresh-on-write to balance persistence and cleanup
-* **Data Structure:** JSON document containing:
-  * Checklist state (completed step indices)
-  * Quiz selections (current radio button choices)
-  * Editor code (current YAML/code content)
+- **Enroll** → insert row with `status=active`; any existing `active` row is set to `paused`
+- **Start** (from paused) → same auto-pause logic
+- **Pause** → set current enrollment to `paused`
+- **Unenroll** → delete row; `UserProgress` (unit completions) is preserved
 
-**Architecture Decision:** Ephemeral draft state in Redis (high-frequency
-writes) separate from permanent progress in MongoDB (write-once on completion).
+`last_accessed_at` updated on every unit open via `PATCH /{slug}/access`. Dashboard uses this
+to show "last accessed" timestamps.
 
 ---
 
-## 5. Functional Requirements (API Flows)
+## 9. Redis Usage
 
-### 5.1 Content Delivery
+| Key pattern | TTL | Contents |
+|-------------|-----|---------|
+| `draft:{user_id}:{unit_slug}` | 7 days | Editor code (autosaved every 2s) |
+| `ns:{user_id}:{unit_slug}` | 24h | Active K8s namespace name |
 
-```mermaid
-sequenceDiagram
-    participant Client
-    participant API as FastAPI
-    participant MongoDB
+Both are restored on unit load. Cleared on:
 
-    Note over Client,MongoDB: Syllabus Generation
-    Client->>API: GET /api/units/syllabus
-    API->>MongoDB: Fetch learning_units<br/>(projection: _id, slug, title, topic, order_index)
-    MongoDB-->>API: Minimal payload
-    API-->>Client: Return syllabus list
-
-    Note over Client,MongoDB: Lesson Loading
-    Client->>API: GET /api/units/{slug}
-    API->>MongoDB: Fetch full learning_unit<br/>(public fields only)
-    Note over API: Security: Exclude unit_solutions
-    MongoDB-->>API: Unit content (no answers)
-    API-->>Client: Return lesson data
-```
-
-**Key Points:**
-
-* Syllabus uses projection to minimize bandwidth
-* Lesson loading returns full public document
-* Security: `unit_solutions` never joined or returned
+- Passing validation run (namespace cleared; draft cleared on explicit reset)
+- Explicit Reset button in editor
+- Unenroll
 
 ---
 
-### 5.2 Interactive Grading (Split-Brain Logic)
+## 10. Environment Configuration
 
-```mermaid
-sequenceDiagram
-    participant Client
-    participant API as FastAPI
-    participant Private as MongoDB<br/>(unit_solutions)
-    participant Progress as MongoDB<br/>(user_progress)
-    participant Runner as Code Runner<br/>(Isolated)
+`ENVIRONMENT` env var (`development` | `production`, default `development`) selects
+`core/utils/config/{env}.yaml`. Controls SQLite path, MongoDB connection, Redis host.
 
-    Note over Client,Progress: Quiz Submission Flow
-    Client->>API: POST /api/units/{id}/submit<br/>{answers: {q_id: opt_id}}
-    API->>Private: Fetch answer key
-    Private-->>API: Return correct answers
-    Note over API: Grade answers<br/>(Backend only)
-    API->>Progress: Upsert user_progress<br/>(status, score)
-    Progress-->>API: Saved
-    API-->>Client: Return score + corrections
-
-    Note over Client,Runner: Code Verification Flow
-    Client->>API: POST /api/units/{id}/verify<br/>{user_code: "..."}
-    API->>Private: Fetch validation_script
-    Private-->>API: Return hidden script
-    API->>Runner: Execute bundle:<br/>{user_code, validation_script}
-    Runner-->>API: Pass/Fail + logs
-    API->>Progress: Upsert user_progress
-    API-->>Client: Return result + console output
-```
-
-**Security Guarantees:**
-
-* Answer keys never leave backend
-* Validation scripts never sent to client
-* Code Runner isolated (ephemeral containers)
+In Docker: set via `docker-compose.yml`. Locally: export before running `uvicorn`.
 
 ---
 
-### 5.3 State Management (Ephemeral Drafts)
+## 11. Key Constraints
 
-```mermaid
-sequenceDiagram
-    participant Client
-    participant API as FastAPI
-    participant Redis
-
-    Note over Client,Redis: Autosave Flow (High Frequency)
-    loop Every 3-5 seconds
-        Client->>API: PUT /api/drafts/{unit_id}<br/>{checklist, quiz_selections, editor_code}
-        API->>Redis: SET draft:user_id:unit_id<br/>TTL: 30 days
-        Note over API: Graceful Degradation:<br/>Log error if Redis fails,<br/>don't fail request
-        Redis-->>API: OK
-        API-->>Client: 200 OK
-    end
-
-    Note over Client,Redis: Fetch Draft (Page Load)
-    Client->>API: GET /api/drafts/{unit_id}
-    API->>Redis: GET draft:user_id:unit_id
-    alt Draft exists
-        Redis-->>API: Return cached state
-        API-->>Client: Return draft data
-    else No draft
-        Redis-->>API: NULL
-        API-->>Client: Return default/empty state
-    end
-```
-
-**Design Decisions:**
-
-* Redis handles high-frequency writes (every 3-5s)
-* TTL-based expiration (30 days) for automatic cleanup
-* Graceful degradation: Redis failures don't break UX
-* Permanent progress saved to MongoDB only on submission
+- **Quiz/grading commented out**: markers `# quiz/grading feature commented out` throughout.
+  Do not re-enable without confirmation.
+- **Scoring commented out**: markers `# scoring feature commented out` throughout. Points
+  fields exist in models but are zeroed.
+- **CORS intentionally permissive** (`allow_origins=["*"]`): local-only app.
+- **No email features**: no email verification, no password reset — intentional for local hosting.
+- `ruff` excludes `sample-resources/`, `*.ipynb`, `validation-service/`.
 
 ---
 
-## 6. Diagrams
+## 12. Validation Service (`validation-service/`)
 
-### 6.1 Entity Relationship Diagram (Schema)
+Go microservice (Phase 2, partially implemented). Called by `grading.py` via HTTP and WebSocket.
 
-```mermaid
-erDiagram
-    %% --- Primary Entities ---
-    User {
-        string user_id PK
-        string email
-    }
+Applies K8s manifests, waits for pod readiness, runs validation scripts, returns structured results.
 
-    LearningUnit {
-        ObjectId _id PK "Public Content ID"
-        string title
-        string slug "Unique URL identifier"
-        string topic
-        int order_index
-        string type "Enum: conceptual or coding_exercise"
-        string description_md
-        array steps "Optional: Checklist items"
-        object[] quizzes "Embedded: Questions Only"
-        object editor_config "Embedded: Init code"
-    }
+Terminal pod states trigger immediate error (no waiting): `ImagePullBackOff`, `CrashLoopBackOff`,
+`OOMKilled`, `ErrImagePull`, and 7 others. `WaitForResources` in `pkg/k8s/client.go` handles all
+terminal states.
 
-    UnitSolution {
-        ObjectId _id PK
-        ObjectId unit_id FK "Links to LearningUnit"
-        map quiz_answers "Private: Answer Key"
-        object code_solution "Private: Solution Files"
-        string validation_script "Private: Hidden Script"
-    }
-
-    UserProgress {
-        ObjectId _id PK
-        string user_id FK
-        ObjectId unit_id FK
-        string status "Enum: started or completed"
-        int score
-        datetime completed_at
-    }
-
-    %% --- Ephemeral Store (Redis) ---
-    RedisDraft {
-        string key PK "draft:user_id:unit_id"
-        json value "Temporary UI State"
-        int ttl "30 days"
-    }
-
-    %% --- Relationships ---
-    LearningUnit ||--|| UnitSolution : "Has corresponding private data"
-    User ||--o{ UserProgress : "Tracks progress of"
-    LearningUnit ||--o{ UserProgress : "Is tracked in"
-
-    %% Fixed dashed lines below: Added '||' and 'o{' markers
-    User ||..o{ RedisDraft : "Temporarily saves state to"
-    LearningUnit ||..o{ RedisDraft : "State belongs to unit context"
-```
-
-### 6.2 Simplified Data Flow (Submission)
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant API as FastAPI
-    participant PrivateDB as MongoDB (Private)
-    participant ProgressDB as MongoDB (Progress)
-
-    Note over User: User clicks "Submit Quiz"
-    User->>API: POST /submit {answers}
-
-    API->>PrivateDB: Fetch Answer Key
-    PrivateDB-->>API: Returns {q1: "opt_a", q2: "opt_b"}
-
-    Note over API: Backend grades the answers.<br/>Client NEVER sees the key.
-
-    API->>ProgressDB: Save Score (e.g. 100%)
-    API-->>User: Return Result {passed: true}
-
-```
-
----
-
-## 7. Current Design Assessment (Hybrid Architecture)
-
-### 7.1 Architecture Overview
-
-The current implementation uses a **hybrid database architecture**:
-
-* **MongoDB:** Stores learning content, user progress, and user solutions
-* **SQLite (RDBMS):** Stores IAM (authentication) and activity tracking/analytics
-
-This separation creates a dual-database system where:
-
-* User completes quiz → MongoDB (`user_progress`) updated with status/score
-* Activity logged → SQLite (`activity_log`, `user_activity`, `user_streaks`) updated with analytics
-
-### 7.2 Strengths of Current Design
-
-#### ✅ Separation of Concerns
-
-* **MongoDB:** Optimized for flexible schemas, document-based learning content and progress tracking
-* **RDBMS:** Optimized for normalized data, complex aggregations, and analytics queries
-* Clear domain boundaries between OLTP (transactional) and OLAP (analytical) workloads
-
-#### ✅ Query Optimization
-
-* **Progress Queries:** Fast document lookups in MongoDB using `user_id` + `unit_id`
-* **Analytics Queries:** Efficient SQL aggregations (SUM, AVG, COUNT) with proper indexes
-* Each database handles workload it's designed for
-
-#### ✅ Perfect for Local Deployment
-
-* **Single User Per Instance:** No multi-tenancy complexity or contention
-* **SQLite Adequate:** File-based database perfect for local deployment volume
-* **Simple Operations:** No distributed systems complexity
-* **Dual-Write Manageable:** Sequential writes acceptable for single-user load
-
-#### ✅ Development Velocity
-
-* Familiar SQL for analytics (heatmaps, streaks, leaderboards)
-* MongoDB flexibility for evolving learning content schemas
-* Industry-standard patterns (JWT, bcrypt, refresh tokens)
-
-### 7.3 Scalability Concerns (Cloud/Multi-Tenant Scenarios)
-
-#### ❌ Dual-Write Problem (Consistency)
-
-**Issue:** No distributed transaction support across MongoDB and RDBMS.
-
-```
-User Action Flow:
-1. POST /api/grading/quiz/submit
-   ├─ Write 1: MongoDB.user_progress (status=completed) ✓
-   └─ Write 2: POST /api/auth/activity
-        ├─ RDBMS.activity_log ✗ (Network failure)
-        ├─ RDBMS.user_activity (not reached)
-        └─ RDBMS.user_streaks (not reached)
-
-Result: Inconsistent state (quiz marked complete but no analytics logged)
-```
-
-**Impact:**
-
-* No ACID guarantees across databases
-* Partial failures create data inconsistencies
-* Manual reconciliation required
-
-#### ❌ Write Amplification
-
-**Issue:** Single user action triggers multiple database writes.
-
-```
-Quiz Completion = 4 Database Operations:
-├─ 1 MongoDB write (user_progress)
-├─ 1 RDBMS insert (activity_log)
-├─ 1 RDBMS upsert (user_activity)
-└─ 1 RDBMS upsert (user_streaks)
-
-At Scale:
-1M users × 5 activities/day = 20M DB operations/day
-= 231 writes/second (average)
-= Peak traffic spikes much higher
-```
-
-**Impact:**
-
-* Increased latency (sequential writes)
-* Higher infrastructure costs
-* Database contention under load
-
-#### ❌ Cross-Database Query Limitations
-
-**Issue:** Cannot perform joins across MongoDB and RDBMS.
-
-**Example Constraint:**
-Queries requiring data from both databases (e.g., "users who completed unit X
-today AND have >20 points") cannot use native database joins.
-
-**Current Solution:**
-
-* Application-level joins (sequential queries)
-* N+1 query pattern when iterating results
-
-**Impact:**
-
-* Multiple database round trips for complex queries
-* Application logic for data merging
-* Acceptable for local hosting, problematic for cloud scale
-
-**Trade-off:** Performance hit on complex queries acceptable given local
-deployment model and benefit of specialized database strengths.
-
-#### ❌ Analytics Bottleneck
-
-**Issue:** RDBMS struggles with high-volume analytics queries.
-
-```
-Heatmap Query (365 days per user):
-At 1M users:
-├─ user_activity table: 365M rows/year
-├─ Indexes help but still scanning millions
-└─ Concurrent queries = lock contention
-
-Aggregation Queries:
-├─ SUM(), AVG(), COUNT() across millions of rows
-├─ Even with indexes, requires table scans
-└─ Slow for real-time dashboards
-```
-
-**Impact:**
-
-* Slow query response times
-* Database locks under concurrent load
-* Complex partitioning/sharding required
-
-#### ❌ Operational Complexity
-
-**Issue:** Managing two database systems in production.
-
-```
-Operational Burden:
-├─ Separate backup strategies
-├─ Different monitoring tools
-├─ Dual connection pools
-├─ Two failure modes to handle
-└─ Complex disaster recovery
-```
-
-**Impact:**
-
-* Higher operational overhead
-* More failure points
-* Increased infrastructure complexity
-
----
-
-## 8. Deployment Model & Architecture Boundaries
-
-### 8.1 Design Scope
-
-This application is **explicitly scoped for local deployment only**. It is NOT
-designed for cloud hosting, multi-tenancy, or horizontal scaling.
-
-**Intended Use Case:**
-
-* **Single-user desktop application** (Docker Compose)
-* **Personal learning environment** with user-owned data
-* **AI-generated custom courses** seeded locally
-* **No network requirements** beyond initial setup
-
-**Out of Scope:**
-
-* ❌ Cloud hosting (AWS, GCP, Azure)
-* ❌ Multi-tenant SaaS architecture
-* ❌ Horizontal scaling (millions of users)
-* ❌ Distributed systems complexity
-* ❌ Event streaming, message queues, CQRS patterns
-
----
-
-### 8.2 Architecture Optimizations for Local Hosting
-
-The hybrid architecture leverages local deployment advantages:
-
-#### Database Strategy
-
-**SQLite for Catalog & IAM:**
-
-* ✅ **Fast file-based access** (no network overhead)
-* ✅ **ACID transactions** for authentication and course structure
-* ✅ **Perfect for single-writer** workloads
-* ✅ **Zero configuration** (no database server required)
-* ✅ **Embeddable** (ships with Python standard library)
-
-**MongoDB for Content:**
-
-* ✅ **Flexible schema** for AI-generated course variations
-* ✅ **Document model** natural fit for nested quiz structures
-* ✅ **Embedded MongoDB** via Docker (no cloud dependencies)
-
-**Redis for Ephemeral State:**
-
-* ✅ **In-memory performance** for high-frequency autosave (every 3-5s)
-* ✅ **TTL-based expiration** (automatic cleanup)
-* ✅ **Simple key-value** model for draft storage
-
-**Why Not PostgreSQL?**
-
-* Overkill for single-user workloads
-* Requires separate database server process
-* SQLite sufficient for local catalog queries (<10ms)
-* No multi-writer concurrency needed
-
-**Why Not MongoDB Only?**
-
-* Course browsing 20-25x slower without SQLite catalog optimization
-* SQLite provides better performance for hierarchical queries
-* Hybrid approach uses each database's strengths
-
----
-
-### 8.3 Performance Characteristics
-
-**Local Deployment Performance (Docker on SSD):**
-
-| Operation | Response Time | Database |
-|-----------|---------------|----------|
-| Course list | 5ms | SQLite |
-| Chapter grid with progress | 35ms | SQLite + MongoDB |
-| Unit content fetch | 15ms | MongoDB |
-| Quiz submission | 50ms | MongoDB |
-| Draft autosave | <10ms | Redis |
-
-**Hardware Requirements:**
-
-* **RAM:** 2GB minimum (Docker containers + databases)
-* **Storage:** 500MB for application + user-generated content
-* **CPU:** Any modern processor (single-core sufficient)
-
-**Scaling Limits (Local Hosting):**
-
-* **Courses:** Unlimited (limited by disk space)
-* **Units per course:** Thousands (MongoDB indexes prevent performance degradation)
-* **Draft storage:** 30-day TTL prevents Redis bloat
-* **Activity logs:** SQLite handles years of single-user activity
-
----
-
-### 8.4 Data Ownership & Privacy
-
-**User-Controlled Environment:**
-
-* All data stored locally on user's machine
-* No telemetry, analytics, or cloud sync
-* User owns all AI-generated course content
-* Complete offline capability after initial setup
-
-**Volume Mounting Strategy:**
-
-```
-docker-compose.yml:
-├─ ./data/sqlite:/app/data        # User database (IAM, catalog)
-├─ ./data/mongodb:/data/db        # Learning content (persistent)
-├─ ./user-courses:/courses        # AI-generated YAMLs (read-only)
-└─ redis (no volume)              # Ephemeral drafts only
-```
-
-**Backup Strategy:**
-
-* User-initiated: Copy `./data` directory
-* Export courses: Standard YAML format (portable)
-* No vendor lock-in: Open-source stack
-
----
-
-### 8.5 Why This Design is Correct for the Scope
-
-**Architectural Decisions Justified:**
-
-1. **Hybrid Database (SQLite + MongoDB + Redis)**
-   * ✅ Optimizes each workload with specialized tools
-   * ✅ Total resource footprint <500MB RAM
-   * ✅ Zero operational complexity for end users
-
-2. **Dual-Write Pattern (MongoDB + SQLite)**
-   * ✅ Acceptable for single-user (no concurrency issues)
-   * ✅ Sequential writes fast enough (<50ms)
-   * ✅ No distributed transaction overhead needed
-
-3. **No Event Streaming**
-   * ✅ Direct database writes simpler and faster
-   * ✅ No Kafka/RabbitMQ operational burden
-   * ✅ Eventual consistency unnecessary for single user
-
-4. **Split-Brain Security Architecture**
-   * ✅ Answer keys never leave backend (client-safe)
-   * ✅ Code Runner isolated (prevents malicious execution)
-   * ✅ Trust boundary matches threat model
-
-**Trade-offs Made:**
-
-* ❌ Cannot horizontally scale (not a requirement)
-* ❌ SQLite limits multi-writer scenarios (not a use case)
-* ❌ No cloud-native features (out of scope)
-* ✅ Simple deployment model (Docker Compose)
-* ✅ Blazing fast performance (local queries)
-* ✅ Zero operational overhead (no servers to manage)
-
----
-
-### 8.6 Migration Path (If Scope Changes)
-
-**⚠️ Important:** This section is purely hypothetical. Current design is intentionally NOT cloud-ready.
-
-**If pivoting to cloud/multi-tenant SaaS (complete rearchitecture required):**
-
-1. **Database Replacement:**
-   * PostgreSQL replaces SQLite (multi-writer support)
-   * MongoDB Atlas or self-hosted cluster (horizontal scaling)
-   * Redis Cluster (distributed caching)
-
-2. **Application Changes:**
-   * Multi-tenant data isolation (tenant_id in all queries)
-   * Distributed transactions or saga pattern (dual-write problem)
-   * Event streaming for activity tracking (Kafka/RabbitMQ)
-   * API authentication changes (OAuth2, API keys)
-
-3. **Infrastructure:**
-   * Container orchestration (Kubernetes)
-   * Load balancers (HAProxy, NGINX)
-   * CDN for static assets (CloudFront, Cloudflare)
-   * Monitoring stack (Prometheus, Grafana)
-
-**Estimated Effort:** 6-12 months complete rewrite.
-
-**Recommendation:** Do NOT attempt cloud migration. Design philosophy
-fundamentally incompatible with cloud requirements. Better to build
-cloud-native application from scratch if needed.
-
----
-
-### 8.7 Verdict
-
-**Current Design Assessment:**
-
-* ✅ **Perfect** for single-user desktop learning environments
-* ✅ **Optimized** for local performance (5-50ms queries)
-* ✅ **Simple** Docker Compose deployment (zero configuration)
-* ✅ **Secure** split-brain architecture prevents cheating
-* ✅ **Flexible** AI-generated content support
-* ✅ **Private** user-owned data (no cloud dependencies)
-
-**Architecture is intentionally LOCAL-FIRST:**
-
-* Embraces local file system speed (SQLite)
-* Eliminates network latency (embedded databases)
-* Removes operational complexity (no servers to manage)
-* Maximizes user privacy (no data leaves machine)
-
-**This is a feature, not a limitation.** The architecture achieves its design goals perfectly within the defined scope.
-
----
-
-## 9. Security & Operations
-
-### 9.1 Authentication & Authorization
-
-* **Access Tokens:** JWT (60min expiry)
-* **Refresh Tokens:** 7-day sliding window
-* **Password Hashing:** bcrypt (cost factor 12)
-* **Authentication Details:** See [IAM.md](./IAM.md)
-
-### 9.2 Rate Limiting
-
-| Endpoint | Limit | Rationale |
-|----------|-------|-----------|
-| `POST /submit` | 5 req/min | Prevent brute-force quiz attacks |
-| `POST /seed/populate` | Unlimited | Local hosting, single user |
-| Code execution | Queue-based | Prevent Runner service overload |
-
-### 9.3 Health Monitoring
-
-**Endpoint:** `GET /health`
-
-**Checks:**
-
-* SQLite connectivity
-* MongoDB connectivity  
-* Redis connectivity
-
-**Returns:** 503 if any database unavailable (used by Docker Compose health checks)
-
----
-
-**Document Version Control:**
-* v1.x: Original implementation guide (before refactoring to TDD standards)
-
-**Related Documentation:**
-
-* [IAM.md](./IAM.md) - Authentication and activity tracking design
-* [Logging.md](./Logging.md) - Structured logging standard (ECS-compliant)
+Failed runs leave the namespace alive for user inspection. Only passing runs trigger cleanup.
+Config: `validation-service/config/config.yaml`.

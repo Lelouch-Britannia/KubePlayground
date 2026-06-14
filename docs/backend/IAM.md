@@ -1,7 +1,7 @@
 # Identity and Access Management
 
-**Version:** 1.0
-**Last Updated:** February 6, 2026  
+**Version:** 2.0
+**Last Updated:** June 2026
 **Document Type:** Technical Design Document (Architecture & Design Decisions)
 
 ---
@@ -229,6 +229,8 @@ erDiagram
     users ||--|| user_streaks : "has"
     users ||--o{ activity_log : "logs"
     courses ||--o{ topics : "contains"
+    users ||--o{ user_enrollments : "enrolls in"
+    courses ||--o{ user_enrollments : "enrolled by"
 
     users {
         INTEGER id PK "Auto-increment"
@@ -305,6 +307,15 @@ erDiagram
         INTEGER units_count "Cached count"
         TIMESTAMP created_at
         TIMESTAMP updated_at
+    }
+
+    user_enrollments {
+        INTEGER id PK "Auto-increment"
+        INTEGER user_id FK "users.id"
+        INTEGER course_id FK "courses.id"
+        TEXT status "Enum: active or paused"
+        TIMESTAMP enrolled_at
+        TIMESTAMP last_accessed_at
     }
 ```
 
@@ -425,14 +436,13 @@ ELSE:
 
 **Activity Type Taxonomy:**
 
-- `quiz_submission` - Any quiz attempt (recorded regardless of pass/fail)
-- `exercise_start` - User opened coding exercise
-- `exercise_complete` - User completed exercise validation
+- `exercise_attempted` — Coding unit submission (pass or fail)
+- `exercise_completed` — Theory unit marked as read, or coding unit passed
 
 **Metadata Strategy:**
 
 - JSON blob stored as TEXT (SQLite has no native JSON type)
-- Contains quiz answers, scores, execution results
+- Contains submission results, execution output
 - Enables detailed analytics without schema changes
 
 **Cross-Database Integration:**
@@ -470,7 +480,25 @@ ELSE:
 
 - MongoDB `learning_units.topic_id` references `topics.id`
 - Application validates before MongoDB writes
-- See: `TECHNICAL_DESIGN.md` Section 3.4-3.6 for course hierarchy and seeding workflow
+
+#### 4.2.7 User Enrollments Table
+
+**Purpose:** Track which courses a user is enrolled in and their current status
+
+**Schema:** `auth/models.py - UserEnrollment`
+
+**Key Design Decisions:**
+
+- `status` is `active` or `paused` — only one active enrollment per user enforced by application logic
+- `last_accessed_at` updated on every unit open via `PATCH /{slug}/access`
+- Deleting enrollment row does **not** cascade to `UserProgress` (unit completions preserved)
+- Composite unique constraint on `(user_id, course_id)` prevents duplicate enrollments
+
+**Status Transitions:**
+
+- Enroll → insert with `status=active`; any existing active row set to `paused` atomically
+- Set active → same auto-pause logic for other active enrollments
+- Unenroll → DELETE row; progress in MongoDB unaffected
 
 ### 4.3 Foreign Key Relationships
 
@@ -481,6 +509,8 @@ ELSE:
 - `user_streaks.user_id` → `users.id` (CASCADE DELETE)
 - `activity_log.user_id` → `users.id` (CASCADE DELETE)
 - `topics.course_id` → `courses.id` (CASCADE DELETE)
+- `user_enrollments.user_id` → `users.id` (CASCADE DELETE)
+- `user_enrollments.course_id` → `courses.id` (CASCADE DELETE)
 
 **Cross-Database (SQLite ↔ MongoDB):**
 
@@ -506,38 +536,15 @@ ELSE:
 
 ### 5.1 Points System
 
-**Points Awarded:**
+**Status: Commented out.** Scoring fields exist in models but are zeroed. Points are not awarded.
+Markers `# scoring feature commented out` throughout codebase. Do not re-enable without confirmation.
 
-| Activity | Base Points | Bonus Calculation | First-Pass Only |
-|----------|-------------|-------------------|-----------------|
-| Quiz submission | 0 | `floor(score_percentage / 10)` | No (per attempt) |
-| Quiz pass (score ≥ 70%) | 0 | `+15` on first pass only | **Yes** |
-| Exercise start | 0 | None | N/A |
-| Exercise complete | 0 | None | N/A |
-
-**Implementation:** `routers/grading.py - submit_quiz()`
-
-**First-Pass Detection Algorithm:**
-
-```
-Query activity_log for previous passing attempts
-IF no previous pass AND current score >= 70%:
-    Award points = floor(score / 10)
-    Mark as first-pass in activity_log
-ELSE:
-    Award 0 points (retake attempt)
-```
-
-**Design Rationale:**
-
-- **Prevents point farming** - Users can't retake easy quizzes for points
-- **Audit trail** - All attempts logged for anomaly detection
-- **Future extensibility** - Points formula can incorporate difficulty multipliers
-- **Trade-off** - Additional query per submission (acceptable for learning platform workload)
+Quiz submission endpoint is also commented out — activity is written only for coding unit
+submissions and theory unit completions.
 
 ### 5.2 Daily Aggregation
 
-**Implementation:** `routers/grading.py - submit_quiz()`
+**Implementation:** `routers/grading.py - _log_activity()` and `routers/progress.py`
 
 **Upsert Pattern:**
 
@@ -545,7 +552,7 @@ ELSE:
 Normalize current time to UTC midnight (date only)
 Query user_activity for (user_id, today)
 IF record exists:
-    Increment counters (quiz_attempts, quiz_passes, total_points)
+    Increment counters (exercises_completed, total_points)
 ELSE:
     Insert new daily record with initial values
 Commit transaction
@@ -560,7 +567,7 @@ Commit transaction
 
 ### 5.3 Streak Calculation
 
-**Update Trigger:** Every activity submission (quiz, exercise)
+**Update Trigger:** Every coding unit submission and every theory unit Mark as Read
 
 **Implementation:** See Section 4.2.4 for algorithm description
 
@@ -629,4 +636,5 @@ This standalone HTML documentation includes:
 ---
 
 **Document Version Control:**
+
 - v1.0 (Feb 6, 2026): Initial technical documentation
