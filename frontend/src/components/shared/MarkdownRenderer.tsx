@@ -54,64 +54,133 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
           );
         }
 
-        return (
-          <div key={index}>
-            {part.split('\n').map((line, lineIdx) => {
-              const trimmed = line.trim();
-              if (!trimmed) return <div key={lineIdx} className="h-2" />;
+        {
+          const isSeparator = (l: string) => /^\|[\s|:\-]+\|$/.test(l.trim());
+          const parseCells = (l: string) =>
+            l.trim().split('|').slice(1, -1).map((c) => c.trim());
 
-              if (trimmed.startsWith('### ')) {
-                return (
-                  <h3
-                    key={lineIdx}
-                    className="text-base font-semibold text-[#4ec9b0] mt-5 mb-2"
-                  >
-                    {trimmed.replace('### ', '')}
-                  </h3>
-                );
+          type Segment =
+            | { type: 'table'; lines: string[] }
+            | { type: 'text'; line: string };
+
+          const segments: Segment[] = [];
+          const rawLines = part.split('\n');
+          let i = 0;
+          while (i < rawLines.length) {
+            if (rawLines[i].trim().startsWith('|')) {
+              const tableLines: string[] = [];
+              while (i < rawLines.length && rawLines[i].trim().startsWith('|')) {
+                tableLines.push(rawLines[i]);
+                i++;
               }
-
-              if (trimmed.startsWith('## ')) {
-                return (
-                  <h2
-                    key={lineIdx}
-                    className="text-lg font-bold text-[#569cd6] mt-6 mb-2"
-                  >
-                    {trimmed.replace('## ', '')}
-                  </h2>
-                );
+              if (tableLines.length >= 2) {
+                segments.push({ type: 'table', lines: tableLines });
+              } else {
+                tableLines.forEach((l) => segments.push({ type: 'text', line: l }));
               }
+            } else {
+              segments.push({ type: 'text', line: rawLines[i] });
+              i++;
+            }
+          }
 
-              if (/^\d+\.\s/.test(trimmed)) {
+          return (
+            <div key={index}>
+              {segments.map((seg, segIdx) => {
+                if (seg.type === 'table') {
+                  const nonSep = seg.lines.filter((l) => !isSeparator(l));
+                  const headerRow = nonSep[0];
+                  const bodyRows = nonSep.slice(1);
+                  const headerCells = parseCells(headerRow);
+                  return (
+                    <table key={segIdx} className="w-full border-collapse text-sm my-4">
+                      <thead>
+                        <tr>
+                          {headerCells.map((cell, ci) => (
+                            <th
+                              key={ci}
+                              className="border border-[#3e3e42] px-3 py-1.5 text-left text-[#569cd6] bg-[#2d2d30] font-semibold"
+                            >
+                              {parseInline(cell)}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bodyRows.map((row, ri) => (
+                          <tr key={ri} className={ri % 2 === 0 ? 'bg-[#1e1e1e]' : 'bg-[#252526]'}>
+                            {parseCells(row).map((cell, ci) => (
+                              <td
+                                key={ci}
+                                className="border border-[#3e3e42] px-3 py-1.5 text-[#cccccc]"
+                              >
+                                {parseInline(cell)}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  );
+                }
+
+                const line = seg.line;
+                const trimmed = line.trim();
+                if (!trimmed) return <div key={segIdx} className="h-2" />;
+
+                if (trimmed.startsWith('### ')) {
+                  return (
+                    <h3
+                      key={segIdx}
+                      className="text-base font-semibold text-[#4ec9b0] mt-5 mb-2"
+                    >
+                      {trimmed.replace('### ', '')}
+                    </h3>
+                  );
+                }
+
+                if (trimmed.startsWith('## ')) {
+                  return (
+                    <h2
+                      key={segIdx}
+                      className="text-lg font-bold text-[#569cd6] mt-6 mb-2"
+                    >
+                      {trimmed.replace('## ', '')}
+                    </h2>
+                  );
+                }
+
+                if (/^\d+\.\s/.test(trimmed)) {
+                  return (
+                    <li
+                      key={segIdx}
+                      className="ml-5 mb-1 list-decimal list-outside marker:text-[#c586c0] text-sm leading-relaxed"
+                    >
+                      {parseInline(trimmed.replace(/^\d+\.\s/, ''))}
+                    </li>
+                  );
+                }
+
+                if (trimmed.startsWith('- ')) {
+                  return (
+                    <li
+                      key={segIdx}
+                      className="ml-5 mb-1 list-disc list-outside marker:text-[#c586c0] text-sm leading-relaxed"
+                    >
+                      {parseInline(trimmed.replace(/^-\s/, ''))}
+                    </li>
+                  );
+                }
+
                 return (
-                  <li
-                    key={lineIdx}
-                    className="ml-5 mb-1 list-decimal list-outside marker:text-[#c586c0] text-sm leading-relaxed"
-                  >
-                    {parseInline(trimmed.replace(/^\d+\.\s/, ''))}
-                  </li>
+                  <p key={segIdx} className="mb-2 text-sm leading-relaxed">
+                    {parseInline(line)}
+                  </p>
                 );
-              }
-
-              if (trimmed.startsWith('- ')) {
-                return (
-                  <li
-                    key={lineIdx}
-                    className="ml-5 mb-1 list-disc list-outside marker:text-[#c586c0] text-sm leading-relaxed"
-                  >
-                    {parseInline(trimmed.replace(/^-\s/, ''))}
-                  </li>
-                );
-              }
-
-              return (
-                <p key={lineIdx} className="mb-2 text-sm leading-relaxed">
-                  {parseInline(line)}
-                </p>
-              );
-            })}
-          </div>
-        );
+              })}
+            </div>
+          );
+        }
       })}
     </div>
   );
